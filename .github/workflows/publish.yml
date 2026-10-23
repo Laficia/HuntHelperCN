@@ -26,6 +26,7 @@ jobs:
                       raise RuntimeError('Unsafe source archive path')
               z.extractall('.')
           PY
+          git restore --source=HEAD -- .github/workflows
           cp README-CN.md README.md
       - name: Commit published source
         run: |
