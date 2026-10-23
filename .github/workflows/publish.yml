@@ -13,7 +13,12 @@ jobs:
           sha256sum -c SHA256SUMS.txt
           cp latest.zip "$RUNNER_TEMP/latest.zip"
           python3 - <<'PY'
-          import zipfile, pathlib
+          import json, os, pathlib, re, zipfile
+          version = json.loads(pathlib.Path('pluginmaster.json').read_text(encoding='utf-8'))[0]['AssemblyVersion']
+          if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', version):
+              raise RuntimeError('Invalid release version')
+          with open(os.environ['GITHUB_ENV'], 'a') as env:
+              env.write(f'VERSION={version}\n')
           with zipfile.ZipFile('source.zip') as z:
               for name in z.namelist():
                   p = pathlib.PurePosixPath(name)
@@ -28,10 +33,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git rm source.zip latest.zip
           git add -A
-          git commit -m 'Publish HuntHelperCN 1.0.0.35 source and index'
+          git commit -m "Publish HuntHelperCN $VERSION source and index"
           git push origin HEAD:main
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v1.0.0.35 "$RUNNER_TEMP/latest.zip" SHA256SUMS.txt --title 'HuntHelperCN 1.0.0.35' --notes-file release-notes.zh-CN.md --target "$(git rev-parse HEAD)"
+          gh release create "v$VERSION" "$RUNNER_TEMP/latest.zip" SHA256SUMS.txt --title "HuntHelperCN $VERSION" --notes-file release-notes.zh-CN.md --target "$(git rev-parse HEAD)"
