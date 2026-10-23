@@ -4,6 +4,21 @@ using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using HuntHelper.Managers.Hunts.Models;
 
+namespace Dalamud.Bindings.ImGui
+{
+    [Flags] public enum ImGuiWindowFlags { NoScrollbar = 1, NoTitleBar = 2 }
+}
+
+namespace Dalamud.Configuration
+{
+    public interface IPluginConfiguration { int Version { get; set; } }
+}
+
+namespace Dalamud.Plugin
+{
+    public interface IDalamudPluginInterface { void SavePluginConfig(Dalamud.Configuration.IPluginConfiguration config); }
+}
+
 namespace Dalamud.Game.ClientState.Objects.Types
 {
     public interface IBattleNpc

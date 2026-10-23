@@ -8,6 +8,7 @@ using HuntHelper.Managers.Hunts;
 using HuntHelper.Managers.Hunts.Models;
 using HuntHelper.Utilities;
 using Newtonsoft.Json;
+using HuntHelper;
 
 internal static class Program
 {
@@ -32,6 +33,8 @@ internal static class Program
             ("invalid sharing leaves the supplied fallback intact", Sync(InvalidSharing)),
             ("navigation requires same world/map/instance", Sync(NavigationLocations)),
             ("navigation coordinate inverse and invalid inputs", Sync(NavigationCoordinates)),
+            ("legacy invisible map settings repair once without erasing preferences", Sync(MapVisibilityMigration)),
+            ("map cache survives upgrades without replacing valid current images", Sync(MapCacheMigration)),
             ("downloads reuse cache and atomically save successes", DownloadCache),
             ("failed refreshes preserve existing map images", DownloadFailure),
             ("cancellation preserves cache and removes temporary files", DownloadCancellation),
@@ -276,6 +279,47 @@ internal static class Program
 
     // Transport fixtures satisfy the downloader's JPEG marker check; image decoding is outside this harness.
     private static readonly byte[] Jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 2, 0xff, 0xd9];
+
+    private static void MapVisibilityMigration()
+    {
+        var config = JsonConvert.DeserializeObject<Configuration>("""
+            {"MapImageOpacityAsPercentage":1,"UseMapImages":true,
+             "PresetOne":{"MapOpacity":1,"UseMap":false,"WindowSize":777},
+             "PresetTwo":{"MapOpacity":60,"UseMap":true},"HuntTrainWorldTabOrder":[102,101]}
+            """)!;
+        True(config.RepairLegacyMapImageVisibility());
+        Equal(100f, config.MapImageOpacityAsPercentage);
+        Equal(100f, config.PresetOne.MapOpacity);
+        Equal(60f, config.PresetTwo.MapOpacity);
+        Equal(777, config.PresetOne.WindowSize);
+        True(!config.PresetOne.UseMap);
+        Sequence(new uint[] { 102, 101 }, config.HuntTrainWorldTabOrder);
+        config.MapImageOpacityAsPercentage = 0; // A later deliberate choice must remain valid.
+        var reloaded = JsonConvert.DeserializeObject<Configuration>(JsonConvert.SerializeObject(config))!;
+        True(!reloaded.RepairLegacyMapImageVisibility());
+        Equal(0f, reloaded.MapImageOpacityAsPercentage);
+        var custom = new Configuration { MapImageOpacityAsPercentage = 55 };
+        custom.RepairLegacyMapImageVisibility();
+        Equal(55f, custom.MapImageOpacityAsPercentage);
+        Equal(100f, new Configuration().PresetOne.MapOpacity);
+    }
+
+    private static void MapCacheMigration()
+    {
+        using var oldCache = new TemporaryDirectory();
+        using var persistentCache = new TemporaryDirectory();
+        var newer = Jpeg.Concat(new byte[] { 0xff, 0xd9 }).ToArray();
+        File.WriteAllBytes(Path.Combine(oldCache.Path, "fresh-data.jpg"), Jpeg);
+        File.WriteAllBytes(Path.Combine(oldCache.Path, "keep-data.jpg"), Jpeg);
+        File.WriteAllBytes(Path.Combine(oldCache.Path, "broken-data.jpg"), [1, 2, 3]);
+        File.WriteAllBytes(Path.Combine(persistentCache.Path, "keep-data.jpg"), newer);
+        Equal(1, ImageDownloader.ImportCachedImages(oldCache.Path, persistentCache.Path));
+        Sequence(Jpeg, File.ReadAllBytes(Path.Combine(persistentCache.Path, "fresh-data.jpg")));
+        Sequence(newer, File.ReadAllBytes(Path.Combine(persistentCache.Path, "keep-data.jpg")));
+        True(!File.Exists(Path.Combine(persistentCache.Path, "broken-data.jpg")));
+        Equal(0, ImageDownloader.ImportCachedImages(oldCache.Path, persistentCache.Path));
+        Sequence(Jpeg, File.ReadAllBytes(Path.Combine(oldCache.Path, "fresh-data.jpg")));
+    }
 
     private static async Task DownloadCache()
     {

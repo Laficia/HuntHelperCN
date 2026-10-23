@@ -33,6 +33,7 @@ namespace HuntHelper
         private const string DebugCommand = "/hhdebug";
         [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
         private ICommandManager CommandManager { get; init; }
+        private IDalamudPluginInterface PluginInterface { get; init; }
         private Configuration Configuration { get; init; }
         private MapUI MapUi { get; init; }
         private HuntTrainUI HuntTrainUI { get; init; }
@@ -70,6 +71,7 @@ namespace HuntHelper
             IAetheryteList aeth)
         {
             this.CommandManager = commandManager;
+            PluginInterface = pluginInterface;
 
             PluginLog.Logger = pluginLog;
 
@@ -86,6 +88,7 @@ namespace HuntHelper
 
             Configuration = pluginInterface.GetPluginConfig() as Configuration ?? LegacyDataMigration.TryLoadConfiguration(pluginInterface) ?? new Configuration();
             Configuration.Initialize(pluginInterface);
+            if (Configuration.RepairLegacyMapImageVisibility()) Configuration.Save();
             if (!Configuration.AutoMapImagesInitialized)
             {
                 Configuration.UseMapImages = true;
@@ -130,12 +133,15 @@ namespace HuntHelper
             CommandManager.AddHandler(SpawnPointCommand, new CommandInfo(SpawnPointWindowCommand) { HelpMessage = GuiResources.PluginText["/hhr helpmessage"] });
 
             pluginInterface.UiBuilder.Draw += DrawUI;
-            pluginInterface.UiBuilder.OpenConfigUi += DrawConfigUI;
-            pluginInterface.UiBuilder.OpenMainUi += HuntMapCommandGetRidOfValidationMsg;
+            pluginInterface.UiBuilder.OpenConfigUi += OpenMapUI;
+            pluginInterface.UiBuilder.OpenMainUi += OpenHuntTrainUI;
         }
 
         public void Dispose()
         {
+            PluginInterface.UiBuilder.Draw -= DrawUI;
+            PluginInterface.UiBuilder.OpenConfigUi -= OpenMapUI;
+            PluginInterface.UiBuilder.OpenMainUi -= OpenHuntTrainUI;
             //save hunttrainui config first
             HuntTrainUI.SaveSettings();
             CounterUI.SaveSettings();
@@ -173,11 +179,14 @@ namespace HuntHelper
             //todo idk delete this or comment out after dawntrail maps done
             if (MapUi.MapVisible) MapUi.CheckMapImageVer();
         }
-        private void HuntMapCommandGetRidOfValidationMsg()
+        private void OpenMapUI()
         {
-            MapUi.MapVisible = !MapUi.MapVisible;
-            Configuration.MapWindowVisible = MapUi.MapVisible;
+            MapUi.MapVisible = true;
+            Configuration.MapWindowVisible = true;
+            MapUi.CheckMapImageVer();
         }
+
+        private void OpenHuntTrainUI() => HuntTrainUI.HuntTrainWindowVisible = true;
 
         private void ApplyPresetOneCommand(string _, string __) => MapUi.ApplyPreset(1);
         private void ApplyPresetTwoCommand(string _, string __) => MapUi.ApplyPreset(2);
@@ -218,9 +227,5 @@ namespace HuntHelper
             }
         }
 
-        private void DrawConfigUI()
-        {
-            MapUi.SettingsVisible = true;
-        }
     }
 }

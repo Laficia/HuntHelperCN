@@ -62,6 +62,21 @@ public class ImageDownloader
         catch (UnauthorizedAccessException) { return false; }
     }
 
+    public static int ImportCachedImages(string sourceFolder, string destinationFolder)
+    {
+        if (!Directory.Exists(sourceFolder)) return 0;
+        var copied = 0;
+        foreach (var source in Directory.EnumerateFiles(sourceFolder, "*-data.jpg"))
+        {
+            var target = Path.Combine(destinationFolder, Path.GetFileName(source));
+            if (IsCachedImageValid(target) || !IsCachedImageValid(source)) continue;
+            Directory.CreateDirectory(destinationFolder);
+            File.Copy(source, target, true);
+            copied++;
+        }
+        return copied;
+    }
+
     private async Task<string> DownloadAsync(HttpClient http, string url, bool replaceExisting, CancellationToken cancellationToken)
     {
         var filename = Path.GetFileName(Uri.UnescapeDataString(new Uri(url).AbsolutePath));

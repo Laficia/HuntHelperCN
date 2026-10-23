@@ -1814,7 +1814,24 @@ namespace HuntHelper.Gui
                     {
                         ImGui.TextUnformatted(_huntManager.NotAllImagesFound
                             ? MapImageText("仍有地图图片缺失。", "Some map images are missing.")
-                            : MapImageText("地图图片已准备好，将自动使用本地缓存。", "Map images are ready and will use the local cache."));
+                            : MapImageText($"已缓存 {_huntManager.CachedMapImageCount} 张地图图片。", $"Cached {_huntManager.CachedMapImageCount} map images."));
+                    }
+                    var currentMap = _mapDataManager.SpawnPointsList.FirstOrDefault(map => map.MapID == _territoryId);
+                    if (currentMap == null)
+                        ImGui.TextWrapped(MapImageText($"当前地区「{_territoryName}」没有配套狩猎底图，请前往野外狩猎地区查看。", $"No hunt background is available for {_territoryName}. Visit a supported hunt zone."));
+                    else if (_huntManager.MapTextureError is { } textureError)
+                        ImGui.TextWrapped(MapImageText($"当前地图纹理加载失败：{textureError}", $"Map texture loading failed: {textureError}"));
+                    else
+                        ImGui.TextWrapped(_hasMapImage
+                            ? MapImageText($"当前地图底图已加载，不透明度 {_mapImageOpacityAsPercentage:0}%。", $"Map background loaded; opacity {_mapImageOpacityAsPercentage:0}%.")
+                            : MapImageText("正在加载当前地图底图；文件缺失时请重试下载。", "Loading the current map background; retry downloads if its file is missing."));
+                    if (ImGui.Button(MapImageText("恢复地图显示", "Restore map display")))
+                    {
+                        _useMapImages = true;
+                        _mapImageOpacityAsPercentage = 100;
+                        _configuration.UseMapImages = true;
+                        _configuration.MapImageOpacityAsPercentage = 100;
+                        _configuration.Save();
                     }
                     if (ImGui.Button(MapImageText("重试缺少的图片", "Retry missing images")))
                         _huntManager.DownloadImages(_mapDataManager.SpawnPointsList);

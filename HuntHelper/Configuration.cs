@@ -23,6 +23,7 @@ namespace HuntHelper
         //window sizes
         public int CurrentWindowSize { get; set; } = 512;
         public float MapImageOpacityAsPercentage { get; set; } = 100f;
+        public bool MapImageVisibilityRepairApplied { get; set; }
 
         //defaults to using client lang file
         public string Language { get; set; } = string.Empty;
@@ -125,8 +126,8 @@ namespace HuntHelper
         public int AFoundCount { get; set; } = 0;
         public int BFoundCount { get; set; } = 0;
 
-        public Preset PresetOne { get; set; } = new Preset() { MapOpacity = 1, UseMap = false, WindowOpacity = 1, WindowSize = 512 };
-        public Preset PresetTwo { get; set; } = new Preset() { MapOpacity = 1, UseMap = false, WindowOpacity = 1, WindowSize = 512 };
+        public Preset PresetOne { get; set; } = new Preset() { MapOpacity = 100, UseMap = true, WindowOpacity = 20, WindowSize = 512 };
+        public Preset PresetTwo { get; set; } = new Preset() { MapOpacity = 100, UseMap = true, WindowOpacity = 20, WindowSize = 512 };
 
         #endregion
 
@@ -182,6 +183,17 @@ namespace HuntHelper
         public void Initialize(IDalamudPluginInterface pluginInterface)
         {
             this._pluginInterface = pluginInterface;
+        }
+
+        public bool RepairLegacyMapImageVisibility()
+        {
+            if (MapImageVisibilityRepairApplied) return false;
+            // Old presets stored 1 as full opacity, but rendering uses a 0..100 percentage.
+            if (MapImageOpacityAsPercentage is >= 0 and <= 1) MapImageOpacityAsPercentage = 100;
+            if (PresetOne.MapOpacity is >= 0 and <= 1) PresetOne.MapOpacity = 100;
+            if (PresetTwo.MapOpacity is >= 0 and <= 1) PresetTwo.MapOpacity = 100;
+            MapImageVisibilityRepairApplied = true;
+            return true;
         }
 
         public void Save()

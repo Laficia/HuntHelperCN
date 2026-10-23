@@ -16,5 +16,7 @@
     <Compile Include="..\..\HuntHelper\Utilities\ExportImport.cs" Link="Production\ExportImport.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\NavigationRules.cs" Link="Production\NavigationRules.cs" />
     <Compile Include="..\..\HuntHelper\Managers\ImageDownloader.cs" Link="Production\ImageDownloader.cs" />
+    <Compile Include="..\..\HuntHelper\Configuration.cs" Link="Production\Configuration.cs" />
+    <Compile Include="..\..\HuntHelper\Preset.cs" Link="Production\Preset.cs" />
   </ItemGroup>
 </Project>

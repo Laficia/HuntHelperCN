@@ -9,7 +9,14 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
-## 更新修正（1.0.0.36）
+## 更新修正（1.0.0.37）
+
+- 修复本机已下载 47 张图片但底图几乎不可见的问题：旧配置和预设中的 0～1% 不透明度在首次升级时恢复为 100%；正常自定义数值和升级后的主动调整会保留。
+- 地图图片保存在国服卫月 `pluginConfigs/HuntHelperCN/MapImages`，启动时自动复用旧版安装目录中的有效地图，后续升级不再丢失缓存。
+- 使用绝对文件路径加载纹理；下载状态显示当前地图是否真正加载、纹理错误或该地区没有狩猎底图，增加「恢复地图显示」按钮。
+- 卫月列表「打开」显示 `/hht` 狩猎车窗口，「设置」显示 `/hh` 狩猎地图窗口。重复点击保持打开；原有聊天命令仍可切换窗口。
+
+## 上一版修正（1.0.0.36）
 
 - 导航按国服 [AtmoOmen/ffxiv_navmesh-cn](https://github.com/AtmoOmen/ffxiv_navmesh-cn) 0.7.7.0（c81ddc20）的 IPC 签名接入。修复固定使用地面寻路的问题：已起飞时使用飞行路径，地面路线将起终点贴合可达网格，空路线最多重试一次。
 - 删除列表的坐标列；当前区服与服务器标签仅显示服务器名称。
@@ -44,14 +51,15 @@ dotnet run --project tests/HuntHelper.NavigationTests -c Release
 仓库的 `Directory.Build.props` 在 SDK 解析引用路径前，将 Windows 下的 `DALAMUD_HOME` 设置为 `%APPDATA%\XIVLauncherCN\addon\Hooks\dev`。
 因此普通编译命令直接引用国服目录；若需明确指定其他安装位置，使用命令行参数 `-p:DALAMUD_HOME=对应路径`。
 
-本次发布使用 `-p:OutputPath=bin/x64/Release36/` 的独立输出目录。
-Release 插件 DLL：`HuntHelper\bin\x64\Release36\HuntHelperCN.dll`。
-完整压缩包：`HuntHelper\bin\x64\Release36\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
+本次发布使用 `-p:OutputPath=bin/x64/Release37/` 的独立输出目录。
+Release 插件 DLL：`HuntHelper\bin\x64\Release37\HuntHelperCN.dll`。
+完整压缩包：`HuntHelper\bin\x64\Release37\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
 
 ## 当前验证范围
 
 Debug、Release 编译通过；上游仍有可空性和未使用字段等编译警告。
-独立回归测试通过：区服记录/导入/持久化/本地下载 17/17 组，导航 IPC 模拟与取消竞态 35/35 项。
+独立回归测试通过：区服记录/导入/持久化/本地下载/配置和缓存迁移 19/19 组，导航 IPC 模拟与取消竞态 35/35 项。
+本机旧版缓存的 47 张 JPEG 已使用 Windows 图像解码器逐一验证成功；游戏内纹理显示仍需实际更新插件后确认。
 测试直接链接生产源码，以最小宿主替身模拟游戏服务；下载测试只使用本机回环 HTTP，不连接游戏或修改已安装插件。
 已核对打包清单的 `DalamudApiLevel=15`、.NET 10 目标及中文资源，并核对实际程序集引用来自上述 `XIVLauncherCN` 目录。
 尚未进行游戏内加载、雷达、计数器、语音或传送联动实测。

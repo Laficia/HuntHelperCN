@@ -69,6 +69,8 @@ public class HuntManager : IDisposable
     public int CompletedImageDownloads => _imageDownloader?.CompletedDownloads ?? 0;
     public int TotalImageDownloads => _imageDownloader?.TotalDownloads ?? 0;
     public int MissingMapImageCount => _expectedMapImages.Count(file => !_cachedMapImages.Contains(file));
+    public string? MapTextureError { get; private set; }
+    public int CachedMapImageCount => _cachedMapImages.Count;
 
 
 
@@ -114,7 +116,22 @@ public class HuntManager : IDisposable
         HuntTrain = new List<HuntTrainMob>();
         ImportedTrain = new List<HuntTrainMob>();
 
-        ImageFolderPath = Path.Combine(_pluginInterface.AssemblyLocation.Directory?.FullName!, @"Images\Maps\");
+        ImageFolderPath = Path.Combine(_pluginInterface.ConfigDirectory.FullName, "MapImages");
+        // Keep downloads across plugin updates. Read old version caches without changing them.
+        try
+        {
+            var assemblyFolder = _pluginInterface.AssemblyLocation.Directory!;
+            ImageDownloader.ImportCachedImages(Path.Combine(assemblyFolder.FullName, "Images", "Maps"), ImageFolderPath);
+            if (assemblyFolder.Parent is { } pluginFolder)
+                foreach (var version in pluginFolder.EnumerateDirectories()
+                    .Where(d => Version.TryParse(d.Name, out _))
+                    .OrderByDescending(d => Version.Parse(d.Name)))
+                    ImageDownloader.ImportCachedImages(Path.Combine(version.FullName, "Images", "Maps"), ImageFolderPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            PluginLog.Warning(ex, "Could not reuse old map cache; missing maps can be downloaded again");
+        }
 
         // Starting this makes the plugin fail to load - on non-windows
         try
@@ -555,13 +572,24 @@ public class HuntManager : IDisposable
 
     public IDalamudTextureWrap? GetMapImage(string mapName)
     {
+        MapTextureError = null;
         if (_imageDownloadsDisposed || DateTime.UtcNow < _mapImageReloadAfter) return null;
         var fileName = GetMapImageFileName(mapName);
         // Cache both present and missing/invalid images. Validation runs at preparation,
         // download completion and explicit retry, never once per rendered frame.
         if (fileName.Length == 0 || !_cachedMapImages.Contains(fileName)) return null;
         var path = Path.Combine(ImageFolderPath, fileName);
-        return Plugin.TextureProvider.GetFromFile(path).GetWrapOrDefault();
+        try
+        {
+            var texture = Plugin.TextureProvider.GetFromFileAbsolute(path);
+            if (texture.TryGetWrap(out var wrap, out var error)) return wrap;
+            MapTextureError = error?.GetBaseException().Message;
+        }
+        catch (Exception error)
+        {
+            MapTextureError = error.GetBaseException().Message;
+        }
+        return null;
     }
 
     private static string GetMapImageFileName(string mapName)
