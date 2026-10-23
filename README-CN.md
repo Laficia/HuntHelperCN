@@ -9,7 +9,14 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
-## 更新修正（1.0.0.38）
+## 更新修正（1.0.0.39）
+
+- `/hht` 窗口最小尺寸从 620×300 降为 360×180（随界面比例缩放），右下角缩放手柄保持可见。可通过拖动缩小或放大；超出窗口高度的内容正常滚动。
+- 窗口「设置」增加宽度、高度及「恢复默认大小」控件，默认尺寸为 520×300；尺寸受游戏视口范围约束，调整后松开鼠标会保存窗口大小和位置。
+- 点击导出图标后可选择「当前服务器」或「全部服务器」。单服码只包含当前所选标签；全服码按标签顺序打包全部记录，导入定制版后仍按服务器隔离。
+- 两种导出范围均沿用原版 GZip + Base64 JSON 分享码格式。原版没有服务器字段，分享给原版用户时建议选择单服码；全服码在原版中按平面列表读取，无法维持区服标签隔离。
+
+## 上一版修正（1.0.0.38）
 
 - 重做服务器标签栏，显示顺序直接跟随保存顺序。按住左键拖到目标标签左半边或右半边松开，可插入到目标之前或之后；移除黄色拖放框和浮动预览，仅保留轻微蓝色目标边框。
 - 右键服务器标签可「选择」「向左移动」「向右移动」「删除该服记录及标签」。拖拽和菜单移动后的顺序均保存到配置。
@@ -55,20 +62,22 @@ dotnet build HuntHelper.sln -c Release
 dotnet run --project tests/HuntHelper.RegressionTests
 dotnet run --project tests/HuntHelper.NavigationTests -c Release
 dotnet run --project tests/HuntHelper.TabUiTests -c Release
+dotnet run --project tests/HuntHelper.SharingTests/ShareCompatibility.csproj -c Release
 ```
 
 仓库的 `Directory.Build.props` 在 SDK 解析引用路径前，将 Windows 下的 `DALAMUD_HOME` 设置为 `%APPDATA%\XIVLauncherCN\addon\Hooks\dev`。
 因此普通编译命令直接引用国服目录；若需明确指定其他安装位置，使用命令行参数 `-p:DALAMUD_HOME=对应路径`。
 
-本次发布使用 `-p:OutputPath=bin/x64/Release38/` 的独立输出目录。
-Release 插件 DLL：`HuntHelper\bin\x64\Release38\HuntHelperCN.dll`。
-完整压缩包：`HuntHelper\bin\x64\Release38\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
+本次发布使用 `-p:OutputPath=bin/x64/Release39/` 的独立输出目录。
+Release 插件 DLL：`HuntHelper\bin\x64\Release39\HuntHelperCN.dll`。
+完整压缩包：`HuntHelper\bin\x64\Release39\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
 
 ## 当前验证范围
 
 Debug、Release 编译通过；上游仍有可空性和未使用字段等编译警告。
-独立回归测试通过：区服记录/导入/持久化/本地下载/配置和缓存迁移/原地重新录制/空标签清理 22/22 组，导航 IPC 模拟与取消竞态 35/35 项。
-使用本机国服 ImGui 绑定及原生运行时，在独立上下文中注入鼠标事件并生成真实控件布局：左右拖拽、实际绘制顺序、移除黄色拖放目标、右键选择、左右移动、删除及空标签消失 7/7 项通过。该检查不创建桌面窗口、不连接游戏。
+独立回归测试通过：区服记录/导入/持久化/本地下载/配置和缓存迁移/原地重新录制/空标签清理/单服与全服导出 23/23 组，导航 IPC 模拟与取消竞态 35/35 项。
+使用本机国服 ImGui 绑定及原生运行时，在独立上下文中注入鼠标事件并生成真实控件布局：标签交互 7 项，原生窗口缩小、放大、紧凑尺寸限制、默认大小按钮和界面缩放适配 5 项，共 12/12 项通过。该检查不创建桌面窗口、不连接游戏。
+使用本机原版 1.0.0.34 对应提交的实际编码器和模型，与定制版进行双向兼容测试，9/9 组通过，覆盖单服和全服导出。
 本机旧版缓存的 47 张 JPEG 已使用 Windows 图像解码器逐一验证成功；游戏内纹理显示仍需实际更新插件后确认。
 测试直接链接生产源码，以最小宿主替身模拟游戏服务；下载测试只使用本机回环 HTTP，不连接游戏或修改已安装插件。
 已核对打包清单的 `DalamudApiLevel=15`、.NET 10 目标及中文资源，并核对实际程序集引用来自上述 `XIVLauncherCN` 目录。

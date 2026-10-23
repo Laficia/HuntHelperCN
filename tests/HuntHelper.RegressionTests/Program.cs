@@ -38,6 +38,7 @@ internal static class Program
             ("server tab drag/menu order survives configuration reload", Sync(ServerTabOrder)),
             ("stationary A rank is rediscovered after deletion and recording restart", Sync(StationaryRecording)),
             ("empty server tabs disappear and deletion stays world scoped", Sync(EmptyServerTabs)),
+            ("single-server and all-server share codes preserve export scope and world isolation", Sync(ExportScopes)),
             ("downloads reuse cache and atomically save successes", DownloadCache),
             ("failed refreshes preserve existing map images", DownloadFailure),
             ("cancellation preserves cache and removes temporary files", DownloadCancellation),
@@ -383,6 +384,30 @@ internal static class Program
         f.Manager.SaveHuntTrainRecord();
         f.Manager.LoadHuntTrainRecord();
         Equal(0, f.Manager.GetWorlds().Count);
+    }
+
+    private static void ExportScopes()
+    {
+        using var f = new TrainFixture();
+        f.Manager.AddMob(Mob(worldPosition: new Vector3(10, 20, 30)));
+        f.VisitedWorld = WorldB;
+        f.Manager.AddMob(Mob(position: new Vector2(30, 31)));
+        f.Manager.AddMob(Mob(2));
+        f.Manager.SelectWorld(102);
+        var selected = ExportImport.Import(f.Manager.ExportSelectedTrain(), new List<HuntTrainMob>());
+        Equal(2, selected.Count);
+        True(selected.All(m => m.WorldID == 102));
+        var allCode = f.Manager.ExportAllTrains(new uint[] { 102, 101 });
+        var all = ExportImport.Import(allCode, new List<HuntTrainMob>());
+        Sequence(new uint[] { 102, 102, 101 }, all.Select(m => m.WorldID));
+        Equal(new Vector3(10, 20, 30), all[2].WorldPosition!.Value);
+        Equal(102u, f.Manager.SelectedWorldId);
+        using var receiver = new TrainFixture();
+        receiver.Manager.Import(allCode); receiver.Manager.ImportTrainAll();
+        Equal(1, receiver.Rows(101).Count);
+        Equal(2, receiver.Rows(102).Count);
+        Equal(1u, receiver.Rows(101)[0].MobID);
+        Equal(1u, receiver.Rows(102)[0].MobID); // Same A rank on different servers must coexist.
     }
 
     private static async Task DownloadCache()

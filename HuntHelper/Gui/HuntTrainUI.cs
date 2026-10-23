@@ -32,8 +32,10 @@ public class HuntTrainUI : IDisposable
     private int _tooltipChangeTime = 400;
 
     #region user customisable - config
-    private Vector2 _huntTrainWindowSize = new Vector2(310, 270);
+    private Vector2 _huntTrainWindowSize = new Vector2(520, 300);
     private Vector2 _huntTrainWindowPos = new Vector2(150, 150);
+    private Vector2 _savedWindowSize;
+    private Vector2 _savedWindowPos;
 
     private bool _showLastSeen = true;
     private bool _useBorder = false;
@@ -91,6 +93,8 @@ public class HuntTrainUI : IDisposable
     {
         _huntTrainWindowSize = _config.HuntTrainWindowSize;
         _huntTrainWindowPos = _config.HuntTrainWindowPos;
+        _savedWindowSize = _huntTrainWindowSize;
+        _savedWindowPos = _huntTrainWindowPos;
         _showLastSeen = _config.HuntTrainShowLastSeen;
         _useBorder = _config.HuntTrainUseBorder;
         _openMap = _config.HuntTrainNextOpensMap;
@@ -134,11 +138,8 @@ public class HuntTrainUI : IDisposable
         ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 10);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 4));
 
-        ImGui.SetNextWindowSize(_huntTrainWindowSize, ImGuiCond.FirstUseEver);
-        ImGui.SetNextWindowSizeConstraints(new Vector2(620, 300) * ImGuiHelpers.GlobalScale, new Vector2(float.MaxValue));
-        ImGui.SetNextWindowPos(_huntTrainWindowPos, ImGuiCond.FirstUseEver);
-
-        if (ImGui.Begin($"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window", ref _huntTrainWindowVisible))
+        if (HuntTrainWindowLayout.Begin($"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
+            ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, ImGuiHelpers.GlobalScale))
         {
             _huntTrainWindowSize = ImGui.GetWindowSize();
             _huntTrainWindowPos = ImGui.GetWindowPos();
@@ -153,6 +154,8 @@ public class HuntTrainUI : IDisposable
 
             if (ImGui.TreeNode($"{GuiResources.HuntTrainGuiText["Settings"]}"))
             {
+                HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale);
+                ImGui.Separator();
                 if (ImGui.TreeNode("cosmetic##iwanttodeletethisbutmaybesomeusersactuallyuseit"))
                 {
                     if (ImGui.BeginTable("settingsalignment", 2))
@@ -248,14 +251,24 @@ public class HuntTrainUI : IDisposable
             ImGui.SetCursorPosX(ImGui.GetWindowSize().X - (80 * ImGuiHelpers.GlobalScale));
             if (ImGuiComponents.IconButton(FontAwesomeIcon.SignOutAlt))
             {
-                //get export code
-                var exportCode = ExportImport.Export(_mobList);
-                //copy to clipboard
-                ImGui.SetClipboardText(exportCode);
-                ChangeCopyText();
+                ImGui.OpenPopup("HuntTrainExportScope");
             }
 
             ImGuiUtil.ImGui_HoveredToolTip(_copyText);
+            if (ImGui.BeginPopup("HuntTrainExportScope"))
+            {
+                ImGui.TextUnformatted("选择导出范围");
+                ImGui.Separator();
+                var selectedName = _trainManager.GetWorlds().FirstOrDefault(w => w.WorldID == _trainManager.SelectedWorldId)?.WorldName ?? "当前服务器";
+                if (ImGui.MenuItem($"当前服务器：{selectedName}（{_mobList.Count} 条）", enabled: _mobList.Count > 0))
+                    CopyExportCode(_trainManager.ExportSelectedTrain());
+                var all = _trainManager.GetAllTrainRecords(_config.HuntTrainWorldTabOrder);
+                if (ImGui.MenuItem($"全部服务器（{all.Select(m => m.WorldID).Distinct().Count()} 服，{all.Count} 条）", enabled: all.Count > 0))
+                    CopyExportCode(_trainManager.ExportAllTrains(_config.HuntTrainWorldTabOrder));
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip("定制版可按服务器恢复。原版不区分区服，分享给原版用户时建议导出单个服务器。");
+                ImGui.EndPopup();
+            }
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
 
             if (ImGuiComponents.IconButton(FontAwesomeIcon.SignInAlt) || _trainManager.ImportFromIPC)
@@ -287,9 +300,20 @@ public class HuntTrainUI : IDisposable
             if (_teleportManager.TeleportPluginNotFound) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["TeleportWindowTitle"]}##ModalPopupWindowThingymajig");
             DrawTeleportPluginNotFoundModal();
 
+            _huntTrainWindowSize = ImGui.GetWindowSize();
+            _huntTrainWindowPos = ImGui.GetWindowPos();
+
         }
-        ImGui.End();
+        HuntTrainWindowLayout.End();
         ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
+        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) &&
+            (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
+        {
+            SaveSettings();
+            _config.Save();
+            _savedWindowSize = _huntTrainWindowSize;
+            _savedWindowPos = _huntTrainWindowPos;
+        }
     }
 
     private void DrawWorldTabs()
@@ -341,6 +365,12 @@ public class HuntTrainUI : IDisposable
     }
 
     private static string FormatWorld(string name, string dataCenter) => name;
+
+    private void CopyExportCode(string code)
+    {
+        ImGui.SetClipboardText(code);
+        ChangeCopyText();
+    }
 
     private void ClampSelection()
     {

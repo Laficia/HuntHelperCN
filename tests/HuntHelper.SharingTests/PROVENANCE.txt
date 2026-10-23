@@ -1,0 +1,6 @@
+Source: https://github.com/img02/HuntHelper
+Pinned commit: c6b85581b5c2980214272a38527ee2aaf4b18e69
+The installed original HuntHelper 1.0.0.34 reports this exact commit in ProductVersion.
+Codec and model match current upstream 0c07d87 without differences.
+Namespace declarations are changed to compile both versions side by side; trailing comment whitespace is normalized. Implementation is unchanged.
+MIT License, Copyright (c) 2022 imaginary-png. Root LICENSE retained.

@@ -265,6 +265,19 @@ public class TrainManager : IDisposable
     public void Import(string importCode) =>
         Import(ExportImport.Import(importCode, new List<HuntTrainMob>()));
 
+    public List<HuntTrainMob> GetAllTrainRecords(IEnumerable<uint>? worldOrder = null)
+    {
+        var orderedWorlds = (worldOrder ?? Enumerable.Empty<uint>())
+            .Concat(_trainsByWorld.Keys.OrderBy(id => id)).Distinct();
+        return orderedWorlds.Where(_trainsByWorld.ContainsKey)
+            .SelectMany(id => _trainsByWorld[id]).ToList();
+    }
+
+    public string ExportSelectedTrain() => ExportImport.Export(HuntTrain.ToList());
+
+    public string ExportAllTrains(IEnumerable<uint>? worldOrder = null) =>
+        ExportImport.Export(GetAllTrainRecords(worldOrder));
+
     // Missing WorldID (old codes / v1 IPC) inherits a captured destination.
     // Explicit world 0 and multi-world codes retain their original world boundaries.
     public void Import(IList<HuntTrainMob> trainMobs, uint? legacyWorldId = null)

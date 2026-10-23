@@ -132,7 +132,7 @@ namespace HuntHelper
         #endregion
 
         #region Hunt Train Window
-        public Vector2 HuntTrainWindowSize { get; set; } = new Vector2(680, 450);
+        public Vector2 HuntTrainWindowSize { get; set; } = new Vector2(520, 300);
         public Vector2 HuntTrainWindowPos { get; set; } = new Vector2(150, 150);
         public bool HuntTrainShowLastSeen { get; set; } = false;
         public bool HuntTrainUseBorder { get; set; } = false;
