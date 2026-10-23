@@ -40,4 +40,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v$VERSION" "$RUNNER_TEMP/latest.zip" SHA256SUMS.txt --title "HuntHelperCN $VERSION" --notes-file release-notes.zh-CN.md --target "$(git rev-parse HEAD)"
+          gh release create "v$VERSION" "$RUNNER_TEMP/latest.zip" SHA256SUMS.txt --title "狩猎助手Hunt Helper $VERSION" --latest --notes-file release-notes.zh-CN.md --target "$(git rev-parse HEAD)"
