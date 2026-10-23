@@ -1481,7 +1481,6 @@ namespace HuntHelper.Gui
                 if (obj is not IBattleNpc mob) continue;
                 if (!_huntManager.IsHunt(mob.NameId)) continue;
                 nearbyMobs.Add(mob);
-                _huntManager.AddToTrain(mob, _territoryId, MapHelpers.GetMapID(_territoryId), Instance, _territoryName, _mapZoneScale);
             }
 
             if (nearbyMobs.Count == 0)

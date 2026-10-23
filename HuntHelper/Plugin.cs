@@ -1,6 +1,7 @@
 ﻿using Dalamud.Game.Command;
 using Dalamud.IoC;
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
@@ -34,6 +35,10 @@ namespace HuntHelper
         [PluginService] internal static ITextureProvider TextureProvider { get; private set; } = null!;
         private ICommandManager CommandManager { get; init; }
         private IDalamudPluginInterface PluginInterface { get; init; }
+        private IClientState ClientState { get; init; }
+        private IObjectTable ObjectTable { get; init; }
+        private long _nextTrainScan;
+        private string? _lastTrainScanError;
         private Configuration Configuration { get; init; }
         private MapUI MapUi { get; init; }
         private HuntTrainUI HuntTrainUI { get; init; }
@@ -72,6 +77,8 @@ namespace HuntHelper
         {
             this.CommandManager = commandManager;
             PluginInterface = pluginInterface;
+            ClientState = clientState;
+            ObjectTable = objectTable;
 
             PluginLog.Logger = pluginLog;
 
@@ -188,6 +195,30 @@ namespace HuntHelper
 
         private void OpenHuntTrainUI() => HuntTrainUI.HuntTrainWindowVisible = true;
 
+        private void ScanHuntTrain()
+        {
+            var now = Environment.TickCount64;
+            if (now < _nextTrainScan) return;
+            _nextTrainScan = now + 250;
+            if (!ClientState.IsLoggedIn || ClientState.TerritoryType == 0 || ClientState.MapId == 0 || ObjectTable.LocalPlayer == null) return;
+            try
+            {
+                var territory = (uint)ClientState.TerritoryType;
+                var scale = HuntManager.GetMapZoneScale(territory);
+                var name = MapHelpers.GetMapName(territory);
+                var instance = MapHelpers.CurrentInstance;
+                foreach (var obj in ObjectTable)
+                    if (obj is IBattleNpc mob && HuntManager.IsHunt(mob.NameId))
+                        HuntManager.AddToTrain(mob, territory, ClientState.MapId, instance, name, scale);
+                _lastTrainScanError = null;
+            }
+            catch (Exception ex)
+            {
+                if (_lastTrainScanError != ex.Message) PluginLog.Warning(ex, "Could not scan nearby hunts for train recording");
+                _lastTrainScanError = ex.Message;
+            }
+        }
+
         private void ApplyPresetOneCommand(string _, string __) => MapUi.ApplyPreset(1);
         private void ApplyPresetTwoCommand(string _, string __) => MapUi.ApplyPreset(2);
         private void SavePresetOneCommand(string _, string __) => MapUi.SavePresetByCommand(1);
@@ -201,6 +232,9 @@ namespace HuntHelper
 
         private void DrawUI()
         {
+            // Recording runs even when the map is closed, collapsed, or fails to draw.
+            // Keep train mutations on the same UI tick as row/menu operations.
+            ScanHuntTrain();
             try
             {
                 MapUi.Draw();

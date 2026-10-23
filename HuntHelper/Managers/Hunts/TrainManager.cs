@@ -133,9 +133,9 @@ public class TrainManager : IDisposable
 
     public IReadOnlyList<HuntTrainWorld> GetWorlds()
     {
-        var current = GetCurrentWorld();
+        GetCurrentWorld();
         return _worlds.Keys
-            .Where(id => id != 0 || GetOrCreateTrain(id).Count > 0 || _selectedWorldId == 0 || current.WorldID == 0)
+            .Where(id => _trainsByWorld.TryGetValue(id, out var train) && train.Count > 0)
             .Select(WorldWithCount)
             .OrderBy(w => w.WorldID == 0)
             .ThenBy(w => w.DataCenterName)
@@ -192,6 +192,13 @@ public class TrainManager : IDisposable
 
     public void AddMob(IBattleNpc mob, uint territoryid, uint mapid, uint instance, string mapName, float zoneMapCoordSize) =>
         AddMob(mob.ToHuntTrainMob(territoryid, mapid, instance, mapName, zoneMapCoordSize));
+
+    public void ObserveMob(IBattleNpc mob, bool isARank, uint territoryId, uint mapId, uint instance,
+        string mapName, float zoneMapCoordSize)
+    {
+        if (UpdateLastSeen(mob, instance, zoneMapCoordSize)) return;
+        if (RecordTrain && isARank) AddMob(mob, territoryId, mapId, instance, mapName, zoneMapCoordSize);
+    }
 
     // Recording always targets the character's visited world, independently of the UI tab.
     public void AddMob(HuntTrainMob mob)
@@ -330,7 +337,15 @@ public class TrainManager : IDisposable
         SaveHuntTrainRecord();
     }
 
-    public void TrainDelete() => HuntTrain.Clear();
+    public void DeleteWorld(uint worldId)
+    {
+        // Explicitly deleting a server must not recreate its tab on the next scan.
+        // Starting recording again will rediscover any live nearby A rank.
+        if (worldId == CurrentWorldId) RecordTrain = false;
+        if (_trainsByWorld.TryGetValue(worldId, out var train)) train.Clear();
+    }
+
+    public void TrainDelete() => DeleteWorld(SelectedWorldId);
     public void TrainMarkAsDead(int index) => SetDead(index, true);
 
     public void SetDead(int index, bool dead)

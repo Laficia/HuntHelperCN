@@ -176,14 +176,9 @@ public class HuntManager : IDisposable
 
     public void AddToTrain(IBattleNpc mob, uint territoryid, uint mapid, uint instance, string mapName, float zoneMapCoordSize)
     {
-        //if mob already exists, update last seen - even if not recording
-        if (_trainManager.UpdateLastSeen(mob, instance, zoneMapCoordSize)) return;
-        if (!_trainManager.RecordTrain) return;
-        //only record A ranks
-#if !DEBUG //record all ranks while debugging coz weird ppl still kill ARR A ranks which makes it hard to find hunts to test with.
-        if (GetHuntRank(mob.NameId) != HuntRank.A) return;
-#endif
-        _trainManager.AddMob(mob, territoryid, mapid, instance, mapName, zoneMapCoordSize);
+        if (mob.CurrentHp == 0) return;
+        _trainManager.ObserveMob(mob, GetHuntRank(mob.NameId) == HuntRank.A,
+            territoryid, mapid, instance, mapName, zoneMapCoordSize);
     }
 
     //bit much, grew big because I don't plan

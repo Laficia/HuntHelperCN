@@ -35,6 +35,9 @@ internal static class Program
             ("navigation coordinate inverse and invalid inputs", Sync(NavigationCoordinates)),
             ("legacy invisible map settings repair once without erasing preferences", Sync(MapVisibilityMigration)),
             ("map cache survives upgrades without replacing valid current images", Sync(MapCacheMigration)),
+            ("server tab drag/menu order survives configuration reload", Sync(ServerTabOrder)),
+            ("stationary A rank is rediscovered after deletion and recording restart", Sync(StationaryRecording)),
+            ("empty server tabs disappear and deletion stays world scoped", Sync(EmptyServerTabs)),
             ("downloads reuse cache and atomically save successes", DownloadCache),
             ("failed refreshes preserve existing map images", DownloadFailure),
             ("cancellation preserves cache and removes temporary files", DownloadCancellation),
@@ -319,6 +322,67 @@ internal static class Program
         True(!File.Exists(Path.Combine(persistentCache.Path, "broken-data.jpg")));
         Equal(0, ImageDownloader.ImportCachedImages(oldCache.Path, persistentCache.Path));
         Sequence(Jpeg, File.ReadAllBytes(Path.Combine(oldCache.Path, "fresh-data.jpg")));
+    }
+
+    private static void ServerTabOrder()
+    {
+        var order = new List<uint> { 101, 102, 103 };
+        True(WorldTabOrder.MoveRelative(order, 101, 103, true));
+        Sequence(new uint[] { 102, 103, 101 }, order);
+        True(WorldTabOrder.MoveRelative(order, 101, 102, false));
+        Sequence(new uint[] { 101, 102, 103 }, order);
+        True(WorldTabOrder.MoveBy(order, 102, -1));
+        Sequence(new uint[] { 102, 101, 103 }, order);
+        True(!WorldTabOrder.MoveBy(order, 102, -1));
+        True(!WorldTabOrder.MoveRelative(order, 101, 101, true));
+        var config = JsonConvert.DeserializeObject<Configuration>(JsonConvert.SerializeObject(new Configuration { HuntTrainWorldTabOrder = order }))!;
+        True(WorldTabOrder.Synchronize(config.HuntTrainWorldTabOrder, new uint[] { 101, 103, 104 }));
+        Sequence(new uint[] { 101, 103, 104 }, config.HuntTrainWorldTabOrder);
+        True(!WorldTabOrder.Synchronize(config.HuntTrainWorldTabOrder, new uint[] { 104, 103, 101 }));
+    }
+
+    private static void StationaryRecording()
+    {
+        using var f = new TrainFixture();
+        var npc = new BattleNpc(1, new Vector3(100, 20, -200));
+        void Scan(bool isARank = true) => f.Manager.ObserveMob(npc, isARank, 134, 30, 1, "Middle La Noscea", 100);
+        f.Manager.RecordTrain = true;
+        Scan(); Scan();
+        Equal(1, f.Rows(101).Count);
+        f.Manager.TrainRemove(f.Manager.HuntTrain[0]);
+        Equal(0, f.Manager.GetWorlds().Count);
+        Scan(); // Same object, same place, no zone change or arrival notification.
+        Equal(1, f.Rows(101).Count);
+        f.Manager.TrainDelete();
+        True(!f.Manager.RecordTrain);
+        Scan();
+        Equal(0, f.Manager.GetWorlds().Count);
+        f.Manager.RecordTrain = true;
+        Scan(false); Equal(0, f.Manager.GetWorlds().Count);
+        Scan(); Equal(1, f.Rows(101).Count);
+        Equal(npc.Position, f.Manager.HuntTrain[0].WorldPosition);
+        f.Manager.SelectWorld(102); Scan();
+        Equal(0, f.Manager.HuntTrain.Count);
+        Equal(1, f.Rows(101).Count);
+    }
+
+    private static void EmptyServerTabs()
+    {
+        using var f = new TrainFixture();
+        Equal(0, f.Manager.GetWorlds().Count); // Empty current server has no tab either.
+        f.Manager.AddMob(Mob());
+        f.VisitedWorld = WorldB; f.Manager.AddMob(Mob(2));
+        f.Rows(101); f.Manager.SetDead(0, true); f.Manager.TrainRemoveDead();
+        Sequence(new uint[] { 102 }, f.Manager.GetWorlds().Select(w => w.WorldID));
+        f.Manager.RecordTrain = true;
+        f.Manager.DeleteWorld(101); // Deleting a different server must not stop scanning B.
+        True(f.Manager.RecordTrain);
+        f.Manager.DeleteWorld(102);
+        True(!f.Manager.RecordTrain);
+        Equal(0, f.Manager.GetWorlds().Count);
+        f.Manager.SaveHuntTrainRecord();
+        f.Manager.LoadHuntTrainRecord();
+        Equal(0, f.Manager.GetWorlds().Count);
     }
 
     private static async Task DownloadCache()

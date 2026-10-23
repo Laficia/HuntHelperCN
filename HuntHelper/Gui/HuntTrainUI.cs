@@ -23,6 +23,7 @@ public class HuntTrainUI : IDisposable
     private readonly NavigationManager _navigation;
     private readonly Dictionary<uint, int> _selectedByWorld = new();
     private uint? _displayedWorld;
+    private readonly WorldTabBar _worldTabs = new();
 
     private bool _huntTrainWindowVisible = false;
 
@@ -291,60 +292,52 @@ public class HuntTrainUI : IDisposable
         ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
     }
 
-    private unsafe void DrawWorldTabs()
+    private void DrawWorldTabs()
     {
         var current = _trainManager.GetCurrentWorld();
         ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
-        ImGuiUtil.ImGui_HoveredToolTip("扫描记录始终保存到角色当前访问的区服。切换标签仅改变查看和操作的记录。");
-        var initialWorld = _displayedWorld == null ? _trainManager.SelectedWorldId : (uint?)null;
-        if (ImGui.BeginTabBar("HuntTrainWorldTabs", ImGuiTabBarFlags.FittingPolicyScroll))
+        ImGuiUtil.ImGui_HoveredToolTip("扫描保存到角色当前所在服务器。左键拖拽调整顺序；右键可选择、左右移动或删除该服记录及标签。");
+        var worlds = _trainManager.GetWorlds();
+        EnsureVisibleWorld(worlds, current.WorldID);
+        _config.HuntTrainWorldTabOrder ??= new();
+        var action = _worldTabs.Draw(worlds, _trainManager.SelectedWorldId, _config.HuntTrainWorldTabOrder, ImGuiHelpers.GlobalScale);
+        if (action.Selected is { } selected) SelectDisplayedWorld(selected);
+        if (action.Deleted is { } deleted)
         {
-            _config.HuntTrainWorldTabOrder ??= new();
-            var worlds = _trainManager.GetWorlds();
-            foreach (var world in worlds)
-                if (!_config.HuntTrainWorldTabOrder.Contains(world.WorldID)) _config.HuntTrainWorldTabOrder.Add(world.WorldID);
-            foreach (var world in worlds.OrderBy(w => _config.HuntTrainWorldTabOrder.IndexOf(w.WorldID)).ToArray())
-            {
-                var label = $"{FormatWorld(world.WorldName, world.DataCenterName)} ({world.Count})###World{world.WorldID}";
-                var flags = world.WorldID == initialWorld
-                    ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
-                var active = ImGui.BeginTabItem(label, flags);
-                if (ImGui.BeginDragDropSource())
-                {
-                    var id = world.WorldID;
-                    ImGui.SetDragDropPayload("HH_WORLD_TAB", new ReadOnlySpan<byte>(&id, sizeof(uint)));
-                    ImGui.TextUnformatted(world.WorldName);
-                    ImGui.EndDragDropSource();
-                }
-                if (ImGui.BeginDragDropTarget())
-                {
-                    var payload = ImGui.AcceptDragDropPayload("HH_WORLD_TAB");
-                    if (!payload.IsNull && payload.DataSize == sizeof(uint))
-                    {
-                        var id = *(uint*)payload.Data;
-                        if (id != world.WorldID && _config.HuntTrainWorldTabOrder.Contains(id))
-                        {
-                            var targetIndex = _config.HuntTrainWorldTabOrder.IndexOf(world.WorldID);
-                            _config.HuntTrainWorldTabOrder.Remove(id);
-                            _config.HuntTrainWorldTabOrder.Insert(targetIndex, id);
-                            _config.Save();
-                        }
-                    }
-                    ImGui.EndDragDropTarget();
-                }
-                if (!active) continue;
-                if (_displayedWorld != world.WorldID)
-                {
-                    if (_displayedWorld is { } previous) _selectedByWorld[previous] = _selectedIndex;
-                    _trainManager.SelectWorld(world.WorldID);
-                    _selectedIndex = _selectedByWorld.GetValueOrDefault(world.WorldID);
-                    _displayedWorld = world.WorldID;
-                }
-                ImGui.EndTabItem();
-            }
-            ImGui.EndTabBar();
+            if (deleted == current.WorldID) _navigation.Stop();
+            _trainManager.DeleteWorld(deleted);
+            _config.HuntTrainWorldTabOrder.Remove(deleted);
+            EnsureVisibleWorld(_trainManager.GetWorlds(), current.WorldID);
+            _selectedByWorld.Remove(deleted);
         }
+        if (action.OrderChanged || action.Deleted.HasValue) _config.Save();
         ClampSelection();
+    }
+
+    private void EnsureVisibleWorld(IReadOnlyList<HuntTrainWorld> worlds, uint currentWorld)
+    {
+        if (worlds.Count == 0)
+        {
+            _displayedWorld = null;
+            _selectedIndex = 0;
+            _trainManager.SelectWorld(currentWorld);
+            return;
+        }
+        if (_displayedWorld is { } displayed && worlds.Any(w => w.WorldID == displayed)) return;
+        var selected = _trainManager.SelectedWorldId;
+        var next = worlds.FirstOrDefault(w => w.WorldID == selected)
+            ?? worlds.FirstOrDefault(w => w.WorldID == currentWorld)
+            ?? worlds.OrderBy(w => _config.HuntTrainWorldTabOrder?.IndexOf(w.WorldID) ?? int.MaxValue).First();
+        SelectDisplayedWorld(next.WorldID);
+    }
+
+    private void SelectDisplayedWorld(uint worldId)
+    {
+        if (_displayedWorld == worldId) return;
+        if (_displayedWorld is { } previous) _selectedByWorld[previous] = _selectedIndex;
+        _trainManager.SelectWorld(worldId);
+        _selectedIndex = _selectedByWorld.GetValueOrDefault(worldId);
+        _displayedWorld = worldId;
     }
 
     private static string FormatWorld(string name, string dataCenter) => name;
@@ -485,6 +478,7 @@ public class HuntTrainUI : IDisposable
         if (ImGui.BeginPopupModal($"{GuiResources.HuntTrainGuiText["DeleteWindowTitle"]}##modal"))
         {
             ImGui.TextWrapped(GuiResources.HuntTrainGuiText["DeleteWindowMessage"]);
+            ImGui.TextWrapped("仅清空当前标签的记录。清空当前所在服会暂停录制；重新开始录制可原地再扫附近 A 怪。");
 
             ImGui.Dummy(new Vector2(0, 25));
             ImGui.Dummy(new Vector2(6, 0)); ImGui.SameLine();

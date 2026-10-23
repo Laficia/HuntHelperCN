@@ -18,5 +18,6 @@
     <Compile Include="..\..\HuntHelper\Managers\ImageDownloader.cs" Link="Production\ImageDownloader.cs" />
     <Compile Include="..\..\HuntHelper\Configuration.cs" Link="Production\Configuration.cs" />
     <Compile Include="..\..\HuntHelper\Preset.cs" Link="Production\Preset.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\WorldTabOrder.cs" Link="Production\WorldTabOrder.cs" />
   </ItemGroup>
 </Project>

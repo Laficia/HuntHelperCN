@@ -9,7 +9,15 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
-## 更新修正（1.0.0.37）
+## 更新修正（1.0.0.38）
+
+- 重做服务器标签栏，显示顺序直接跟随保存顺序。按住左键拖到目标标签左半边或右半边松开，可插入到目标之前或之后；移除黄色拖放框和浮动预览，仅保留轻微蓝色目标边框。
+- 右键服务器标签可「选择」「向左移动」「向右移动」「删除该服记录及标签」。拖拽和菜单移动后的顺序均保存到配置。
+- 清空、删除最后一条记录或删除死亡记录后，该服没有记录的标签会消失，包括当前所在服；当前服名称仍显示在顶部。
+- 录制每 250ms 扫描附近存活 A 怪，不再依赖 `/hh` 地图窗口是否关闭、折叠或成功绘制。在原地删除记录后也能重新录制，不需要离开怪物或换地图。
+- 删除当前所在服全部记录或通过菜单删除该服时暂停录制，避免标签刚删除就自动重建；再次点击开始录制即可原地重新扫描。删除其他服不会中断当前服录制。
+
+## 上一版修正（1.0.0.37）
 
 - 修复本机已下载 47 张图片但底图几乎不可见的问题：旧配置和预设中的 0～1% 不透明度在首次升级时恢复为 100%；正常自定义数值和升级后的主动调整会保留。
 - 地图图片保存在国服卫月 `pluginConfigs/HuntHelperCN/MapImages`，启动时自动复用旧版安装目录中的有效地图，后续升级不再丢失缓存。
@@ -46,19 +54,21 @@ dotnet build HuntHelper.sln -c Debug
 dotnet build HuntHelper.sln -c Release
 dotnet run --project tests/HuntHelper.RegressionTests
 dotnet run --project tests/HuntHelper.NavigationTests -c Release
+dotnet run --project tests/HuntHelper.TabUiTests -c Release
 ```
 
 仓库的 `Directory.Build.props` 在 SDK 解析引用路径前，将 Windows 下的 `DALAMUD_HOME` 设置为 `%APPDATA%\XIVLauncherCN\addon\Hooks\dev`。
 因此普通编译命令直接引用国服目录；若需明确指定其他安装位置，使用命令行参数 `-p:DALAMUD_HOME=对应路径`。
 
-本次发布使用 `-p:OutputPath=bin/x64/Release37/` 的独立输出目录。
-Release 插件 DLL：`HuntHelper\bin\x64\Release37\HuntHelperCN.dll`。
-完整压缩包：`HuntHelper\bin\x64\Release37\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
+本次发布使用 `-p:OutputPath=bin/x64/Release38/` 的独立输出目录。
+Release 插件 DLL：`HuntHelper\bin\x64\Release38\HuntHelperCN.dll`。
+完整压缩包：`HuntHelper\bin\x64\Release38\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
 
 ## 当前验证范围
 
 Debug、Release 编译通过；上游仍有可空性和未使用字段等编译警告。
-独立回归测试通过：区服记录/导入/持久化/本地下载/配置和缓存迁移 19/19 组，导航 IPC 模拟与取消竞态 35/35 项。
+独立回归测试通过：区服记录/导入/持久化/本地下载/配置和缓存迁移/原地重新录制/空标签清理 22/22 组，导航 IPC 模拟与取消竞态 35/35 项。
+使用本机国服 ImGui 绑定及原生运行时，在独立上下文中注入鼠标事件并生成真实控件布局：左右拖拽、实际绘制顺序、移除黄色拖放目标、右键选择、左右移动、删除及空标签消失 7/7 项通过。该检查不创建桌面窗口、不连接游戏。
 本机旧版缓存的 47 张 JPEG 已使用 Windows 图像解码器逐一验证成功；游戏内纹理显示仍需实际更新插件后确认。
 测试直接链接生产源码，以最小宿主替身模拟游戏服务；下载测试只使用本机回环 HTTP，不连接游戏或修改已安装插件。
 已核对打包清单的 `DalamudApiLevel=15`、.NET 10 目标及中文资源，并核对实际程序集引用来自上述 `XIVLauncherCN` 目录。
