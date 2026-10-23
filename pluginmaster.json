@@ -3,7 +3,7 @@
     "Author": "img02 / Laficia",
     "Name": "Hunt Helper CN（国服定制）",
     "InternalName": "HuntHelperCN",
-    "AssemblyVersion": "1.0.0.36",
+    "AssemblyVersion": "1.0.0.37",
     "Description": "基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。\nA 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。\n原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
@@ -30,10 +30,10 @@
     "IconUrl": "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/icon.png",
     "Punchline": "国服狩猎雷达：区服独立记录、自动地图图片与 vnavmesh 移动。",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.36/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.36/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.36/latest.zip",
-    "LastUpdate": 1792780431,
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.37/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.37/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.37/latest.zip",
+    "LastUpdate": 1792781401,
     "IsHide": false,
     "IsTestingExclusive": false
   }

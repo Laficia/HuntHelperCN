@@ -1,12 +1,12 @@
-Hunt Helper 国服定制版 1.0.0.36
+Hunt Helper 国服定制版 1.0.0.37
 
 适配国服 XIVLauncherCN / Dalamud API 15；按本机 Dalamud 15.0.3.9 编译。
 
-- 按 AtmoOmen/ffxiv_navmesh-cn 0.7.7.0 的 IPC 接口修正导航；根据角色是否已起飞选择地面/飞行路线，地面起终点贴合可达网格，空路线最多重新查询一次。
-- 删除 A 怪列表中的坐标列，保留点位数据供地图和导航使用。
-- 当前区服与服务器标签只显示服务器名称。
-- 服务器标签支持鼠标左键拖拽排序，顺序随配置保存。
-- 保留各服记录隔离、自动下载及缓存地图图片、同区服/同地图/同分线限制和停止移动功能。
+- 修复图片已下载但几乎不可见：旧配置和预设中的 0～1% 不透明度在首次升级时恢复到 100%，此后保留用户自行调整的数值。
+- 地图缓存改为 pluginConfigs/HuntHelperCN/MapImages，升级时自动复用旧版本已下载的有效图片，避免重新下载。
+- 状态窗口分别显示文件缓存、当前地图加载、纹理错误及不支持的地区，并提供「恢复地图显示」。
+- 卫月插件列表「打开」显示 /hht 狩猎车界面，「设置」显示 /hh 狩猎地图界面；重复点击保持窗口打开。
+- 保留国服 vnavmesh 寻路、服务器标签拖拽排序和各服记录隔离等功能。
 
 卫月第三方插件库订阅地址：
 https://raw.githubusercontent.com/Laficia/HuntHelperCN/main/pluginmaster.json
@@ -20,4 +20,4 @@ https://raw.githubusercontent.com/Laficia/HuntHelperCN/main/pluginmaster.json
 原作者 img02。基于 https://github.com/img02/HuntHelper。
 MIT License，Copyright (c) 2022 imaginary-png；完整许可随安装包提供。
 
-latest.zip SHA-256：e9da4e841412171a612ac832193b4d11590fa61b832f2a1bd3d789b1e570cf74
+latest.zip SHA-256：fa21fdb3276eeecc186a3708cafb8b1271bc17dbff337c1276edd55dc5da4c7b
