@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(DALAMUD_HOME)\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Compile Include="..\..\HuntHelper\Managers\Hunts\TrainManager.cs" Link="Production\TrainManager.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Hunts\Models\HuntTrainMob.cs" Link="Production\HuntTrainMob.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Hunts\Models\HuntTrainWorld.cs" Link="Production\HuntTrainWorld.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\ExportImport.cs" Link="Production\ExportImport.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\NavigationRules.cs" Link="Production\NavigationRules.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\ImageDownloader.cs" Link="Production\ImageDownloader.cs" />
+  </ItemGroup>
+</Project>

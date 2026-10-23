@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <!-- Set before Dalamud.NET.Sdk resolves its assembly search path. -->
+    <DALAMUD_HOME>$(APPDATA)\XIVLauncherCN\addon\Hooks\dev</DALAMUD_HOME>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Dalamud.NET.Sdk/15.0.0">
+  <PropertyGroup>
+    <AssemblyName>HuntHelperCN</AssemblyName>
+    <Authors>https://github.com/img02</Authors>
+    <Company></Company>
+    <Version>1.0.0.35</Version>
+    <Description>Hunt map with spawns points, A-Rank train recorder (w/ export/import sharing), TTS, Chat notifications, Counters for S-Rank</Description>
+    <Copyright></Copyright>
+    <PackageProjectUrl>https://github.com/Laficia/HuntHelperCN</PackageProjectUrl>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+    <None Remove="Data\ARR-A.json" />
+    <None Remove="Data\ARR-B.json" />
+    <None Remove="Data\ARR-S.json" />
+    <None Remove="Data\DT-A.json" />
+    <None Remove="Data\DT-B.json" />
+    <None Remove="Data\DT-S.json" />
+    <None Remove="Data\EW-A.json" />
+    <None Remove="Data\EW-B.json" />
+    <None Remove="Data\EW-S.json" />
+    <None Remove="Data\HW-A.json" />
+    <None Remove="Data\HW-B.json" />
+    <None Remove="Data\HW-S.json" />
+    <None Remove="Data\Localisation\english.json" />
+    <None Remove="Data\Localisation\french.json" />
+    <None Remove="Data\Localisation\German.json" />
+    <None Remove="Data\Localisation\japanese.json" />
+    <None Remove="Data\Localisation\simplified chinese.json" />
+    <None Remove="Data\SB-A.json" />
+    <None Remove="Data\SB-B.json" />
+    <None Remove="Data\SB-S.json" />
+    <None Remove="Data\ShB-A.json" />
+    <None Remove="Data\ShB-B.json" />
+    <None Remove="Data\ShB-S.json" />
+    <None Remove="Data\SpawnPointData.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\LICENSE" Link="LICENSE">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ARR-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ARR-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ARR-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\EW-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\EW-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\EW-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\HW-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\HW-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\HW-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\Localisation\simplified chinese.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\Localisation\french.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\Localisation\german.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\Localisation\japanese.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\Localisation\english.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SB-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SB-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SB-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ShB-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ShB-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\ShB-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\DT-A.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\DT-B.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\DT-S.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\SpawnPointData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="System.Speech" Version="9.0.3" />      
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Gui\Resource\" />
+  </ItemGroup>
+
+
+  <ProjectExtensions><VisualStudio><UserProperties data_4arr-a_1json__JsonSchema="https://github.com/go-vela/types/releases/latest/download/schema.json" /></VisualStudio></ProjectExtensions>
+
+</Project>

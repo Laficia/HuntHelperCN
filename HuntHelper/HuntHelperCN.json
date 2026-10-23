@@ -1,0 +1,26 @@
+{
+  "Author": "img02 / Laficia",
+  "Name": "Hunt Helper CN（国服定制）",
+  "Punchline": "区服独立 A 车记录、自动地图图片、vnavmesh 移动",
+  "Description": "基于 img02/HuntHelper 的国服定制版。支持按访问区服隔离 A 怪记录和标签页、自动下载地图底图、同地图同区服同分线 vnavmesh 移动。首次使用请禁用原版 Hunt Helper，避免命令冲突。保留原 MIT 许可。",
+  "Tags": [
+    "hunt",
+    "radar",
+    "the hunt",
+    "train",
+    "s rank",
+    "map",
+    "mob"
+  ],
+  "InternalName": "HuntHelperCN",
+  "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
+  "ApplicableVersion": "any",
+  "LoadPriority": 0,
+  "ImageUrls": [
+    "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image1.png",
+    "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image2.png",
+    "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image3.png",
+    "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image4.png"
+  ],
+  "IconUrl": "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/icon.png"
+}

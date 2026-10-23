@@ -1,0 +1,269 @@
+﻿using Dalamud.Plugin.Ipc.Exceptions;
+using HuntHelper.Managers.Hunts.Models;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
+
+namespace HuntHelper.Managers;
+
+public struct AetheryteData
+{
+    internal uint AetheryteID;
+    internal byte SubIndex; //seems to always be 0 for non-housing
+    internal uint TerritoryID;
+    //in-game coords
+    internal Vector2 Position;
+}
+
+public unsafe class TeleportManager
+{
+    private List<AetheryteData> Aetherytes = new List<AetheryteData>()
+    {
+        #region ARR aetherytes
+        //ARR
+        new AetheryteData()
+            {AetheryteID = 8, SubIndex = 0, TerritoryID = 129, Position = new Vector2(0)}, //Limsa Lominsa Lower Decks
+        //middle la noscea
+        new AetheryteData() {AetheryteID = 52, SubIndex = 0, TerritoryID = 134, Position = new Vector2(26f, 16.3f)}, //Summerford Farms
+        //lower la noscea
+        new AetheryteData() {AetheryteID = 10, SubIndex = 0, TerritoryID = 135, Position = new Vector2(24.6f, 34.9f)}, //Moraby Drydocks
+        //eastern la noscea 
+        new AetheryteData() {AetheryteID = 11, SubIndex = 0, TerritoryID = 137, Position = new Vector2(31.2f, 30.8f)}, //Costa del Sol
+        new AetheryteData() {AetheryteID = 12, SubIndex = 0, TerritoryID = 137, Position = new Vector2(21.1f, 21.5f)}, //Wineport
+        //western la noscea
+        new AetheryteData() {AetheryteID = 13, SubIndex = 0, TerritoryID = 138, Position = new Vector2(34.5f, 31.7f)}, //Swiftperch
+        new AetheryteData() {AetheryteID = 14, SubIndex = 0, TerritoryID = 138, Position = new Vector2(26.6f, 25.8f)}, //Aleport
+        //upper la noscea
+        new AetheryteData() {AetheryteID = 15, SubIndex = 0, TerritoryID = 139, Position = new Vector2(30.2f, 23.3f)}, //Camp Bronze Lake
+        //outer la noscea
+        new AetheryteData() {AetheryteID = 16, SubIndex = 0, TerritoryID = 180, Position = new Vector2(19.1f, 17.2f)}, //Camp Overlook
+
+
+        new AetheryteData() {AetheryteID = 2, SubIndex = 0, TerritoryID = 132, Position = new Vector2(0)}, //New Gridania
+        //central shroud
+        new AetheryteData() {AetheryteID = 3, SubIndex = 0, TerritoryID = 148, Position = new Vector2(21.7f, 22.2f)}, //Bentbranch Meadows
+        //east shroud
+        new AetheryteData() {AetheryteID = 4, SubIndex = 0, TerritoryID = 152, Position = new Vector2(17.7f, 27.4f)}, //The Hawthorne Hut
+        //south shroud
+        new AetheryteData() {AetheryteID = 5, SubIndex = 0, TerritoryID = 153, Position = new Vector2(25.0f, 20.1f)}, //Quarrymill
+        new AetheryteData() {AetheryteID = 6, SubIndex = 0, TerritoryID = 153, Position = new Vector2(16.8f, 28.6f)}, //Camp Tranquil
+        //north shroud
+        new AetheryteData() {AetheryteID = 7, SubIndex = 0, TerritoryID = 154, Position = new Vector2(20.6f ,26.0f)}, //Fallgourd Float
+
+
+        new AetheryteData()
+            {AetheryteID = 9, SubIndex = 0, TerritoryID = 130, Position = new Vector2(0)}, //Ul'dah - Steps of Nald
+        //western thanalan
+        new AetheryteData() {AetheryteID = 17, SubIndex = 0, TerritoryID = 140, Position = new Vector2(22.8f, 16.9f)}, //Horizon
+        //central thanalan
+        new AetheryteData() {AetheryteID = 53, SubIndex = 0, TerritoryID = 141, Position = new Vector2(21f, 18.1f)}, //Black Brush Station
+        //eastern thanalan
+        new AetheryteData() {AetheryteID = 18, SubIndex = 0, TerritoryID = 145, Position = new Vector2(13.7f, 24.3f)}, //Camp Drybone
+        //southern thanalan
+        new AetheryteData() {AetheryteID = 19, SubIndex = 0, TerritoryID = 146, Position = new Vector2(18.3f, 13.1f)}, //Little Ala Mhigo
+        new AetheryteData() {AetheryteID = 20, SubIndex = 0, TerritoryID = 146, Position = new Vector2(14.9f, 29.6f)}, //Forgotten Springs
+        //northern thanalan
+        new AetheryteData() {AetheryteID = 21, SubIndex = 0, TerritoryID = 147, Position = new Vector2(21.9f, 30.5f)}, //Camp Bluefog
+        new AetheryteData() {AetheryteID = 22, SubIndex = 0, TerritoryID = 147, Position = new Vector2(20.9f, 20.9f)}, //Ceruleum Processing Plant
+
+        //mor dhona
+        new AetheryteData()
+            {AetheryteID = 24, SubIndex = 0, TerritoryID = 156, Position = new Vector2(22.2f, 8.1f)}, //Revenant's Toll
+
+        //coerthas central highlands
+        new AetheryteData()
+            {AetheryteID = 23, SubIndex = 0, TerritoryID = 155, Position = new Vector2(25.9f, 16.8f)}, //Camp Dragonhead
+        #endregion
+
+        #region Heavensward aetherytes
+
+        //HW
+        //coerthas western highlands
+        new AetheryteData() { AetheryteID = 71, SubIndex = 0, TerritoryID = 397, Position = new Vector2(32f, 36.7f)}, //Falcon's Nest
+
+        //The sea of clouds
+        new AetheryteData() { AetheryteID = 72, SubIndex = 0, TerritoryID = 401, Position = new Vector2(10.3f, 33.6f)}, //Camp Cloudtop
+        new AetheryteData() { AetheryteID = 73, SubIndex = 0, TerritoryID = 401, Position = new Vector2(10.4f, 14.2f)}, //Ok' Zundu
+
+        //azys lla
+        new AetheryteData() { AetheryteID = 74, SubIndex = 0, TerritoryID = 402, Position = new Vector2(8.1f, 10.6f)}, //Helix
+
+        //idylshire / dravanian hinterlands
+        new AetheryteData() { AetheryteID = 75, SubIndex = 0, TerritoryID = 478, Position = new Vector2(0)}, //Idyllshire
+
+        //the dravanian forelands
+        new AetheryteData() { AetheryteID = 76, SubIndex = 0, TerritoryID = 398, Position = new Vector2(33.2f, 23.1f)}, //Tailfeather
+        new AetheryteData() { AetheryteID = 77, SubIndex = 0, TerritoryID = 398, Position = new Vector2(16.4f, 23.2f)}, //Anyx Trine
+
+        //the churning mists
+        new AetheryteData() { AetheryteID = 78, SubIndex = 0, TerritoryID = 400, Position = new Vector2(27.9f, 34.2f)}, //Moghome
+        new AetheryteData() { AetheryteID = 79, SubIndex = 0, TerritoryID = 400, Position = new Vector2(10.8f,28.8f)}, //Zenith
+
+        #endregion
+
+        #region Stormblood aetherytes
+        //SB
+        new AetheryteData() {AetheryteID = 104, SubIndex = 0, TerritoryID = 635, Position = new Vector2(0)}, //Rhalgr's Reach
+        //the fringe
+        new AetheryteData() {AetheryteID = 98, SubIndex = 0, TerritoryID = 612, Position = new Vector2(8.90f, 11.3f)}, //Castrum Oriens
+        new AetheryteData() {AetheryteID = 99, SubIndex = 0, TerritoryID = 612, Position = new Vector2(29.8f, 26.4f)}, //The Peering Stones
+
+        //the peaks
+        new AetheryteData() { AetheryteID = 100, SubIndex = 0, TerritoryID = 620, Position = new Vector2(23.7f, 6.5f)}, //Ala Gannha
+        new AetheryteData() { AetheryteID = 101, SubIndex = 0, TerritoryID = 620, Position = new Vector2(16.0f ,36.4f)}, //Ala Ghiri
+
+        //the lochs
+        new AetheryteData() {AetheryteID = 102, SubIndex = 0, TerritoryID = 621, Position = new Vector2(8.40f, 21.1f)}, //Porta Praetoria
+        new AetheryteData() {AetheryteID = 103, SubIndex = 0, TerritoryID = 621, Position = new Vector2(33.8f ,34.5f)}, //The Ala Mhigan Quarter
+
+        //kugane
+        new AetheryteData() {AetheryteID = 111, SubIndex = 0, TerritoryID = 628, Position = new Vector2(0)}, //Kugane
+
+        //the ruby sea
+        new AetheryteData() {AetheryteID = 105, SubIndex = 0, TerritoryID = 613, Position = new Vector2(28.6f, 16.2f)}, //Tamamizu
+        new AetheryteData() {AetheryteID = 106, SubIndex = 0, TerritoryID = 613, Position = new Vector2(23.2f, 9.8f)}, //Onokoro
+
+        //yanxia
+        new AetheryteData() {AetheryteID = 107, SubIndex = 0, TerritoryID = 614, Position = new Vector2(30.1f, 19.6f)}, //Namai
+        new AetheryteData() {AetheryteID = 108, SubIndex = 0, TerritoryID = 614, Position = new Vector2(26.3f, 13.4f)}, //The House of the Fierce
+
+        //the azim steppe
+        new AetheryteData() {AetheryteID = 109, SubIndex = 0, TerritoryID = 622, Position = new Vector2(32.5f, 28.3f)}, //Reunion
+        new AetheryteData() {AetheryteID = 110, SubIndex = 0, TerritoryID = 622, Position = new Vector2(23.0f, 22.1f)}, //The Dawn Throne
+        new AetheryteData() {AetheryteID = 128, SubIndex = 0, TerritoryID = 622, Position = new Vector2(6.30f, 23.8f)}, //Dhoro Iloh
+        #endregion
+
+        #region Shadowbringers aetherytes
+        //ShB
+        //lakeland
+        new AetheryteData() {AetheryteID = 132, SubIndex = 0, TerritoryID = 813, Position = new Vector2(36.5f, 20.9f)}, //Fort Jobb
+        new AetheryteData() {AetheryteID = 136, SubIndex = 0, TerritoryID = 813, Position = new Vector2(6.8f, 16.9f)}, //The Ostall Imperative
+
+        //kholusia
+        new AetheryteData() {AetheryteID = 137, SubIndex = 0, TerritoryID = 814, Position = new Vector2(34.8f, 27.2f)}, //Stilltide
+        new AetheryteData() {AetheryteID = 138, SubIndex = 0, TerritoryID = 814, Position = new Vector2(16.6f, 29.2f)}, //Wright
+        new AetheryteData() {AetheryteID = 139, SubIndex = 0, TerritoryID = 814, Position = new Vector2(12.9f, 9f)}, //Tomra
+
+        //amh araeng
+        new AetheryteData() {AetheryteID = 140, SubIndex = 0, TerritoryID = 815, Position = new Vector2(26.4f, 17f)}, //Mord Souq
+        new AetheryteData() {AetheryteID = 161, SubIndex = 0, TerritoryID = 815, Position = new Vector2(29.4f, 27.6f)}, //The Inn at Journey's Head
+        new AetheryteData() {AetheryteID = 141, SubIndex = 0, TerritoryID = 815, Position = new Vector2(11.2f, 17.2f)}, //Twine
+
+        //il mheg
+        new AetheryteData() {AetheryteID = 144, SubIndex = 0, TerritoryID = 816, Position = new Vector2(14.6f, 31.7f)}, //Lydha Lran
+        new AetheryteData() {AetheryteID = 145, SubIndex = 0, TerritoryID = 816, Position = new Vector2(20.0f, 4.3f)}, //Pla Enni
+        new AetheryteData() {AetheryteID = 146, SubIndex = 0, TerritoryID = 816, Position = new Vector2(29.1f, 7.7f)}, //Wolekdorf
+
+        //the rak'tika greatwood lahee
+        new AetheryteData()
+            {AetheryteID = 142, SubIndex = 0, TerritoryID = 817, Position = new Vector2(19.4f, 27.4f)}, //Slitherbough
+        new AetheryteData() {AetheryteID = 143, SubIndex = 0, TerritoryID = 817, Position = new Vector2(29.1f, 17.5f)}, //Fanow
+
+        //the tempest
+        new AetheryteData() {AetheryteID = 147, SubIndex = 0, TerritoryID = 818, Position = new Vector2(32.7f, 17.5f)}, //The Ondo Cups
+        //new AetheryteData() {AetheryteID = 148, SubIndex = 0, TerritoryID = 818, Position = new Vector2()}, //The Macarenses Angle - super far away, don't tele here stupid
+        #endregion
+
+        #region Endwalker aetherytes
+        //Endwalker
+        //thavnair
+        new AetheryteData() {AetheryteID = 169, SubIndex = 0, TerritoryID = 957, Position = new Vector2(25.4f,34f)}, //Yedlihmad
+        new AetheryteData() {AetheryteID = 170, SubIndex = 0, TerritoryID = 957, Position = new Vector2(10.9f,22.2f)}, //The Great Work
+        new AetheryteData() {AetheryteID = 171, SubIndex = 0, TerritoryID = 957, Position = new Vector2(29.5f ,16.5f)}, //Palaka's Stand
+
+        //garlemald
+        new AetheryteData() {AetheryteID = 172, SubIndex = 0, TerritoryID = 958, Position = new Vector2(13.3f ,31f)}, //Camp Broken Glass
+        new AetheryteData() {AetheryteID = 173, SubIndex = 0, TerritoryID = 958, Position = new Vector2(31.8f,17.9f)}, //Tertium
+
+        //labyrinthos
+        new AetheryteData() {AetheryteID = 166, SubIndex = 0, TerritoryID = 956, Position = new Vector2(30.3f, 11.9f)}, //The Archeion
+        new AetheryteData() {AetheryteID = 167, SubIndex = 0, TerritoryID = 956, Position = new Vector2(21.6f, 20.5f)}, //Sharlayan Hamlet
+        new AetheryteData() {AetheryteID = 168, SubIndex = 0, TerritoryID = 956, Position = new Vector2(6.9f, 27.5f)}, //Aporia
+
+        //mare lamentorum
+        new AetheryteData() {AetheryteID = 174, SubIndex = 0, TerritoryID = 959, Position = new Vector2(10.1f,34.5f)}, //Sinus Lacrimarum
+        new AetheryteData() { AetheryteID = 175, SubIndex = 0, TerritoryID = 959, Position = new Vector2()}, //Bestways Burrow
+
+        //ultima thule
+        new AetheryteData() {AetheryteID = 179, SubIndex = 0, TerritoryID = 960, Position = new Vector2(10.5f, 26.8f)}, //Reah Tahra
+        new AetheryteData() {AetheryteID = 180, SubIndex = 0, TerritoryID = 960, Position = new Vector2(22.6f , 8.3f)}, //Abode of the Ea
+        new AetheryteData() {AetheryteID = 181, SubIndex = 0, TerritoryID = 960, Position = new Vector2(31.2f, 28.1f)}, //Base Omicron
+
+        //elpis
+
+        new AetheryteData() {AetheryteID = 176, SubIndex = 0, TerritoryID = 961, Position = new Vector2(24.6f, 24f)}, //Anagnorisis
+        new AetheryteData() {AetheryteID = 177, SubIndex = 0, TerritoryID = 961, Position = new Vector2(8.7f, 32.3f)}, //The Twelve Wonders
+        new AetheryteData() {AetheryteID = 178, SubIndex = 0, TerritoryID = 961, Position = new Vector2(10.8f, 17f)}, //Poieten Oikos
+        
+        #endregion
+
+         #region Dawntrail aetherytes
+        //Dawntrail
+        //Urqopacha
+        new AetheryteData() { AetheryteID = 200, SubIndex = 0, TerritoryID = 1187, Position = new Vector2(28.1f, 13.1f)}, //Wachunpelo
+        new AetheryteData() { AetheryteID = 201, SubIndex = 0, TerritoryID = 1187, Position = new Vector2(30.8f, 34.2f)}, //Worlar's Echo
+
+        //Kozama'uka
+        new AetheryteData() { AetheryteID = 202, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(18.0f, 11.9f)}, //Ok'hanu
+        new AetheryteData() { AetheryteID = 203, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(32.2f, 25.6f)}, //Many Fires
+        new AetheryteData() { AetheryteID = 204, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(11.9f, 27.7f)}, //Earthenshire
+        new AetheryteData() { AetheryteID = 237, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(36.5f, 17.2f)}, //Dock Poga
+
+        //Yak'tel
+        new AetheryteData() { AetheryteID = 205, SubIndex = 0, TerritoryID = 1189, Position = new Vector2(13.5f, 12.8f)}, //Iq Br'aax
+        new AetheryteData() { AetheryteID = 206, SubIndex = 0, TerritoryID = 1189, Position = new Vector2(35.8f, 32.0f)}, //Mamook
+
+        //Shaaloani
+        new AetheryteData() { AetheryteID = 207, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(29.0f, 30.8f)}, //Hhusatahwi        
+        new AetheryteData() { AetheryteID = 208, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(15.6f, 19.2f)}, //Sheshenewezi Springs
+        new AetheryteData() { AetheryteID = 209, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(27.6f, 10.1f)}, //Mehwahhetsoan
+        
+        //Heritage Found
+        new AetheryteData() { AetheryteID = 210, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(31.7f, 25.6f)}, //Yyasulani Station
+        new AetheryteData() { AetheryteID = 211, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(17.0f, 9.8f)}, //The Outskirts
+        new AetheryteData() { AetheryteID = 212, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(17.1f, 23.9f)}, //Electrope Strike
+
+        //Living Memory
+        new AetheryteData() { AetheryteID = 213, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(21.4f, 37.4f)}, //Leynode Mnemo
+        new AetheryteData() { AetheryteID = 214, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(34.6f, 15.8f)}, //Leynode Pyro
+        new AetheryteData() { AetheryteID = 215, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(16.3f, 13.5f)}, //Leynode Aero
+        #endregion
+    };
+
+    public bool TeleportPluginNotFound = false;
+
+    public void TeleportToHunt(HuntTrainMob mob)
+    {
+        var aeth = GetNearestAetheryte(mob.TerritoryID, mob.Position);
+        if (aeth == null) return;
+        try
+        {
+            Plugin.TeleportIpc.InvokeFunc(((AetheryteData)aeth).AetheryteID, ((AetheryteData)aeth).SubIndex);
+        }
+        catch (IpcNotReadyError)
+        {
+            PluginLog.Error("Teleport IPC not found. Must have Teleporter Plugin installed to use this feature.");
+            TeleportPluginNotFound = true;
+        }
+    }
+
+    public AetheryteData? GetNearestAetheryte(uint territoryID, Vector2 mobPosition)
+    {
+        var zoneAetherytes = Aetherytes.Where(a => a.TerritoryID == territoryID).ToList();
+        if (zoneAetherytes.Count() == 1) return zoneAetherytes[0];
+        if (zoneAetherytes.Count() == 0) return null;
+
+        var aetheryte = zoneAetherytes[0];
+        var smallestDist = Vector2.Distance(mobPosition, zoneAetherytes[0].Position);
+        for (int i = 1; i < zoneAetherytes.Count; i++)
+        {
+            var tempDist = Vector2.Distance(mobPosition, zoneAetherytes[i].Position);
+            if (tempDist < smallestDist)
+            {
+                smallestDist = tempDist;
+                aetheryte = zoneAetherytes[i];
+            }
+        }
+        return aetheryte;
+    }
+}
