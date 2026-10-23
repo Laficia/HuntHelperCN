@@ -158,21 +158,23 @@ Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $stagingDirectory "
 $archiveHash = (Get-FileHash -LiteralPath $stagedArchivePath -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText((Join-Path $stagingDirectory 'SHA256SUMS.txt'), "$archiveHash  latest.zip`n", $utf8NoBom)
 $releaseNotes = @"
-Hunt Helper 国服定制版 $version
+狩猎助手Hunt Helper $version
 
 适配国服 XIVLauncherCN / Dalamud API 15；按本机 Dalamud 15.0.3.9 编译。
 
-- 修复 /hht 窗口无法缩到紧凑尺寸：最小尺寸降为 360×180（随界面比例缩放），右下角缩放手柄保持可见。
-- 窗口「设置」增加宽度、高度和「恢复默认大小」，默认尺寸 520×300；调整后松开鼠标保存大小及位置。
-- 点击导出图标后可选择「当前服务器」或「全部服务器」。全服码保留服务器信息和各服记录顺序，导入定制版后按服务器恢复。
-- 两种导出范围均兼容原版分享码格式；原版不区分区服，分享给原版用户建议导出单个服务器。
-- 保留标签拖拽/右键菜单、空标签清理、原地重新录制、地图缓存、卫月入口和国服 vnavmesh 寻路等功能。
+- 插件显示名称统一为「狩猎助手Hunt Helper」，内部标识仍为 HuntHelperCN，沿用原配置、记录与地图缓存目录。
+- 单服务器分享码导入预览增加「导入服务器」选择，支持原版无区服代码；确认前可切换目标服，取消不会修改现有记录。
+- 多服务器分享码仍按各自区服导入；覆盖与合并只影响选定目标服或代码涉及的服务器，保留原版分享码兼容性。
+- 保留窗口缩放、单服/全服导出、标签拖拽/右键菜单、空标签清理、原地重新录制、地图缓存与国服 vnavmesh 寻路功能。
+
+本次按要求将实际版本号从 1.0.0.39 重置为 $version。卫月不会将高版本自动降级，订阅地址无法强制重新安装。
+已安装 1.0.0.35～39 的用户必须在卫月手动卸载旧版，再从原订阅安装「狩猎助手Hunt Helper」；保留配置，不要使用清除配置选项。历次发布和本地更新前备份均保留。
 
 卫月第三方插件库订阅地址：
 $subscriptionUrl
 
 该版本 InternalName 为 $InternalName，界面名称为 $($manifest.Name)。请停用不再使用的旧版，避免重复显示狩猎窗口。
-从旧版升级前备份 Data/HuntTrain.json。安装包不包含玩家记录，更新时请保留原有记录。
+重新安装前备份 pluginConfigs/HuntHelperCN.json 和 pluginConfigs/HuntHelperCN/HuntTrain.json。安装包不包含玩家记录，更新时请保留原有记录。
 国服 vnavmesh：https://github.com/AtmoOmen/ffxiv_navmesh-cn 。未安装或网格未就绪时「移动」不可用。需要飞行跨越地形时，请先骑乘并起飞，再点击「移动」；插件不会自动召唤坐骑或起飞。
 
 验证范围请参见仓库 README-CN.md；尚未进行游戏内实测。

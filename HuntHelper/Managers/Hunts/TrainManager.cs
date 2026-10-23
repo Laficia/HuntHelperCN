@@ -150,6 +150,27 @@ public class TrainManager : IDisposable
         GetOrCreateTrain(worldID);
     }
 
+    // Include known empty worlds for import choices without creating empty tabs.
+    public IReadOnlyList<HuntTrainWorld> GetImportWorlds()
+    {
+        GetCurrentWorld();
+        return _worlds.Keys.Select(WorldWithCount).ToList();
+    }
+
+    public bool CanChooseImportWorld => ImportedTrain.Count > 0 &&
+        ImportedTrain.All(m => m.WorldID == ImportedTrain[0].WorldID);
+
+    public bool SetImportWorld(HuntTrainWorld world)
+    {
+        if (!CanChooseImportWorld) return false;
+        // Change only the preview. Existing trains and the clipboard stay intact until confirmation.
+        var replacement = ImportedTrain.Select(m => m.WithWorld(world)).ToList();
+        RememberWorld(world);
+        ImportedTrain.Clear();
+        ImportedTrain.AddRange(replacement);
+        return true;
+    }
+
     private void RememberWorld(HuntTrainWorld world)
     {
         var name = HuntTrainWorld.GetDisplayName(world.WorldID, world.WorldName);

@@ -25,6 +25,11 @@ internal static class Program
             ("delete/dead/reorder changes stay in their world", Sync(WorldScopedMutations)),
             ("import replacement respects explicit world boundaries", Sync(ScopedImportReplacement)),
             ("legacy import captures destination before tab changes", Sync(CapturedLegacyImport)),
+            ("legacy single-world code can target a new server without creating an empty tab", Sync(LegacyImportDestination)),
+            ("single-world destination changes preserve every hunt field and source code", Sync(ExplicitImportDestination)),
+            ("empty and multi-world codes cannot be flattened into one server", Sync(MultipleImportDestinations)),
+            ("replacement after choosing a server leaves every other server intact", Sync(SelectedImportReplacement)),
+            ("merge after choosing a server deduplicates and updates only the destination", Sync(SelectedImportMerge)),
             ("newer 2D import clears stale world position", Sync(NewerTwoDimensionalImport)),
             ("all worlds and record order survive save/reload", Sync(PersistenceRoundTrip)),
             ("legacy local records stay in unknown world 0", Sync(LegacyLocalFile)),
@@ -155,6 +160,114 @@ internal static class Program
         f.Manager.ImportTrainAll();
         Equal(10u, f.Rows(101).Single().MobID);
         Equal(0, f.Rows(102).Count);
+    }
+
+    private static void LegacyImportDestination()
+    {
+        using var f = new TrainFixture();
+        f.Manager.AddMob(Mob(1));
+        var saved = File.ReadAllText(f.FilePath);
+        f.Manager.Import(ExportImport.Export(LegacyRows()));
+        True(f.Manager.CanChooseImportWorld);
+        var target = new HuntTrainWorld(103, "C服", "其他大区", 0);
+        True(f.Manager.SetImportWorld(target));
+        Equal(103u, f.Manager.ImportedTrain.Single().WorldID);
+        Equal("C服", f.Manager.ImportedTrain.Single().WorldName);
+        Equal(saved, File.ReadAllText(f.FilePath));
+        True(!f.Manager.GetWorlds().Any(w => w.WorldID == 103));
+        True(f.Manager.GetImportWorlds().Any(w => w.WorldID == 103));
+        f.Manager.ImportedTrain.Clear(); // Cancel the preview.
+        Equal(saved, File.ReadAllText(f.FilePath));
+        True(!f.Manager.GetWorlds().Any(w => w.WorldID == 103));
+        f.Manager.Import(ExportImport.Export(LegacyRows()));
+        True(f.Manager.SetImportWorld(target));
+        f.Manager.ImportTrainNew(true);
+        Equal(77u, f.Rows(103).Single().MobID);
+        Equal(1u, f.Rows(101).Single().MobID);
+        using var reload = new TrainManager(NullHost.Instance, NullHost.Instance, f.FilePath, () => WorldA);
+        reload.SelectWorld(103);
+        Equal("C服", reload.HuntTrain.Single().WorldName);
+    }
+
+    private static void ExplicitImportDestination()
+    {
+        using var f = new TrainFixture();
+        var source = Mob(7, instance: 2, worldPosition: new Vector3(40, 50, 60));
+        source.Dead = true;
+        var original = JsonConvert.SerializeObject(source);
+        f.Manager.Import(new[] { source });
+        True(f.Manager.SetImportWorld(WorldB));
+        var preview = f.Manager.ImportedTrain.Single();
+        Equal(102u, preview.WorldID);
+        Equal("B服", preview.WorldName);
+        Equal(WorldB.DataCenterName, preview.DataCenterName);
+        Equal(source.Name, preview.Name);
+        Equal(source.MobID, preview.MobID);
+        Equal(source.Instance, preview.Instance);
+        Equal(source.TerritoryID, preview.TerritoryID);
+        Equal(source.MapID, preview.MapID);
+        Equal(source.MapName, preview.MapName);
+        Equal(source.Position, preview.Position);
+        Equal(source.WorldPosition, preview.WorldPosition);
+        Equal(source.LastSeenUTC, preview.LastSeenUTC);
+        Equal(source.Dead, preview.Dead);
+        Equal(original, JsonConvert.SerializeObject(source));
+        True(f.Manager.SetImportWorld(WorldA));
+        Equal(original, JsonConvert.SerializeObject(f.Manager.ImportedTrain.Single()));
+        f.Manager.SelectWorld(102);
+        f.Manager.ImportTrainAll();
+        Equal(7u, f.Rows(101).Single().MobID);
+        Equal(0, f.Rows(102).Count);
+    }
+
+    private static void MultipleImportDestinations()
+    {
+        using var f = new TrainFixture();
+        True(!f.Manager.CanChooseImportWorld);
+        True(!f.Manager.SetImportWorld(WorldA));
+        f.Manager.Import(new[] { Mob(1, world: 101), Mob(2, world: 102), Mob(3, world: 0) });
+        var original = JsonConvert.SerializeObject(f.Manager.ImportedTrain);
+        True(!f.Manager.CanChooseImportWorld);
+        True(!f.Manager.SetImportWorld(WorldB));
+        Equal(original, JsonConvert.SerializeObject(f.Manager.ImportedTrain));
+        f.Manager.ImportTrainAll();
+        Equal(1u, f.Rows(101).Single().MobID);
+        Equal(2u, f.Rows(102).Single().MobID);
+        Equal(3u, f.Rows(0).Single().MobID);
+    }
+
+    private static void SelectedImportReplacement()
+    {
+        using var f = new TrainFixture();
+        f.Manager.AddMob(Mob(1));
+        f.VisitedWorld = WorldB;
+        f.Manager.AddMob(Mob(2));
+        var untouched = JsonConvert.SerializeObject(f.Rows(101));
+        f.Manager.Import(new[] { Mob(9), Mob(10) });
+        True(f.Manager.SetImportWorld(WorldB));
+        f.Manager.SelectWorld(101);
+        f.Manager.ImportTrainAll();
+        Equal(untouched, JsonConvert.SerializeObject(f.Rows(101)));
+        Sequence(new uint[] { 9, 10 }, f.Rows(102).Select(m => m.MobID));
+        True(f.Rows(102).All(m => m.WorldName == "B服"));
+    }
+
+    private static void SelectedImportMerge()
+    {
+        using var f = new TrainFixture();
+        f.Manager.AddMob(Mob(1));
+        f.VisitedWorld = WorldB;
+        f.Manager.AddMob(Mob(1));
+        var untouched = JsonConvert.SerializeObject(f.Rows(101));
+        f.Manager.Import(new[] { Mob(1, seen: Seen.AddMinutes(1)), Mob(2), Mob(2) });
+        True(f.Manager.SetImportWorld(WorldB));
+        True(f.Manager.ContainsMob(f.Manager.ImportedTrain[0]));
+        True(!f.Manager.ContainsMob(f.Manager.ImportedTrain[1]));
+        f.Manager.ImportTrainNew(true);
+        Equal(untouched, JsonConvert.SerializeObject(f.Rows(101)));
+        Sequence(new uint[] { 1, 2 }, f.Rows(102).Select(m => m.MobID));
+        Equal(Seen.AddMinutes(1), f.Rows(102)[0].LastSeenUTC);
+        True(f.Rows(102).All(m => m.WorldID == 102));
     }
 
     private static void NewerTwoDimensionalImport()

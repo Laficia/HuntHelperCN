@@ -1,7 +1,8 @@
 {
   "Author": "img02 / Laficia",
-  "Name": "Hunt Helper CN（国服定制）",
+  "Name": "狩猎助手Hunt Helper",
   "Punchline": "区服独立 A 车记录、自动地图图片、vnavmesh 移动",
+  "Changelog": "1.0.0.1：名称改为狩猎助手Hunt Helper；单服分享码可选择导入服务器；版本号重置。已安装1.0.0.35～39的用户需手动卸载后从原订阅重新安装，保留配置与记录；卫月不会自动降级。",
   "Description": "基于 img02/HuntHelper 的国服定制版。支持按访问区服隔离 A 怪记录和标签页、自动下载地图底图、同地图同区服同分线 vnavmesh 移动。首次使用请禁用原版 Hunt Helper，避免命令冲突。保留原 MIT 许可。",
   "Tags": [
     "hunt",

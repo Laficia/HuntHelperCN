@@ -59,6 +59,7 @@ public class HuntTrainUI : IDisposable
     private bool _importAll = false;
     private bool _importNew = true;
     private bool _importUpdateTime = true;
+    private IReadOnlyList<HuntTrainWorld>? _importWorldCatalog;
 
     private TeleportManager _teleportManager;
 
@@ -549,7 +550,32 @@ public class HuntTrainUI : IDisposable
 
             ImGui.Text($"{GuiResources.HuntTrainGuiText["ImportWindowImportedMessage"]}{_importedTrain.Count}");
 
-            if (ImGui.BeginChild("tablechild", new Vector2(ImGui.GetWindowSize().X, (ImGui.GetTextLineHeightWithSpacing() + 5) * (_importedTrain.Count + 1))))
+            if (_trainManager.CanChooseImportWorld)
+            {
+                _importWorldCatalog ??= MapHelpers.GetImportableWorlds(_trainManager.CurrentWorldId);
+                var destination = _importedTrain[0];
+                ImGui.TextUnformatted("导入服务器");
+                ImGui.SetNextItemWidth(-1);
+                if (ImGui.BeginCombo("##ImportDestination", destination.WorldName, ImGuiComboFlags.HeightLarge))
+                {
+                    var options = _trainManager.GetImportWorlds().Concat(_importWorldCatalog)
+                        .DistinctBy(w => w.WorldID).OrderBy(w => w.WorldID == 0).ThenBy(w => w.WorldName);
+                    foreach (var world in options)
+                    {
+                        var selected = world.WorldID == destination.WorldID;
+                        if (ImGui.Selectable($"{world.WorldName}##ImportWorld{world.WorldID}", selected))
+                            _trainManager.SetImportWorld(world);
+                        if (selected) ImGui.SetItemDefaultFocus();
+                    }
+                    ImGui.EndCombo();
+                }
+                ImGui.TextWrapped("导入到所选服务器。确认导入前可更改目标，取消不会修改现有记录。");
+            }
+            else ImGui.TextWrapped("分享码包含多个服务器，将按各自区服导入。");
+
+            var previewHeight = Math.Min((ImGui.GetTextLineHeightWithSpacing() + 5) * (_importedTrain.Count + 1),
+                Math.Max(80 * ImGuiHelpers.GlobalScale, ImGui.GetContentRegionAvail().Y - 200 * ImGuiHelpers.GlobalScale));
+            if (ImGui.BeginChild("tablechild", new Vector2(0, previewHeight)))
             {
 
                 if (ImGui.BeginTable("ImportTable", 2, ImGuiTableFlags.BordersH))
@@ -605,7 +631,7 @@ public class HuntTrainUI : IDisposable
             ;
             ImGui.SameLine(); ImGuiUtil.ImGui_HelpMarker(GuiResources.HuntTrainGuiText["UpdateLastSeenCheckboxToolTip"]);
 
-            ImGui.Dummy(new Vector2(0, 100));
+            ImGui.Dummy(new Vector2(0, 12));
             ImGui.Dummy(new Vector2(6, 0));
             ImGui.SameLine();
             if (ImGui.Button(GuiResources.HuntTrainGuiText["ImportButton"], new Vector2(80, 0)))

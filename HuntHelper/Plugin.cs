@@ -19,7 +19,7 @@ namespace HuntHelper
 {
     public sealed class Plugin : IDalamudPlugin
     {
-        public string Name => "Hunt Helper CN";
+        public string Name => "狩猎助手Hunt Helper";
 
         private const string MapWindowCommand = "/hh";
         private const string MapWindowPresetOne = "/hh1";

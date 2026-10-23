@@ -64,6 +64,21 @@ public class MapHelpers
         return DataManager.GetExcelSheet<TerritoryType>().GetRowOrDefault(territoryID)?.Map.RowId ?? 0;
     }
 
+    public static IReadOnlyList<HuntTrainWorld> GetImportableWorlds(uint currentWorldId)
+    {
+        if (DataManager == null) return Array.Empty<HuntTrainWorld>();
+        var sheet = DataManager.GetExcelSheet<World>();
+        var region = sheet.GetRowOrDefault(currentWorldId)?.DataCenter.ValueNullable?.Region.RowId;
+        var worlds = new List<HuntTrainWorld>();
+        foreach (var world in sheet)
+        {
+            var dc = world.DataCenter.ValueNullable;
+            if (!world.IsPublic || dc == null || (region.HasValue && dc.Value.Region.RowId != region.Value)) continue;
+            worlds.Add(new HuntTrainWorld(world.RowId, world.Name.ToString(), dc.Value.Name.ToString(), 0));
+        }
+        return worlds;
+    }
+
     //convert map scale (100/95) to map size (41/43.1)
     public static float MapScaleToMaxCoord(float mapScale) => (-0.42f) * mapScale + 83f;
 
