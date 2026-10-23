@@ -1,5 +1,6 @@
 ﻿using Dalamud.Game.Command;
 using Dalamud.IoC;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
@@ -58,6 +59,7 @@ namespace HuntHelper
             ICommandManager commandManager,
             IClientState clientState,
             IPlayerState playerState,
+            ICondition condition,
             IObjectTable objectTable,
             IDataManager dataManager,
             IChatGui chatGui,
@@ -99,7 +101,8 @@ namespace HuntHelper
             MapDataManager = new MapDataManager(Path.Combine(pluginInterface.AssemblyLocation.Directory?.FullName!, @"Data\SpawnPointData.json"));
 
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
-            NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework);
+            NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
+                () => condition[ConditionFlag.InFlight]);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager);
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);

@@ -127,6 +127,7 @@ internal sealed class Fixture : IDisposable
     public bool Busy { get; set; }
     public bool Running { get; set; }
     public bool MovementAllowed { get; set; } = true;
+    public bool Flying { get; set; }
     public Vector3? Floor { get; set; } = new Vector3(250, 17, 150);
     public int PathfindRequests { get; private set; }
     public int MoveRequests { get; private set; }
@@ -176,7 +177,7 @@ internal sealed class Fixture : IDisposable
             LastFloorRadius = radius;
             return Floor;
         });
-        Manager = new NavigationManager(Plugin, Client, PlayerState, Objects, Data, Framework);
+        Manager = new NavigationManager(Plugin, Client, PlayerState, Objects, Data, Framework, () => Flying);
     }
 
     public static TaskCompletionSource<List<Vector3>> NewPath() => new(TaskCreationOptions.RunContinuationsAsynchronously);

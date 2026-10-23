@@ -9,11 +9,18 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
-## 本次新增功能（1.0.0.35）
+## 更新修正（1.0.0.36）
+
+- 导航按国服 [AtmoOmen/ffxiv_navmesh-cn](https://github.com/AtmoOmen/ffxiv_navmesh-cn) 0.7.7.0（c81ddc20）的 IPC 签名接入。修复固定使用地面寻路的问题：已起飞时使用飞行路径，地面路线将起终点贴合可达网格，空路线最多重试一次。
+- 删除列表的坐标列；当前区服与服务器标签仅显示服务器名称。
+- 服务器标签可用鼠标左键拖到另一个标签上调整顺序，顺序随配置保存。
+- 需要飞行跨越不连通地形时，请先骑乘并起飞，再点击「移动」。插件不会自动召唤坐骑或起飞；原生网格没有连通路线时仍会报告原因。
+
+## 已有定制功能
 
 1. A 车记录带访问区服、数据中心、分线和扫描时的三维坐标，`/hht` 按区服显示标签页。浏览其他服时扫描仍写入当前访问服。清空、标死、恢复和排序只作用于选中服，导入覆盖只替换分享码涉及的服。
 2. 默认使用地图底图，首次打开地图自动下载缺少的图片并缓存。失败时雷达继续使用，状态窗口可重试；更新图片不删除已有缓存。
-3. A 怪行的传送旁新增「移动」，调用 vnavmesh 地面寻路。仅当前区服、同地图、同分线且网格就绪时启用。显示禁用原因，并可「停止移动」；切换区服/地图/分线和卸载时取消本插件的寻路与移动。
+3. A 怪行的传送旁新增「移动」，调用国服 vnavmesh 寻路。仅当前区服、同地图、同分线且网格就绪时启用。显示禁用原因，并可「停止移动」；切换区服/地图/分线和卸载时取消本插件的寻路与移动。
 
 先在 `/hht` 点击开始记录；记录开启时即使关闭主地图也继续扫描。
 新扫描记录优先使用原始三维位置。旧分享码只有二维坐标时用 vnavmesh 地面查询，多层地图建议重新扫描以获得准确高度。
@@ -37,13 +44,14 @@ dotnet run --project tests/HuntHelper.NavigationTests -c Release
 仓库的 `Directory.Build.props` 在 SDK 解析引用路径前，将 Windows 下的 `DALAMUD_HOME` 设置为 `%APPDATA%\XIVLauncherCN\addon\Hooks\dev`。
 因此普通编译命令直接引用国服目录；若需明确指定其他安装位置，使用命令行参数 `-p:DALAMUD_HOME=对应路径`。
 
-Release 插件 DLL：`HuntHelper\bin\x64\ReleasePublish\HuntHelperCN.dll`。
-完整压缩包：`HuntHelper\bin\x64\ReleasePublish\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
+本次发布使用 `-p:OutputPath=bin/x64/Release36/` 的独立输出目录。
+Release 插件 DLL：`HuntHelper\bin\x64\Release36\HuntHelperCN.dll`。
+完整压缩包：`HuntHelper\bin\x64\Release36\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
 
 ## 当前验证范围
 
 Debug、Release 编译通过；上游仍有可空性和未使用字段等编译警告。
-独立回归测试通过：区服记录/导入/持久化/本地下载 17/17 组，导航 IPC 模拟与取消竞态 31/31 项。
+独立回归测试通过：区服记录/导入/持久化/本地下载 17/17 组，导航 IPC 模拟与取消竞态 35/35 项。
 测试直接链接生产源码，以最小宿主替身模拟游戏服务；下载测试只使用本机回环 HTTP，不连接游戏或修改已安装插件。
 已核对打包清单的 `DalamudApiLevel=15`、.NET 10 目标及中文资源，并核对实际程序集引用来自上述 `XIVLauncherCN` 目录。
 尚未进行游戏内加载、雷达、计数器、语音或传送联动实测。

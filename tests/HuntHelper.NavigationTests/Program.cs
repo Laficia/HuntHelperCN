@@ -11,6 +11,56 @@ internal static class Program
 
     private static int Main()
     {
+        Run("Flying players use the CN flight query and flight executor", () =>
+        {
+            using var f = new Fixture();
+            f.Flying = true;
+            Check(f.Manager.TryMoveTo(f.Mob), "flight request accepted");
+            Check(f.LastFly, "query must use flight rather than an unreachable ground start");
+            f.Complete();
+            f.Framework.Tick();
+            Equal(1, f.MoveRequests);
+            Check(f.LastFly, "executor must preserve flight mode");
+        });
+        Run("Ground NPC and player positions snap to reachable CN mesh", () =>
+        {
+            using var f = new Fixture();
+            f.Plugin.At("vnavmesh.Query.Mesh.NearestPointReachable").Function =
+                (Func<Vector3, float, float, Vector3?>)((p, xz, y) => new Vector3(p.X, 7, p.Z));
+            Check(f.Manager.TryMoveTo(f.Mob), "request accepted");
+            Equal(7f, f.LastFrom.Y);
+            Equal(7f, f.LastDestination.Y);
+            Check(!f.LastFly, "ground mode retained");
+        });
+        Run("Empty ground route retries once and late retry is cancelled safely", () =>
+        {
+            using var f = new Fixture();
+            f.Plugin.At("vnavmesh.Query.Mesh.NearestPointReachable").Function =
+                (Func<Vector3, float, float, Vector3?>)((p, xz, y) => p);
+            Check(f.Manager.TryMoveTo(f.Mob), "request accepted");
+            f.NextPath.SetResult([]);
+            f.NextPath = Fixture.NewPath();
+            f.Framework.Tick();
+            Equal(2, f.PathfindRequests);
+            f.Manager.Stop();
+            f.Complete();
+            f.Framework.Tick();
+            Equal(0, f.MoveRequests);
+            Check(f.LastCancellation.IsCancellationRequested, "retry token cancelled");
+        });
+        Run("A successful mesh retry starts movement", () =>
+        {
+            using var f = new Fixture();
+            f.Plugin.At("vnavmesh.Query.Mesh.NearestPointReachable").Function =
+                (Func<Vector3, float, float, Vector3?>)((p, xz, y) => p);
+            Check(f.Manager.TryMoveTo(f.Mob), "request accepted");
+            f.NextPath.SetResult([]);
+            f.NextPath = Fixture.NewPath();
+            f.Framework.Tick();
+            f.Complete();
+            f.Framework.Tick();
+            Equal(1, f.MoveRequests);
+        });
         Run("Only a completed task on a Framework tick may start movement", () =>
         {
             using var f = new Fixture();

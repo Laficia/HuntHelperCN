@@ -4,6 +4,7 @@ using Dalamud.Plugin;
 using Newtonsoft.Json;
 using System;
 using System.Numerics;
+using System.Collections.Generic;
 
 namespace HuntHelper
 {
@@ -143,6 +144,7 @@ namespace HuntHelper
         public bool HuntTrainShowUIDuringIPCImport { get; set; } = true;
 
         public bool HuntTrainShowMapName { get; set; } = false;
+        public List<uint> HuntTrainWorldTabOrder { get; set; } = new();
 
         #endregion
 

@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 
 namespace HuntHelper.Managers;
 
-/// <summary>Requests ground navigation only for a hunt in the player's current world, map and instance.</summary>
+/// <summary>Requests CN vnavmesh navigation for a hunt in the player's current world, map and instance.</summary>
 public sealed class NavigationManager : IDisposable
 {
     private readonly object _requestLock = new();
@@ -29,6 +29,11 @@ public sealed class NavigationManager : IDisposable
     private readonly ICallGateSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>> _findPath;
     private readonly ICallGateSubscriber<List<Vector3>, bool, object> _move;
     private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> _pointOnFloor;
+    private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestReachable;
+    private readonly Func<bool> _isFlying;
+    private bool _requestFly;
+    private Vector3 _destination;
+    private int _pathRetries;
     private readonly ICallGateSubscriber<object> _stop;
     private string _availability = string.Empty;
     private long _lastStatusCheck;
@@ -42,13 +47,15 @@ public sealed class NavigationManager : IDisposable
     public bool OwnsMovement => _movingTo != null;
 
     public NavigationManager(IDalamudPluginInterface pluginInterface, IClientState clientState,
-        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework)
+        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework, Func<bool>? isFlying = null)
     {
         _clientState = clientState;
         _playerState = playerState;
         _objectTable = objectTable;
         _dataManager = dataManager;
         _framework = framework;
+        _isFlying = isFlying ?? (() => false);
+        _nearestReachable = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         _ready = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
         _pathfinding = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.PathfindInProgress");
         _running = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
@@ -135,8 +142,19 @@ public sealed class NavigationManager : IDisposable
                 reason = GetContextReason(mob);
                 if (reason.Length != 0) throw new InvalidOperationException(reason);
                 var player = _objectTable.LocalPlayer ?? throw new InvalidOperationException("无法读取玩家位置");
+                _requestFly = _isFlying();
+                _pathRetries = 0;
+                _destination = destination;
+                var from = player.Position;
+                if (!_requestFly && _nearestReachable.HasFunction)
+                {
+                    from = _nearestReachable.InvokeFunc(from, 5f, 10f) ?? from;
+                    destination = _nearestReachable.InvokeFunc(destination, 5f, 10f) ?? destination;
+                }
+                if (!NavigationRules.IsFinite(from) || !NavigationRules.IsFinite(destination))
+                    throw new InvalidOperationException("vnavmesh 返回了无效的网格坐标，请等待网格加载完成后重试");
                 cancellation = new CancellationTokenSource();
-                var task = _findPath.InvokeFunc(player.Position, destination, false, cancellation.Token)
+                var task = _findPath.InvokeFunc(from, destination, _requestFly, cancellation.Token)
                     ?? throw new InvalidOperationException("vnavmesh 未返回寻路任务");
                 // A stopped/disposed request can complete later. Observe faults without
                 // retaining this manager or attaching any continuation that can move.
@@ -223,8 +241,22 @@ public sealed class NavigationManager : IDisposable
                 try
                 {
                     var path = pending.GetAwaiter().GetResult();
+                    if (path.Count == 0 && !_requestFly && _pathRetries == 0 && _nearestReachable.HasFunction)
+                    {
+                        _pathRetries++;
+                        var from = _nearestReachable.InvokeFunc(_objectTable.LocalPlayer!.Position, 10f, 30f);
+                        var to = _nearestReachable.InvokeFunc(_destination, 10f, 30f);
+                        if (from is { } start && to is { } end && NavigationRules.IsFinite(start) && NavigationRules.IsFinite(end))
+                        {
+                            _pendingPath = _findPath.InvokeFunc(start, end, false, _pathCancellation!.Token);
+                            _ = _pendingPath.ContinueWith(static t => { _ = t.Exception; }, CancellationToken.None,
+                                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                            LastMessage = "正在使用国服 vnavmesh 的可达网格点重新寻路";
+                            return;
+                        }
+                    }
                     if (path.Count == 0 || path.Any(p => !NavigationRules.IsFinite(p)))
-                        throw new InvalidOperationException("未找到有效路线，请检查该点位或重新扫描");
+                        throw new InvalidOperationException(_requestFly ? "国服 vnavmesh 未找到飞行路线，请检查该地图飞行网格" : "国服 vnavmesh 未找到连通的地面路线；若需飞行，请先骑乘并起飞后点击移动");
                     var reason = GetContextReason(_movingTo);
                     if (reason.Length != 0) throw new InvalidOperationException(reason);
                     if (!_ready.HasFunction || !_ready.InvokeFunc() || !_move.HasAction || !_stop.HasAction)
@@ -237,7 +269,7 @@ public sealed class NavigationManager : IDisposable
                     // This is the sole movement entry point. It runs on Framework,
                     // under the same lock as Stop/Dispose, after checking ownership.
                     _startedMovement = true;
-                    _move.InvokeAction(path, false);
+                    _move.InvokeAction(path, _requestFly);
                     _pendingPath = null;
                     _pathCancellation?.Dispose();
                     _pathCancellation = null;

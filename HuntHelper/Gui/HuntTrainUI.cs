@@ -291,7 +291,7 @@ public class HuntTrainUI : IDisposable
         ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
     }
 
-    private void DrawWorldTabs()
+    private unsafe void DrawWorldTabs()
     {
         var current = _trainManager.GetCurrentWorld();
         ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
@@ -299,12 +299,40 @@ public class HuntTrainUI : IDisposable
         var initialWorld = _displayedWorld == null ? _trainManager.SelectedWorldId : (uint?)null;
         if (ImGui.BeginTabBar("HuntTrainWorldTabs", ImGuiTabBarFlags.FittingPolicyScroll))
         {
-            foreach (var world in _trainManager.GetWorlds())
+            _config.HuntTrainWorldTabOrder ??= new();
+            var worlds = _trainManager.GetWorlds();
+            foreach (var world in worlds)
+                if (!_config.HuntTrainWorldTabOrder.Contains(world.WorldID)) _config.HuntTrainWorldTabOrder.Add(world.WorldID);
+            foreach (var world in worlds.OrderBy(w => _config.HuntTrainWorldTabOrder.IndexOf(w.WorldID)).ToArray())
             {
                 var label = $"{FormatWorld(world.WorldName, world.DataCenterName)} ({world.Count})###World{world.WorldID}";
                 var flags = world.WorldID == initialWorld
                     ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None;
-                if (!ImGui.BeginTabItem(label, flags)) continue;
+                var active = ImGui.BeginTabItem(label, flags);
+                if (ImGui.BeginDragDropSource())
+                {
+                    var id = world.WorldID;
+                    ImGui.SetDragDropPayload("HH_WORLD_TAB", new ReadOnlySpan<byte>(&id, sizeof(uint)));
+                    ImGui.TextUnformatted(world.WorldName);
+                    ImGui.EndDragDropSource();
+                }
+                if (ImGui.BeginDragDropTarget())
+                {
+                    var payload = ImGui.AcceptDragDropPayload("HH_WORLD_TAB");
+                    if (!payload.IsNull && payload.DataSize == sizeof(uint))
+                    {
+                        var id = *(uint*)payload.Data;
+                        if (id != world.WorldID && _config.HuntTrainWorldTabOrder.Contains(id))
+                        {
+                            var targetIndex = _config.HuntTrainWorldTabOrder.IndexOf(world.WorldID);
+                            _config.HuntTrainWorldTabOrder.Remove(id);
+                            _config.HuntTrainWorldTabOrder.Insert(targetIndex, id);
+                            _config.Save();
+                        }
+                    }
+                    ImGui.EndDragDropTarget();
+                }
+                if (!active) continue;
                 if (_displayedWorld != world.WorldID)
                 {
                     if (_displayedWorld is { } previous) _selectedByWorld[previous] = _selectedIndex;
@@ -319,8 +347,7 @@ public class HuntTrainUI : IDisposable
         ClampSelection();
     }
 
-    private static string FormatWorld(string name, string dataCenter) =>
-        string.IsNullOrWhiteSpace(dataCenter) ? name : $"{dataCenter} / {name}";
+    private static string FormatWorld(string name, string dataCenter) => name;
 
     private void ClampSelection()
     {
@@ -342,13 +369,13 @@ public class HuntTrainUI : IDisposable
             ImGui.TextDisabled("该区服暂无记录。点击下方开始记录后，扫描到的 A 怪会保存在对应区服。");
             return;
         }
-        var columns = _showMapName ? 6 : 5;
+        var columns = 4 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
         if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.Resizable)) return;
         ImGui.TableSetupColumn("A 怪", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("区服", ImGuiTableColumnFlags.WidthFixed, 105 * ImGuiHelpers.GlobalScale);
         if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 106 * ImGuiHelpers.GlobalScale);
-        ImGui.TableSetupColumn(_showLastSeen ? "发现" : "坐标", ImGuiTableColumnFlags.WidthFixed, (_showLastSeen ? 52 : 86) * ImGuiHelpers.GlobalScale);
+        if (_showLastSeen) ImGui.TableSetupColumn("发现", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("死亡", ImGuiTableColumnFlags.WidthFixed, 36 * ImGuiHelpers.GlobalScale);
         ImGui.TableHeadersRow();
         for (var n = 0; n < _mobList.Count; n++)
@@ -399,10 +426,12 @@ public class HuntTrainUI : IDisposable
             if (ImGui.Button("移动")) _navigation.TryMoveTo(mob);
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                ImGui.SetTooltip(reason.Length != 0 ? reason : "调用 vnavmesh 地面寻路到该 A 怪点位，仅限同区服、同地图、同分线");
-            ImGui.TableNextColumn();
-            if (_showLastSeen) ImGui.TextUnformatted($"{Math.Max(0, (DateTime.UtcNow - mob.LastSeenUTC).TotalMinutes):0}m");
-            else ImGui.TextUnformatted($"{mob.Position.X:0.0}, {mob.Position.Y:0.0}");
+                ImGui.SetTooltip(reason.Length != 0 ? reason : "调用国服 vnavmesh 前往该 A 怪点位；起飞后使用飞行路线，仅限同区服、同地图、同分线");
+            if (_showLastSeen)
+            {
+                ImGui.TableNextColumn();
+                ImGui.TextUnformatted($"{Math.Max(0, (DateTime.UtcNow - mob.LastSeenUTC).TotalMinutes):0}m");
+            }
             ImGui.TableNextColumn();
             var dead = mob.Dead;
             if (ImGui.Checkbox("##dead", ref dead))
