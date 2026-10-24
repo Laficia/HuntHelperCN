@@ -146,6 +146,8 @@ namespace HuntHelper
         public bool HuntTrainShowUIDuringIPCImport { get; set; } = true;
 
         public bool HuntTrainShowMapName { get; set; } = false;
+        public bool HuntTrainShowMissingRoster { get; set; } = false;
+        public Dictionary<uint, Dictionary<uint, int>> HuntTrainMapInstanceCounts { get; set; } = new();
         public List<uint> HuntTrainWorldTabOrder { get; set; } = new();
 
         #endregion

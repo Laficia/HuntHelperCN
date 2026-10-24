@@ -106,6 +106,23 @@ public class MapHelpers
         return string.IsNullOrWhiteSpace(name) ? fallback : name;
     }
 
+    public static IReadOnlyDictionary<uint, uint> GetHuntTerritories(IEnumerable<uint> territories)
+    {
+        var result = new Dictionary<uint, uint>();
+        foreach (var territory in territories)
+        {
+            var zone = DataManager.GetExcelSheet<TerritoryType>().GetRowOrDefault(territory);
+            var notorious = zone?.NotoriousMonsterTerritory.ValueNullable;
+            if (notorious == null) continue;
+            foreach (var monster in notorious.Value.NotoriousMonsters)
+            {
+                var nameId = monster.ValueNullable?.BNpcName.RowId ?? 0;
+                if (nameId != 0) result.TryAdd(nameId, territory);
+            }
+        }
+        return result;
+    }
+
     public static async Task<bool> MapImageVerUpToDate(string currentVersion)
     {
         var version = await GetMapImageVer().ConfigureAwait(false);

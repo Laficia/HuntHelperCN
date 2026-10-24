@@ -8,4 +8,4 @@ It creates no desktop window, uses no game process or GPU backend, and disables 
 
 Window checks link the production `HuntTrainWindowLayout`, drag the real native lower-right resize grip smaller and larger, verify the compact minimum, click the real Restore default size button, and check scaled limits against the available viewport.
 
-Roster presentation checks exercise the production summary and status badges and ensure their scoped styles are restored. On Windows, pass --render-roster to render a Chinese preview using simulated records and the Microsoft YaHei font installed in Windows. The offscreen CPU renderer writes obj/release-staging/v1.0.0.4/roster-preview.png; this is a layout preview, not an in-game screenshot.
+Roster presentation checks exercise the production summary and status badges and ensure their scoped styles are restored. On Windows, pass --render-roster (optionally --show-missing) to render a Chinese preview using simulated records and the Microsoft YaHei font installed in Windows. The offscreen CPU renderer writes obj/release-staging/v1.0.0.5/roster-preview-default.png; this is a layout preview, not an in-game screenshot.

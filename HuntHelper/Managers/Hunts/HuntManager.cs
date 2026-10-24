@@ -35,6 +35,7 @@ public class HuntManager : IDisposable
     private readonly Dictionary<HuntRank, List<Mob>> _dtDict;
     private readonly Dictionary<uint, int> _aRankVersions = new();
     private readonly List<HuntRosterEntry> _aRankRoster = new();
+    private readonly IReadOnlyDictionary<uint, uint> _huntTerritories;
     public IReadOnlyList<HuntRosterEntry> ARankRoster => _aRankRoster;
     public int? GetARankVersion(uint nameId) => _aRankVersions.TryGetValue(nameId, out var version) ? version : null;
     private readonly IDalamudPluginInterface _pluginInterface;
@@ -101,7 +102,8 @@ public class HuntManager : IDisposable
     public event Action<HuntTrainMob> MarkSeen;
 
 
-    public HuntManager(IDalamudPluginInterface pluginInterface, TrainManager trainManager, IChatGui chatGui, IFlyTextGui flyTextGui, int ttsVolume)
+    public HuntManager(IDalamudPluginInterface pluginInterface, TrainManager trainManager, IChatGui chatGui, IFlyTextGui flyTextGui, int ttsVolume,
+        IReadOnlyDictionary<uint, uint> huntTerritories)
     {
         _arrDict = new Dictionary<HuntRank, List<Mob>>();
         _hwDict = new Dictionary<HuntRank, List<Mob>>();
@@ -115,6 +117,7 @@ public class HuntManager : IDisposable
         _chatGui = chatGui;
         _flyTextGui = flyTextGui;
         _trainManager = trainManager;
+        _huntTerritories = huntTerritories;
         TTSVolume = ttsVolume > 100 ? 100 : ttsVolume < 0 ? 0 : ttsVolume;
 
         HuntTrain = new List<HuntTrainMob>();
@@ -445,7 +448,7 @@ public class HuntManager : IDisposable
                 {
                     if (!_aRankVersions.TryAdd(monster.ModelID, version)) continue;
                     var localName = MapHelpers.GetMobName(monster.ModelID, monster.Name);
-                    _aRankRoster.Add(new HuntRosterEntry(version, monster.ModelID, localName));
+                    _aRankRoster.Add(new HuntRosterEntry(version, monster.ModelID, localName, _huntTerritories.GetValueOrDefault(monster.ModelID)));
                 }
     }
 

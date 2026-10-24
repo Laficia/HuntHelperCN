@@ -90,7 +90,7 @@ internal static class Program
 
             var report = new
             {
-                CurrentVersion = "1.0.0.4",
+                CurrentVersion = "1.0.0.5",
                 OriginalVersion = "1.0.0.34",
                 OriginalCommit = "c6b85581b5c2980214272a38527ee2aaf4b18e69",
                 Format = "Base64(GZip(UTF8(JSON array)))",

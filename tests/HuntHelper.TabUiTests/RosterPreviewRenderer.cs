@@ -12,7 +12,7 @@ internal static unsafe class RosterPreviewRenderer
 {
     private const int Width = 800, Height = 820;
 
-    internal static void Render()
+    internal static void Render(bool showMissing)
     {
         var io = ImGui.GetIO();
         io.DisplaySize = new(Width, Height);
@@ -22,7 +22,7 @@ internal static unsafe class RosterPreviewRenderer
         io.Fonts.AddFontFromFileTTF("C:/Windows/Fonts/msyh.ttc", 18, default,
             io.Fonts.GetGlyphRangesChineseFull());
         io.Fonts.Build();
-        for (var frame = 0; frame < 2; frame++) Draw();
+        for (var frame = 0; frame < 2; frame++) Draw(showMissing);
         byte* atlas;
         int tw, th;
         io.Fonts.GetTexDataAsRGBA32(0, &atlas, &tw, &th);
@@ -46,13 +46,13 @@ internal static unsafe class RosterPreviewRenderer
                 }
             }
         }
-        var path = Path.GetFullPath("obj/release-staging/v1.0.0.4/roster-preview.png");
+        var path = Path.GetFullPath($"obj/release-staging/v1.0.0.5/roster-preview-{(showMissing ? "enabled" : "default")}.png");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         SavePng(path, pixels);
         Console.WriteLine($"PREVIEW (simulated records): {path}");
     }
 
-    private static void Draw()
+    private static void Draw(bool showMissing)
     {
         ImGui.NewFrame();
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(18, 14));
@@ -72,23 +72,23 @@ internal static unsafe class RosterPreviewRenderer
         var worlds = new WorldTabBar();
         worlds.Draw([new HuntTrainWorld(1, "银泪湖", "", 5), new HuntTrainWorld(2, "水晶塔", "", 12)], 1, new List<uint> { 1, 2 });
         new TrainVersionTabBar().Draw([new(7, "7A", 5, 12), new(6, "6A", 0, 12), new(5, "5A", 0, 12), new(4, "4A", 0, 12)], 7);
-        HuntRosterPresentation.Summary("银泪湖", 7, 5, 12, 1);
+        HuntRosterPresentation.Summary("银泪湖", 7, 5, 14, 1);
+        ImGui.TextDisabled("按地图分线计数 · 怪物种类 5/12");
         string[] names = ["女王蜂", "奥迦斯", "弗克施泰因", "悼骨灾蝎", "马赫沙", "泛光晶体", "鬼灵梦", "船幽灵", "象魔修罗", "安迦达", "硕蝎", "基里麦卡拉"];
-        if (ImGui.BeginTable("PreviewRoster", 4, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY, new(0, 414)))
+        if (ImGui.BeginTable("PreviewRoster", 3, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.ScrollY, new(0, 380)))
         {
             ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
             ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 94);
-            ImGui.TableSetupColumn("区服", ImGuiTableColumnFlags.WidthFixed, 96);
             ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 154);
             ImGui.TableSetupScrollFreeze(0, 1); ImGui.TableHeadersRow();
-            for (var i = 0; i < names.Length; i++)
+            for (var i = 0; i < (showMissing ? names.Length + 2 : 5); i++)
             {
                 ImGui.PushID(i);
                 ImGui.TableNextRow(ImGuiTableRowFlags.None, 31);
                 ImGui.TableNextColumn();
-                if (i < 5) ImGui.TextUnformatted(names[i]); else ImGui.TextDisabled(names[i]);
+                var name = names[i % names.Length] + (i is < 2 ? " 1线" : i >= 12 ? " 2线" : "");
+                if (i < 5) ImGui.TextUnformatted(name); else ImGui.TextDisabled(name);
                 ImGui.TableNextColumn(); HuntRosterPresentation.Status(i < 5, i == 4, 1);
-                ImGui.TableNextColumn(); ImGui.TextDisabled("银泪湖");
                 ImGui.TableNextColumn();
                 if (i < 5) { ImGui.SmallButton("传送"); ImGui.SameLine(); ImGui.SmallButton("移动"); }
                 else ImGui.TextDisabled("--");
@@ -96,7 +96,8 @@ internal static unsafe class RosterPreviewRenderer
             }
             ImGui.EndTable();
         }
-        ImGui.Spacing(); ImGui.TextDisabled("开启记录或使用找怪扫描，发现后自动标出。");
+        ImGui.Spacing(); ImGui.Checkbox("显示未发现 A 怪占位（默认关闭）", ref showMissing);
+        ImGui.TextDisabled("地图分线设置：自动识别 / 无分线 / 2～9 线");
         ImGui.Separator();
         ImGui.Button("开始记录"); ImGui.SameLine(); ImGui.Button("导出"); ImGui.SameLine(); ImGui.Button("导入");
         ImGui.End();

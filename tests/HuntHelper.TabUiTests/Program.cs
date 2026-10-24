@@ -50,7 +50,7 @@ internal static unsafe class Program
             WindowResizeChecks.Run();
             VersionTabUiChecks.Run();
             RosterPresentationChecks.Run();
-            if (args.Contains("--render-roster")) RosterPreviewRenderer.Render();
+            if (args.Contains("--render-roster")) RosterPreviewRenderer.Render(args.Contains("--show-missing"));
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

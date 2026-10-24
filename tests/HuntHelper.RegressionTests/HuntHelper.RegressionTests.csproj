@@ -9,6 +9,7 @@
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionFilter.cs" Link="Production\TrainVersionFilter.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRoster.cs" Link="Production\HuntRoster.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\HuntInstanceLayout.cs" Link="Production\HuntInstanceLayout.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolModels.cs" Link="Production\PatrolModels.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolSession.cs" Link="Production\PatrolSession.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\HuntDeathMonitor.cs" Link="Production\HuntDeathMonitor.cs" />

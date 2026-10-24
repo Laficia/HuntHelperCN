@@ -15,6 +15,7 @@ using HuntHelper.Managers.NewExpansion;
 using HuntHelper.Utilities;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace HuntHelper
 {
@@ -110,8 +111,9 @@ namespace HuntHelper
             var trainPath = Path.Combine(pluginInterface.ConfigDirectory.FullName, "HuntTrain.json");
             LegacyDataMigration.CopyTrainIfMissing(trainPath, PluginDir);
             TrainManager = new TrainManager(chatGui, gameGui, trainPath, playerState);
-            HuntManager = new HuntManager(pluginInterface, TrainManager, chatGui, flyTextGui, Configuration.TTSVolume);
             MapDataManager = new MapDataManager(Path.Combine(pluginInterface.AssemblyLocation.Directory?.FullName!, @"Data\SpawnPointData.json"));
+            HuntManager = new HuntManager(pluginInterface, TrainManager, chatGui, flyTextGui, Configuration.TTSVolume,
+                MapHelpers.GetHuntTerritories(MapDataManager.SpawnPointsList.Select(m => (uint)m.MapID)));
 
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
@@ -120,7 +122,8 @@ namespace HuntHelper
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
-                () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster);
+                () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,
+                () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); });
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
