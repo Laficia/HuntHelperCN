@@ -24,6 +24,8 @@ public class HuntTrainUI : IDisposable
     private readonly Action _openFinder;
     private readonly Func<bool> _patrolActive;
     private readonly Action _stopPatrol;
+    private readonly TrainVersionFilter _versions;
+    private readonly TrainVersionTabBar _versionTabs = new();
     private readonly Dictionary<uint, int> _selectedByWorld = new();
     private uint? _displayedWorld;
     private readonly WorldTabBar _worldTabs = new();
@@ -56,6 +58,9 @@ public class HuntTrainUI : IDisposable
 
     private int _selectedIndex = 0;
     private List<HuntTrainMob> _mobList => _trainManager.HuntTrain;
+    private List<int> VisibleIndices => _versions.VisibleIndices(_trainManager.SelectedWorldId, _mobList);
+    private List<HuntTrainMob> VisibleMobs => VisibleIndices.Select(i => _mobList[i]).ToList();
+    private string VersionLabel => _versions.Groups(_mobList).FirstOrDefault(g => g.Version == _versions.Selected(_trainManager.SelectedWorldId, _mobList)).Label ?? "全部";
     private readonly List<HuntTrainMob> _importedTrain;
 
     //import new is basically the same as import all but doesn't delete anything, think it's fine to leave as default
@@ -73,11 +78,12 @@ public class HuntTrainUI : IDisposable
     }
 
     public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
-        Action openFinder, Func<bool> patrolActive, Action stopPatrol)
+        Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion)
     {
         _trainManager = trainManager;
         _navigation = navigation;
         _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
+        _versions = new TrainVersionFilter(aRankVersion);
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
@@ -154,6 +160,7 @@ public class HuntTrainUI : IDisposable
             if (ImGui.Button("找怪 / 路线录制")) _openFinder();
             if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
             DrawWorldTabs();
+            DrawVersionTabs();
             DrawTrainRows();
             DrawNavigationStatus();
             if (_trainManager.PersistenceError != null)
@@ -228,12 +235,12 @@ public class HuntTrainUI : IDisposable
 
             #region Buttons
 
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.History)) ApplyTrainChange(_trainManager.TrainRemoveDead);
-            ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["RemoveDeadButton"]);
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.History)) ApplyTrainChange(() => _trainManager.RemoveRecords(VisibleMobs.Where(m => m.Dead)));
+            ImGuiUtil.ImGui_HoveredToolTip($"删除当前 {VersionLabel} 标签内已死亡的记录");
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
 
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe)) _trainManager.TrainUnkillAll();
-            ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["ResetDeadButton"]);
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe)) _trainManager.RestoreRecords(VisibleMobs);
+            ImGuiUtil.ImGui_HoveredToolTip($"恢复当前 {VersionLabel} 标签内怪物为存活");
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
 
             //position record button on far right
@@ -252,7 +259,7 @@ public class HuntTrainUI : IDisposable
             ImGui.Dummy(new Vector2(0, 20f));
 
             if (ImGuiComponents.IconButton(FontAwesomeIcon.Skull)) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["DeleteWindowTitle"]}##modal");
-            ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["DeleteTrainButton"]);
+            ImGuiUtil.ImGui_HoveredToolTip($"清空当前 {VersionLabel} 标签内记录");
             ImGui.SameLine();
 
             //gosh these buttons don't line up, off by like 1 pixel :(
@@ -267,6 +274,9 @@ public class HuntTrainUI : IDisposable
             {
                 ImGui.TextUnformatted("选择导出范围");
                 ImGui.Separator();
+                var visible = VisibleMobs;
+                if (ImGui.MenuItem($"当前标签：{VersionLabel}（{visible.Count} 条）", enabled: visible.Count > 0))
+                    CopyExportCode(ExportImport.Export(visible));
                 var selectedName = _trainManager.GetWorlds().FirstOrDefault(w => w.WorldID == _trainManager.SelectedWorldId)?.WorldName ?? "当前服务器";
                 if (ImGui.MenuItem($"当前服务器：{selectedName}（{_mobList.Count} 条）", enabled: _mobList.Count > 0))
                     CopyExportCode(_trainManager.ExportSelectedTrain());
@@ -341,6 +351,7 @@ public class HuntTrainUI : IDisposable
             _config.HuntTrainWorldTabOrder.Remove(deleted);
             EnsureVisibleWorld(_trainManager.GetWorlds(), current.WorldID);
             _selectedByWorld.Remove(deleted);
+            _versions.Forget(deleted);
         }
         if (action.OrderChanged || action.Deleted.HasValue) _config.Save();
         ClampSelection();
@@ -382,7 +393,15 @@ public class HuntTrainUI : IDisposable
 
     private void ClampSelection()
     {
-        _selectedIndex = Math.Clamp(_selectedIndex, 0, Math.Max(0, _mobList.Count - 1));
+        _selectedIndex = TrainVersionFilter.Clamp(_selectedIndex, VisibleIndices);
+    }
+
+    private void DrawVersionTabs()
+    {
+        var world = _trainManager.SelectedWorldId;
+        var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale);
+        if (action.Changed) _versions.Select(world, action.Version);
+        ClampSelection();
     }
 
     private void ApplyTrainChange(Action change)
@@ -395,7 +414,8 @@ public class HuntTrainUI : IDisposable
 
     private void DrawTrainRows()
     {
-        if (_mobList.Count == 0)
+        var visible = VisibleIndices;
+        if (visible.Count == 0)
         {
             ImGui.TextDisabled("该区服暂无记录。点击下方开始记录后，扫描到的 A 怪会保存在对应区服。");
             return;
@@ -409,8 +429,9 @@ public class HuntTrainUI : IDisposable
         if (_showLastSeen) ImGui.TableSetupColumn("发现", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("死亡", ImGuiTableColumnFlags.WidthFixed, 36 * ImGuiHelpers.GlobalScale);
         ImGui.TableHeadersRow();
-        for (var n = 0; n < _mobList.Count; n++)
+        for (var row = 0; row < visible.Count; row++)
         {
+            var n = visible[row];
             var mob = _mobList[n];
             var listChanged = false;
             ImGui.PushID(n);
@@ -428,8 +449,8 @@ public class HuntTrainUI : IDisposable
             if (ImGui.BeginPopupContextItem("HuntRowContext"))
             {
                 if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuSelect"])) _selectedIndex = n;
-                if (ImGui.MenuItem("上移", enabled: n > 0)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, n - 1)); listChanged = true; }
-                if (ImGui.MenuItem("下移", enabled: n + 1 < _mobList.Count)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, n + 1)); listChanged = true; }
+                if (ImGui.MenuItem("上移", enabled: row > 0)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, visible[row - 1])); listChanged = true; }
+                if (ImGui.MenuItem("下移", enabled: row + 1 < visible.Count)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, visible[row + 1])); listChanged = true; }
                 if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuRemove"])) { ApplyTrainChange(() => _trainManager.TrainRemove(mob)); listChanged = true; }
                 ImGui.EndPopup();
             }
@@ -515,14 +536,14 @@ public class HuntTrainUI : IDisposable
 
         if (ImGui.BeginPopupModal($"{GuiResources.HuntTrainGuiText["DeleteWindowTitle"]}##modal"))
         {
-            ImGui.TextWrapped(GuiResources.HuntTrainGuiText["DeleteWindowMessage"]);
-            ImGui.TextWrapped("仅清空当前标签的记录。清空当前所在服会暂停录制；重新开始录制可原地再扫附近 A 怪。");
+            ImGui.TextWrapped($"清空当前服务器「{VersionLabel}」标签中的记录？");
+            ImGui.TextWrapped($"仅清空当前服务器的 {VersionLabel} 标签（{VisibleIndices.Count} 条）。清空当前所在服会暂停录制和找怪；其他版本、服务器的记录保留。右键服务器标签可删除整服记录。");
 
             ImGui.Dummy(new Vector2(0, 25));
             ImGui.Dummy(new Vector2(6, 0)); ImGui.SameLine();
             if (ImGui.Button(GuiResources.HuntTrainGuiText["DeleteWindowDeleteButton"]))
             {
-                _trainManager.TrainDelete();
+                _trainManager.RemoveRecords(VisibleMobs, pauseRecording: true);
                 _selectedIndex = 0;
                 ImGui.CloseCurrentPopup();
             }
@@ -692,7 +713,7 @@ public class HuntTrainUI : IDisposable
     public void GetNextMobCommand()
     {
         ClampSelection();
-        if (_mobList.Count == 0) { _trainManager.SendTrainFlag(-1, false, true); return; }
+        if (VisibleIndices.Count == 0) { _trainManager.SendTrainFlag(-1, false, true); return; }
         if (_selectedIndex < _mobList.Count) _trainManager.TrainMarkAsDead(_selectedIndex);
         SelectNext();
         if (!_mobList[_selectedIndex].Dead)
@@ -793,26 +814,13 @@ public class HuntTrainUI : IDisposable
     private int GetNextIndex()
     {
         ClampSelection();
-        // start from selected index to continue downwards
-        for (int i = _selectedIndex + 1; i < _mobList.Count; i++)
-        {
-            if (_mobList[i].Dead) continue;
-            return i;
-        }
-        // then go back to start
-        for (int i = 0; i < _selectedIndex && i < _mobList.Count; i++)
-        {
-            if (_mobList[i].Dead) continue;
-            return i;
-        }
-
-        return -1;
+        return TrainVersionFilter.NextLiving(_selectedIndex, VisibleIndices, _mobList);
     }
 
     private void SelectNext()
     {
         var nextIndex = GetNextIndex();
-        _selectedIndex = nextIndex == -1 ? 0 : nextIndex;
+        _selectedIndex = nextIndex == -1 ? VisibleIndices.FirstOrDefault(0) : nextIndex;
     }
 
     private enum HuntTrainMobAttribute

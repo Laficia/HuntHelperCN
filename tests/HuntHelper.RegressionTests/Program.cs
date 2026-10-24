@@ -21,6 +21,7 @@ internal static class Program
         (string Name, Func<Task> Run)[] tests =
         [
             .. AutomationChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. VersionTabChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             ("same mob/instance coexists on different worlds", Sync(WorldIdentity)),
             ("browsing B keeps recording and scans in visited A", Sync(RecordingWhileBrowsing)),
             ("delete/dead/reorder changes stay in their world", Sync(WorldScopedMutations)),

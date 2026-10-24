@@ -11,6 +11,8 @@
     <Reference Include="HexaGen.Runtime"><HintPath>$(DALAMUD_HOME)\HexaGen.Runtime.dll</HintPath></Reference>
     <None Include="$(DALAMUD_HOME)\cimgui.dll" Link="cimgui.dll" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Gui\WorldTabBar.cs" Link="Production\WorldTabBar.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\TrainVersionTabBar.cs" Link="Production\TrainVersionTabBar.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Gui\HuntTrainWindowLayout.cs" Link="Production\HuntTrainWindowLayout.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\WorldTabOrder.cs" Link="Production\WorldTabOrder.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\Models\HuntTrainWorld.cs" Link="Production\HuntTrainWorld.cs" />

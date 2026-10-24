@@ -48,6 +48,7 @@ internal static unsafe class Program
             Worlds = []; Frame(); ExpectVisible(); Expect();
             Console.WriteLine("PASS Removed and empty servers leave no stale rendered tabs");
             WindowResizeChecks.Run();
+            VersionTabUiChecks.Run();
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

@@ -120,7 +120,7 @@ namespace HuntHelper
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
-                () => Automation.Session.Stop());
+                () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID));
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);

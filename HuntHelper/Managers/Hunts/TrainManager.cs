@@ -362,6 +362,23 @@ public class TrainManager : IDisposable
     }
 
     public void TrainRemoveDead() => HuntTrain.RemoveAll(m => m.Dead);
+    public void RemoveRecords(IEnumerable<HuntTrainMob> records, bool pauseRecording = false)
+    {
+        var selected = records.Where(HuntTrain.Contains).ToHashSet();
+        if (pauseRecording && SelectedWorldId == CurrentWorldId)
+        {
+            WorldDeleted?.Invoke(SelectedWorldId);
+            RecordTrain = false;
+        }
+        HuntTrain.RemoveAll(selected.Contains);
+    }
+
+    public void RestoreRecords(IEnumerable<HuntTrainMob> records)
+    {
+        foreach (var mob in records.Where(HuntTrain.Contains))
+        { mob.Dead = false; ManualDeadStateChanged?.Invoke(mob); }
+        SaveHuntTrainRecord();
+    }
     public bool ContainsMob(HuntTrainMob mob) =>
         _trainsByWorld.TryGetValue(mob.WorldID, out var train) &&
         train.Any(existing => existing.IsSameAs(mob.MobID, mob.Instance, mob.WorldID));

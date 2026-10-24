@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Utilities\TrainVersionFilter.cs" Link="Production\TrainVersionFilter.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolModels.cs" Link="Production\PatrolModels.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolSession.cs" Link="Production\PatrolSession.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\HuntDeathMonitor.cs" Link="Production\HuntDeathMonitor.cs" />
