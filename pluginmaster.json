@@ -3,8 +3,8 @@
     "Author": "img02 / Laficia",
     "Name": "狩猎助手Hunt Helper",
     "InternalName": "HuntHelperCN",
-    "AssemblyVersion": "1.0.0.1",
-    "Description": "基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。\nA 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。\n原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。",
+    "AssemblyVersion": "1.0.0.2",
+    "Description": "基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。\nA 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。\n/hht 顶部「找怪 / 路线录制」可按版本与地图选择，支持路线录制、vnavmesh 巡点扫描及当前区服死亡监测。跨图仅使用已解锁水晶正常传送，无坐标 TP；扫描结果保存到角色当前所在服务器。\n原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
     "Tags": [
@@ -28,13 +28,13 @@
       "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image4.png"
     ],
     "IconUrl": "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/icon.png",
-    "Punchline": "国服狩猎雷达：区服独立记录、自动地图图片与 vnavmesh 移动。",
-    "Changelog": "1.0.0.1：名称改为狩猎助手Hunt Helper；单服分享码可选择导入服务器；版本号重置。已安装1.0.0.35～39的用户需手动卸载后从原订阅重新安装，保留配置与记录；卫月不会自动降级。",
+    "Punchline": "国服狩猎助手：区服隔离、路线录制、自动巡点找怪与死亡监测。",
+    "Changelog": "1.0.0.2：/hht 顶部新增找怪/路线录制入口，可按版本、地图选择并用 vnavmesh 自动巡点，支持手动或按距离录制三维路线、路线预览及导入导出。怪物死亡监测仅作用于当前服务器、地图、分线。跨图保留正常水晶传送，无坐标 TP。1.0.0.1 可正常更新；此前 1.0.0.35～39 需保留配置并重新安装。",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.1/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.1/latest.zip",
-    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.1/latest.zip",
-    "LastUpdate": 1792786126,
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.2/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.2/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.2/latest.zip",
+    "LastUpdate": 1792833341,
     "IsHide": false,
     "IsTestingExclusive": false
   }
