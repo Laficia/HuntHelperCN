@@ -14,6 +14,8 @@ internal static class RelayChecks
 {
     public static readonly (string Name, Action Run)[] Tests =
     [
+        ("first Sonar message from a server with no A or S records creates the correct independent S tab", FirstForeignServer),
+        ("public world catalogs refresh across visited worlds and never synthesize world zero", WorldCatalog),
         ("Sonar clicked A and S messages preserve explicit source world and map coordinates", ParsedRanks),
         ("Sonar English aliases and cross-world icons resolve without name-language assumptions", Aliases),
         ("Sonar instance glyphs and text resolve distinct lines and reject contradictory lines", Instances),
@@ -40,6 +42,24 @@ internal static class RelayChecks
         return result;
     }
     private static void Check(bool value) { if(!value)throw new Exception("Relay/S module assertion failed"); }
+    private static void FirstForeignServer()
+    {
+        using var dir=new TemporaryDirectory();using var a=Manager(Path.Combine(dir.Path,"A.json"),s:false);
+        using var s=Manager(Path.Combine(dir.Path,"S.json"));s.RecordTrain=true;
+        Check(a.GetImportWorlds().All(w=>w.WorldID!=102) && s.GetImportWorlds().All(w=>w.WorldID!=102));
+        var catalog=new HuntRelayWorldCatalog(_=>Worlds);
+        var worlds=catalog.Get(a.CurrentWorldId,a.GetImportWorlds().Concat(s.GetImportWorlds()));
+        Check(HuntRelayParser.TryParse("Rank S: 测试S怪"," <红茶川>",new(134,30,new(18,12),42),Species,worlds,Glyphs,Seen,out var relay));
+        Check(s.RecordRelay(relay!.Mob)==RelayRecordResult.Added && s.GetWorlds().Single().WorldID==102 && a.GetAllTrainRecords().Count==0);
+    }
+    private static void WorldCatalog()
+    {
+        var calls=0;var catalog=new HuntRelayWorldCatalog(visited=>{calls++;return visited==101?Worlds:new[]{Worlds[1]};});
+        Check(catalog.Get(0,Worlds).Count==0 && calls==0);
+        Check(catalog.Get(101,Worlds).Count==2 && catalog.Get(101,[]).Count==2 && calls==1);
+        Check(catalog.Get(102,[]).Single().WorldID==102 && calls==2);
+        Check(catalog.Get(102,new[]{new HuntTrainWorld(0,"未知区服","",0)}).Count==1);
+    }
     private static void ParsedRanks()
     {
         var s=Parse()!; Check(s.Rank=="S" && s.Mob.MobID==20 && s.Mob.WorldID==101 && s.Mob.Instance==0 &&

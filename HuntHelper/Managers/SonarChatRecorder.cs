@@ -21,6 +21,7 @@ public sealed class SonarChatRecorder : IDisposable
     private readonly TrainManager _a, _s;
     private readonly Configuration _config;
     private readonly Dictionary<char, uint> _glyphs = new();
+    private readonly HuntRelayWorldCatalog _worlds = new(MapHelpers.GetImportableWorlds);
     public string AStatus { get; private set; } = string.Empty;
     public string SStatus { get; private set; } = string.Empty;
 
@@ -50,7 +51,8 @@ public sealed class SonarChatRecorder : IDisposable
             if(map==null || map.Value.TerritoryType.RowId!=link.TerritoryType.RowId)return;
             var relayMap=new HuntRelayMap(link.TerritoryType.RowId,link.Map.RowId,new Vector2(link.XCoord,link.YCoord),
                 MapHelpers.MapScaleToMaxCoord(map.Value.SizeFactor)+1, MapHelpers.GetMapName(link.TerritoryType.RowId));
-            if(!HuntRelayParser.TryParse(before,after,relayMap,_hunts.RelaySpecies,_a.GetImportWorlds(),_glyphs,
+            var worlds = _worlds.Get(_a.CurrentWorldId, _a.GetImportWorlds().Concat(_s.GetImportWorlds()));
+            if(!HuntRelayParser.TryParse(before,after,relayMap,_hunts.RelaySpecies,worlds,_glyphs,
                 DateTime.UtcNow,out var relay,tagged) || relay==null)return;
             var target=relay.Rank=="A"?_a:_s;
             var enabled=relay.Rank=="A"?_config.HuntTrainCaptureSonar:_config.SRankTrain.HuntTrainCaptureSonar;
