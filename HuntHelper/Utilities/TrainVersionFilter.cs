@@ -9,8 +9,10 @@ namespace HuntHelper.Utilities;
 public sealed class TrainVersionFilter
 {
     private readonly Func<HuntTrainMob, int?> _aRankVersion;
+    private readonly HuntRoster? _roster;
     private readonly Dictionary<uint, int?> _selectedByWorld = new();
-    public TrainVersionFilter(Func<HuntTrainMob, int?> aRankVersion) => _aRankVersion = aRankVersion;
+    public TrainVersionFilter(Func<HuntTrainMob, int?> aRankVersion, HuntRoster? roster = null)
+    { _aRankVersion = aRankVersion; _roster = roster; }
 
     private int Category(HuntTrainMob mob) => _aRankVersion(mob) is { } version && version >= 2 ? version : 0;
 
@@ -18,7 +20,18 @@ public sealed class TrainVersionFilter
     {
         var result = records.GroupBy(Category).OrderByDescending(g => g.Key)
             .Select(g => new TrainVersionGroup(g.Key, g.Key == 0 ? "其它" : $"{g.Key}A", g.Count())).ToList();
-        if (records.Count > 0) result.Add(new TrainVersionGroup(null, "全部", records.Count));
+        if (_roster != null)
+        {
+            foreach (var expected in _roster.Entries.GroupBy(e => e.Version))
+            {
+                var ids = expected.Select(e => e.NameId).ToHashSet();
+                var found = records.Where(m => ids.Contains(m.MobID)).Select(m => m.MobID).Distinct().Count();
+                result.RemoveAll(g => g.Version == expected.Key);
+                result.Add(new TrainVersionGroup(expected.Key, $"{expected.Key}A", found, ids.Count));
+            }
+            result = result.OrderByDescending(g => g.Version).ToList();
+        }
+        if (records.Count > 0 || result.Count > 0) result.Add(new TrainVersionGroup(null, "全部", records.Count));
         return result;
     }
 

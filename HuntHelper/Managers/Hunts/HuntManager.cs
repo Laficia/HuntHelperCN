@@ -34,6 +34,8 @@ public class HuntManager : IDisposable
     private readonly Dictionary<HuntRank, List<Mob>> _ewDict;
     private readonly Dictionary<HuntRank, List<Mob>> _dtDict;
     private readonly Dictionary<uint, int> _aRankVersions = new();
+    private readonly List<HuntRosterEntry> _aRankRoster = new();
+    public IReadOnlyList<HuntRosterEntry> ARankRoster => _aRankRoster;
     public int? GetARankVersion(uint nameId) => _aRankVersions.TryGetValue(nameId, out var version) ? version : null;
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly IChatGui _chatGui;
@@ -436,9 +438,15 @@ public class HuntManager : IDisposable
             (_dtDict, DTJsonFiles )
         });
         _aRankVersions.Clear();
+        _aRankRoster.Clear();
         foreach (var (version, dictionary) in new[] { (7, _dtDict), (6, _ewDict), (5, _shbDict), (4, _sbDict), (3, _hwDict), (2, _arrDict) })
             if (dictionary.TryGetValue(HuntRank.A, out var monsters))
-                foreach (var monster in monsters) _aRankVersions.TryAdd(monster.ModelID, version);
+                foreach (var monster in monsters)
+                {
+                    if (!_aRankVersions.TryAdd(monster.ModelID, version)) continue;
+                    var localName = MapHelpers.GetMobName(monster.ModelID, monster.Name);
+                    _aRankRoster.Add(new HuntRosterEntry(version, monster.ModelID, localName));
+                }
     }
 
     public float GetMapZoneScale(uint mapID)

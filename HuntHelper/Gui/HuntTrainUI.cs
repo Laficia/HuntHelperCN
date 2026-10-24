@@ -25,6 +25,7 @@ public class HuntTrainUI : IDisposable
     private readonly Func<bool> _patrolActive;
     private readonly Action _stopPatrol;
     private readonly TrainVersionFilter _versions;
+    private readonly HuntRoster _roster;
     private readonly TrainVersionTabBar _versionTabs = new();
     private readonly Dictionary<uint, int> _selectedByWorld = new();
     private uint? _displayedWorld;
@@ -78,12 +79,14 @@ public class HuntTrainUI : IDisposable
     }
 
     public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
-        Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion)
+        Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion,
+        IReadOnlyList<HuntRosterEntry> roster)
     {
         _trainManager = trainManager;
         _navigation = navigation;
         _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
-        _versions = new TrainVersionFilter(aRankVersion);
+        _roster = new HuntRoster(roster);
+        _versions = new TrainVersionFilter(aRankVersion, _roster);
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
@@ -149,6 +152,12 @@ public class HuntTrainUI : IDisposable
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8, 8));
         ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 10);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 4));
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .07f, .1f, .97f));
+        ImGui.PushStyleColor(ImGuiCol.TitleBg, new Vector4(.07f, .1f, .15f, 1));
+        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.1f, .17f, .26f, 1));
+        ImGui.PushStyleColor(ImGuiCol.TableHeaderBg, new Vector4(.11f, .16f, .23f, 1));
+        ImGui.PushStyleColor(ImGuiCol.TableRowBg, new Vector4(.08f, .105f, .15f, .65f));
+        ImGui.PushStyleColor(ImGuiCol.TableRowBgAlt, new Vector4(.105f, .135f, .18f, .65f));
 
         if (HuntTrainWindowLayout.Begin($"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
             ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, ImGuiHelpers.GlobalScale))
@@ -323,6 +332,7 @@ public class HuntTrainUI : IDisposable
 
         }
         HuntTrainWindowLayout.End();
+        ImGui.PopStyleColor(6);
         ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) &&
             (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
@@ -339,6 +349,11 @@ public class HuntTrainUI : IDisposable
         var current = _trainManager.GetCurrentWorld();
         ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
         ImGuiUtil.ImGui_HoveredToolTip("扫描保存到角色当前所在服务器。左键拖拽调整顺序；右键可选择、左右移动或删除该服记录及标签。");
+        if (_trainManager.SelectedWorldId != current.WorldID && current.WorldID != 0)
+        {
+            ImGui.SameLine();
+            if (ImGui.SmallButton("查看当前服")) SelectDisplayedWorld(current.WorldID);
+        }
         var worlds = _trainManager.GetWorlds();
         EnsureVisibleWorld(worlds, current.WorldID);
         _config.HuntTrainWorldTabOrder ??= new();
@@ -366,8 +381,11 @@ public class HuntTrainUI : IDisposable
             _trainManager.SelectWorld(currentWorld);
             return;
         }
-        if (_displayedWorld is { } displayed && worlds.Any(w => w.WorldID == displayed)) return;
+        if (_displayedWorld is { } displayed && (worlds.Any(w => w.WorldID == displayed) ||
+            (displayed == currentWorld && currentWorld != 0 && _roster.Entries.Count > 0))) return;
         var selected = _trainManager.SelectedWorldId;
+        if (_displayedWorld == null && currentWorld != 0 && selected == currentWorld && _roster.Entries.Count > 0)
+        { SelectDisplayedWorld(currentWorld); return; }
         var next = worlds.FirstOrDefault(w => w.WorldID == selected)
             ?? worlds.FirstOrDefault(w => w.WorldID == currentWorld)
             ?? worlds.OrderBy(w => _config.HuntTrainWorldTabOrder?.IndexOf(w.WorldID) ?? int.MaxValue).First();
@@ -401,6 +419,16 @@ public class HuntTrainUI : IDisposable
         var world = _trainManager.SelectedWorldId;
         var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale);
         if (action.Changed) _versions.Select(world, action.Version);
+        var version = _versions.Selected(world, _mobList);
+        if (version is >= 2)
+        {
+            var progress = _roster.Progress(world, version.Value, _mobList);
+            var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
+            HuntRosterPresentation.Summary(name, version.Value, progress.Found, progress.Total, ImGuiHelpers.GlobalScale);
+            ImGuiUtil.ImGui_HoveredToolTip("按怪物种类计数，死亡记录仍算已发现；同一只怪在不同分线分别保留记录，但只计一次发现。占位项不写入狩猎车记录。");
+            if (progress.Found < progress.Total && !_trainManager.RecordTrain && !_patrolActive())
+                ImGui.TextDisabled("开启下方记录或使用找怪扫描，发现后会自动标出。");
+        }
         ClampSelection();
     }
 
@@ -415,14 +443,20 @@ public class HuntTrainUI : IDisposable
     private void DrawTrainRows()
     {
         var visible = VisibleIndices;
-        if (visible.Count == 0)
+        var missing = _roster.Missing(_trainManager.SelectedWorldId, _versions.Selected(_trainManager.SelectedWorldId, _mobList), _mobList);
+        if (visible.Count == 0 && missing.Count == 0)
         {
             ImGui.TextDisabled("该区服暂无记录。点击下方开始记录后，扫描到的 A 怪会保存在对应区服。");
             return;
         }
-        var columns = 4 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
-        if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.Resizable)) return;
+        var columns = 5 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
+        var tableHeight = Math.Clamp(ImGui.GetContentRegionAvail().Y - 140 * ImGuiHelpers.GlobalScale,
+            110 * ImGuiHelpers.GlobalScale, 340 * ImGuiHelpers.GlobalScale);
+        if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH |
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0, tableHeight))) return;
+        ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 70 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("区服", ImGuiTableColumnFlags.WidthFixed, 105 * ImGuiHelpers.GlobalScale);
         if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 106 * ImGuiHelpers.GlobalScale);
@@ -454,6 +488,8 @@ public class HuntTrainUI : IDisposable
                 if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuRemove"])) { ApplyTrainChange(() => _trainManager.TrainRemove(mob)); listChanged = true; }
                 ImGui.EndPopup();
             }
+            ImGui.TableNextColumn();
+            HuntRosterPresentation.Status(true, mob.Dead, ImGuiHelpers.GlobalScale);
             ImGui.TableNextColumn();
             ImGui.TextUnformatted(mob.WorldName);
             ImGuiUtil.ImGui_HoveredToolTip(FormatWorld(mob.WorldName, mob.DataCenterName));
@@ -493,6 +529,19 @@ public class HuntTrainUI : IDisposable
             }
             ImGui.PopID();
             if (listChanged) break;
+        }
+        var selectedWorld = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == _trainManager.SelectedWorldId)?.WorldName ?? "未标注区服";
+        foreach (var expected in missing)
+        {
+            ImGui.TableNextRow();
+            ImGui.TableNextColumn(); ImGui.TextDisabled(expected.Name);
+            ImGuiUtil.ImGui_HoveredToolTip($"{expected.Name}\n该服务器尚无此怪记录；开启记录或找怪扫描后自动更新。");
+            ImGui.TableNextColumn(); HuntRosterPresentation.Status(false, false, ImGuiHelpers.GlobalScale);
+            ImGui.TableNextColumn(); ImGui.TextDisabled(selectedWorld);
+            if (_showMapName) { ImGui.TableNextColumn(); ImGui.TextDisabled("待扫描"); }
+            ImGui.TableNextColumn(); ImGui.TextDisabled("--");
+            if (_showLastSeen) { ImGui.TableNextColumn(); ImGui.TextDisabled("--"); }
+            ImGui.TableNextColumn(); ImGui.TextDisabled("--");
         }
         ImGui.EndTable();
     }

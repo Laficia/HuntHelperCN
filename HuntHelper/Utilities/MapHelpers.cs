@@ -100,6 +100,12 @@ public class MapHelpers
         trainList.ForEach(m => m.Name = DataManager.Excel.GetSheet<BNpcName>()?.GetRowOrDefault(m.MobID)?.Singular.ToString() ?? m.Name);
     }
 
+    public static string GetMobName(uint nameId, string fallback)
+    {
+        var name = DataManager.GetExcelSheet<BNpcName>().GetRowOrDefault(nameId)?.Singular.ToString();
+        return string.IsNullOrWhiteSpace(name) ? fallback : name;
+    }
+
     public static async Task<bool> MapImageVerUpToDate(string currentVersion)
     {
         var version = await GetMapImageVer().ConfigureAwait(false);

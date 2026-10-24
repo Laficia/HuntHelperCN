@@ -11,7 +11,7 @@ internal static unsafe class Program
     [new(101, "Alpha", "", 1), new(102, "Beta", "", 2), new(103, "Gamma", "", 3)];
     private static WorldTabAction _action;
 
-    private static int Main()
+    private static int Main(string[] args)
     {
         ImGui.CreateContext();
         try
@@ -49,6 +49,8 @@ internal static unsafe class Program
             Console.WriteLine("PASS Removed and empty servers leave no stale rendered tabs");
             WindowResizeChecks.Run();
             VersionTabUiChecks.Run();
+            RosterPresentationChecks.Run();
+            if (args.Contains("--render-roster")) RosterPreviewRenderer.Render();
             return 0;
         }
         catch (Exception error) { Console.Error.WriteLine(error); return 1; }

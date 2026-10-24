@@ -7,3 +7,5 @@ This console runner links the production `WorldTabBar` and `WorldTabOrder` and u
 It creates no desktop window, uses no game process or GPU backend, and disables ImGui ini persistence. It does not replace an in-game display check.
 
 Window checks link the production `HuntTrainWindowLayout`, drag the real native lower-right resize grip smaller and larger, verify the compact minimum, click the real Restore default size button, and check scaled limits against the available viewport.
+
+Roster presentation checks exercise the production summary and status badges and ensure their scoped styles are restored. On Windows, pass --render-roster to render a Chinese preview using simulated records and the Microsoft YaHei font installed in Windows. The offscreen CPU renderer writes obj/release-staging/v1.0.0.4/roster-preview.png; this is a layout preview, not an in-game screenshot.
