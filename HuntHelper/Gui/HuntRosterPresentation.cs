@@ -10,19 +10,10 @@ public static class HuntRosterPresentation
     public static readonly Vector4 FoundColor = new(.39f, .84f, .67f, 1);
     public static readonly Vector4 MissingColor = new(.96f, .42f, .46f, 1);
 
-    public static void Summary(string world, int version, int found, int total, float scale, string rankLabel = "A")
+    public static void Summary(string world, int version, int recorded, string rankLabel = "A")
     {
         ImGui.TextColored(new Vector4(.84f, .91f, 1, 1), $"{world}  /  {version}{rankLabel}");
-        ImGui.SameLine();
-        ImGui.TextDisabled($"  {found} / {total}");
-        ImGui.PushStyleColor(ImGuiCol.PlotHistogram, new Vector4(.23f, .63f, .85f, 1));
-        ImGui.PushStyleColor(ImGuiCol.FrameBg, new Vector4(.11f, .16f, .22f, 1));
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4 * scale);
-        ImGui.ProgressBar(total == 0 ? 0 : Math.Clamp((float)found / total, 0, 1), new Vector2(-1, 6 * scale), string.Empty);
-        ImGui.PopStyleVar(); ImGui.PopStyleColor(2);
-        ImGui.TextColored(FoundColor, $"已发现 {found}");
-        ImGui.SameLine(); ImGui.TextDisabled(" / "); ImGui.SameLine();
-        ImGui.TextColored(MissingColor, $"未发现 {Math.Max(0, total - found)}");
+        ImGui.TextColored(FoundColor, $"已录入 {recorded}");
         ImGui.Spacing();
     }
 

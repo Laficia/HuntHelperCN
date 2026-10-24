@@ -481,14 +481,11 @@ public class HuntTrainUI : IDisposable
         {
             _rosterSnapshot = _roster.Snapshot(world, version.Value, _mobList,
                 territory => _instances.Instances(world, territory, _mobList));
-            var species = _roster.Progress(world, version.Value, _mobList);
-            var progress = _rosterSnapshot.Progress;
             var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
-            HuntRosterPresentation.Summary(name, version.Value, progress.Found, progress.Total, ImGuiHelpers.GlobalScale, _rankLabel);
-            ImGuiUtil.ImGui_HoveredToolTip("进度按服务器、地图和分线分别计算，死亡记录仍算已发现；不同分线不会互相填满占位。版本标签仍显示怪物种类数。占位不写入真实记录。");
-            if (progress.Total != species.Total)
-                ImGui.TextDisabled($"按地图分线计数 · 怪物种类 {species.Found}/{species.Total}");
-            if (progress.Found < progress.Total && !_trainManager.RecordTrain && !_patrolActive())
+            var recorded = VisibleMobs.Count;
+            HuntRosterPresentation.Summary(name, version.Value, recorded, _rankLabel);
+            ImGuiUtil.ImGui_HoveredToolTip("已录入数仅统计当前服务器、当前版本的真实记录，包含死亡记录；不同分线分别计数，占位不计入。");
+            if (recorded == 0 && !_trainManager.RecordTrain && !_patrolActive())
                 ImGui.TextWrapped(_isS ? "开启下方录制后，附近 S 怪和 Sonar 定位消息会录入此模块。" : "开启下方记录或使用找怪扫描，发现后会自动标出。");
         }
         ClampSelection();

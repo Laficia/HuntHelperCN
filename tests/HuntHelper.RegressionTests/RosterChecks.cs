@@ -166,7 +166,7 @@ internal static class RosterChecks
         var roster=Catalog();var entry=roster.Entries.First(e=>e.Version==7);var rows=new[]{Found(entry)};
         Check(roster.Missing(101,7,rows).Count==11 && roster.Missing(101,7,rows).All(e=>e.NameId!=entry.NameId));
         Check(roster.Missing(101,6,rows).Count==12 && roster.Progress(101,7,rows)==new HuntRosterProgress(1,12));
-        Check(Filter(roster).Groups(rows).First().DisplayLabel=="7A (1/12)");
+        Check(Filter(roster).Groups(rows).First().DisplayLabel=="7A (1)");
     }
     private static void Worlds()
     {
@@ -178,7 +178,8 @@ internal static class RosterChecks
     {
         var roster=Catalog();var entry=roster.Entries[0];var rows=new[]{Found(entry,instance:1),Found(entry,instance:2),Found(entry,instance:3)};
         Check(roster.Progress(101,7,rows).Found==1 && roster.Missing(101,7,rows).Count==11);
-        Check(Filter(roster).VisibleIndices(101,rows).Count==3 && Filter(roster).Groups(rows).First().Count==1);
+        Check(Filter(roster).VisibleIndices(101,rows).Count==3 && Filter(roster).Groups(rows).First().Count==3 &&
+            Filter(roster).Groups(rows).First().DisplayLabel=="7A (3)");
     }
     private static void Delete()
     {

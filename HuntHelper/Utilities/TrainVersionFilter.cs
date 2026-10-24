@@ -28,9 +28,9 @@ public sealed class TrainVersionFilter
             {
                 if (!ShowEmptyRosters && !result.Any(g => g.Version == expected.Key)) continue;
                 var ids = expected.Select(e => e.NameId).ToHashSet();
-                var found = records.Where(m => ids.Contains(m.MobID)).Select(m => m.MobID).Distinct().Count();
+                var recorded = records.Count(m => ids.Contains(m.MobID));
                 result.RemoveAll(g => g.Version == expected.Key);
-                result.Add(new TrainVersionGroup(expected.Key, $"{expected.Key}{_rankLabel}", found, ids.Count));
+                result.Add(new TrainVersionGroup(expected.Key, $"{expected.Key}{_rankLabel}", recorded, ids.Count));
             }
             result = result.OrderByDescending(g => g.Version).ToList();
         }

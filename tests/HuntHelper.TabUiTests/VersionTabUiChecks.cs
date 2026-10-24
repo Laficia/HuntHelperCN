@@ -23,9 +23,9 @@ internal static class VersionTabUiChecks
         Console.WriteLine("PASS Removed version categories leave no ghost native tabs");
         _groups=new(){new(7,"7A",0,12),new(6,"6A",0,12),new(5,"5A",0,12),new(4,"4A",0,12)};
         _selected=7;Frame();Frame();Click(4);
-        if(_selected!=4 || Tabs.VisibleTabs.Count!=4 || _groups.Any(g=>!g.DisplayLabel.EndsWith("(0/12)")))
+        if(_selected!=4 || Tabs.VisibleTabs.Count!=4 || _groups.Any(g=>!g.DisplayLabel.EndsWith("(0)")))
             throw new Exception("Empty roster tabs did not remain selectable");
-        Console.WriteLine("PASS Native zero-of-twelve roster tabs remain visible and selectable");
+        Console.WriteLine("PASS Native zero-record roster tabs remain visible and selectable when placeholders are enabled");
         _groups=new(){new(7,"7A",2),new(6,"6A",1),new(5,"5A",1),new(4,"4A",2),new(null,"All",6)};
         _order.Clear();_selected=7;Frame();Frame();
         Drag(7,4,true);Frame();

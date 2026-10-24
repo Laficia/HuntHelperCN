@@ -9,7 +9,13 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
-## 更新修正（1.0.0.8）
+## 更新修正（1.0.0.9）
+
+- A/S版本标签只显示实际记录数量，例如5A (3)、7S (2)；下方摘要只显示已录入3。删除已发现/总数、进度条、未发现汇总和分线种类比例。
+- 已录入数包含死亡记录；同怪不同分线的真实记录分别计数，占位不计入。占位设置、红色未发现行、区服版本隔离、Sonar及导入导出继续保留。
+- 更新前备份1.0.0.8源码、安装包、订阅和已有玩家文件，固定回退订阅rollback-1.0.0.8.json。
+
+## 上一版修正（1.0.0.8）
 
 - 补齐 Sonar 录制使用的国服公共服务器名单：首次收到尚无A/S记录的服务器情报，也可按明确来源服新建标签并录入；不再依赖已有车序中的服务器列表。名单按当前所在地区读取，换服后刷新，未知区服仍不猜测。
 - 已保留1.0.0.7功能及其源码、包、订阅和已有玩家文件备份，增加固定回退订阅 rollback-1.0.0.7.json。
@@ -141,9 +147,9 @@ dotnet run --project tests/HuntHelper.SharingTests/ShareCompatibility.csproj -c 
 仓库的 `Directory.Build.props` 在 SDK 解析引用路径前，将 Windows 下的 `DALAMUD_HOME` 设置为 `%APPDATA%\XIVLauncherCN\addon\Hooks\dev`。
 因此普通编译命令直接引用国服目录；若需明确指定其他安装位置，使用命令行参数 `-p:DALAMUD_HOME=对应路径`。
 
-本次发布使用 `-p:OutputPath=bin/x64/Release1008/` 的独立输出目录。
-Release 插件 DLL：`HuntHelper\bin\x64\Release1008\HuntHelperCN.dll`。
-完整压缩包：`HuntHelper\bin\x64\Release1008\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
+本次发布使用 `-p:OutputPath=bin/x64/Release1009/` 的独立输出目录。
+Release 插件 DLL：`HuntHelper\bin\x64\Release1009\HuntHelperCN.dll`。
+完整压缩包：`HuntHelper\bin\x64\Release1009\HuntHelperCN\latest.zip`，包含数据、语言资源及 MIT 许可。
 
 ## 当前验证范围
 
@@ -167,6 +173,8 @@ Debug、Release 编译通过；上游仍有可空性和未使用字段等编译�
 安装时搜索「狩猎助手Hunt Helper」。首次加载前请禁用原版。1.0.0.1 可直接更新；已安装 1.0.0.35～39 的用户需手动卸载后重新安装，并保留配置。
 
 ## 回退
+
+1.0.0.9更新前备份：E:\我的文档\ChatGPT\学习hht\HuntHelper\obj\backups\before-1.0.0.9-20261024-222202。固定旧版订阅 https://raw.githubusercontent.com/Laficia/HuntHelperCN/main/rollback-1.0.0.8.json 。回退前另存最新记录，停用原订阅、保留配置卸载后从旧版订阅重装；只启用一个HuntHelperCN订阅。
 
 1.0.0.8 更新前备份：E:\我的文档\ChatGPT\学习hht\HuntHelper\obj\backups\before-1.0.0.8-20261024-220633。固定旧版订阅 https://raw.githubusercontent.com/Laficia/HuntHelperCN/main/rollback-1.0.0.7.json 。回退操作同下方说明，另有1.0.0.6完整备份可用。
 
