@@ -40,7 +40,6 @@ public sealed class HuntFinderUI
             if (_automation.Session.Active)
             {
                 ImGui.TextUnformatted($"本图已发现：A {_automation.Session.FoundA} / B {_automation.Session.FoundB}");
-                if (ImGui.Button("停止找怪")) _automation.Session.Stop();
             }
             var monitor = _config.HuntDeathMonitoring;
             if (ImGui.Checkbox("自动监测怪物死亡", ref monitor)) { _config.HuntDeathMonitoring = monitor; _config.Save(); }
@@ -98,7 +97,10 @@ public sealed class HuntFinderUI
             }
         }
         ImGui.EndChild();
-        if (ImGui.Button("开始找怪"))
+        ImGui.EndDisabled();
+        var action = HuntFinderActionButton.Draw(_automation.Session.Active, _automation.Recording);
+        if (action == HuntFinderAction.Stop) _automation.Session.Stop();
+        else if (action == HuntFinderAction.Start)
         {
             var current = _automation.Context.Territory;
             var routes = _automation.Maps.Where(m => _selectedMaps.Contains(m.TerritoryId))
@@ -106,7 +108,6 @@ public sealed class HuntFinderUI
                 .Select(m => _automation.GetRoute(m.TerritoryId, _custom));
             _automation.Session.Start(routes, _options, Environment.TickCount64);
         }
-        ImGui.EndDisabled();
         ImGui.TextWrapped("扫描当前分线。跨地图使用已解锁水晶正常传送；找不到可用水晶时会停止提示。巡点只用 vnavmesh，不会直接 TP 到坐标。多层地图建议录制三维路线。");
     }
 
@@ -115,6 +116,8 @@ public sealed class HuntFinderUI
         var current = _automation.Context;
         var map = _automation.Maps.FirstOrDefault(m => m.TerritoryId == current.Territory);
         ImGui.TextUnformatted(map == null ? "请进入可狩猎地图录制路线" : $"当前地图：{map.Name}");
+        if (_automation.Session.Active && HuntFinderActionButton.Draw(true, false) == HuntFinderAction.Stop)
+            _automation.Session.Stop();
         ImGui.BeginDisabled(_automation.Session.Active);
         ImGui.BeginDisabled(map == null);
         if (ImGui.Button(_automation.Recording ? "停止录制" : "开始录制")) _automation.ToggleRecording();

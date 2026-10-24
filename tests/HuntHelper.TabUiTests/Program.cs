@@ -49,6 +49,7 @@ internal static unsafe class Program
             Console.WriteLine("PASS Removed and empty servers leave no stale rendered tabs");
             WindowResizeChecks.Run();
             VersionTabUiChecks.Run();
+            FinderActionChecks.Run();
             RosterPresentationChecks.Run();
             if (args.Contains("--render-roster")) RosterPreviewRenderer.Render(args.Contains("--show-missing"));
             return 0;

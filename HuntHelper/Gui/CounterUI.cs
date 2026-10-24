@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Chat;
 using Dalamud.Game.Text;
 using Dalamud.Interface;
@@ -113,8 +113,8 @@ public unsafe partial class CounterUI : IDisposable
 
         if (ImGui.BeginTable("CounterTable", 2, ImGuiTableFlags.Borders))
         {
-            ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X * (3.0f / 4.0f));
-            ImGui.TableSetupColumn("count", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X / 4.0f);
+            ImGui.TableSetupColumn("名称", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X * (3.0f / 4.0f));
+            ImGui.TableSetupColumn("数量", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X / 4.0f);
             foreach (var (name, count) in counter.Tally)
             {
                 ImGuiUtil.DoStuffWithMonoFont(() =>
@@ -138,7 +138,7 @@ public unsafe partial class CounterUI : IDisposable
         if (_clientState.TerritoryType == (ushort)MapID.TheSeaofClouds)
         {
             ImGui.SameLine();
-            ImGuiUtil.ImGui_HelpMarker("Chirp count does not affect BoP spawn, this info is just for fun.");
+            ImGuiUtil.ImGui_HelpMarker("啾啾的使用次数不影响极乐鸟刷新，此计数仅供参考。");
         }
     }
 
@@ -150,8 +150,8 @@ public unsafe partial class CounterUI : IDisposable
 
         if (ImGui.BeginTable("CounterTable", 2, ImGuiTableFlags.Borders))
         {
-            ImGui.TableSetupColumn("name", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X * (3.0f / 4.0f));
-            ImGui.TableSetupColumn("count", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X / 4.0f);
+            ImGui.TableSetupColumn("名称", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X * (3.0f / 4.0f));
+            ImGui.TableSetupColumn("数量", ImGuiTableColumnFlags.None, ImGui.GetWindowPos().X / 4.0f);
 
             ImGui.TableNextColumn();
             ImGui.TextUnformatted(GuiResources.CounterGuiText["WeeEa"]);

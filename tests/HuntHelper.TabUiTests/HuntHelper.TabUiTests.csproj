@@ -12,6 +12,8 @@
     <None Include="$(DALAMUD_HOME)\cimgui.dll" Link="cimgui.dll" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Gui\WorldTabBar.cs" Link="Production\WorldTabBar.cs" />
     <Compile Include="..\..\HuntHelper\Gui\TrainVersionTabBar.cs" Link="Production\TrainVersionTabBar.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\TabDragGesture.cs" Link="Production\TabDragGesture.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\HuntFinderActionButton.cs" Link="Production\HuntFinderActionButton.cs" />
     <Compile Include="..\..\HuntHelper\Gui\HuntRosterPresentation.cs" Link="Production\HuntRosterPresentation.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Gui\HuntTrainWindowLayout.cs" Link="Production\HuntTrainWindowLayout.cs" />

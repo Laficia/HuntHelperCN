@@ -21,7 +21,9 @@ internal static class RosterChecks
         ("live non-instanced observations override stale historical instance counts", LiveSingle),
         ("unknown-instance imports cannot fill numbered instance slots", UnknownInstance),
         ("per-map overrides persist and automatic mode removes only that override", InstanceOverrides),
-        ("deleting a discovered instance restores only its own placeholder", DeleteInstance)
+        ("deleting a discovered instance restores only its own placeholder", DeleteInstance),
+        ("disabling placeholders hides empty versions and falls back to remaining records", HiddenVersions),
+        ("version tab order persists separately for each server", VersionOrder)
     ];
     private static HuntRoster Catalog()
     {
@@ -35,6 +37,25 @@ internal static class RosterChecks
         134,30,instance,"Map",new Vector2(20,20),DateTime.UtcNow,false,world,$"World {world}","",new Vector3(10,0,10));
     private static TrainVersionFilter Filter(HuntRoster roster) => new(m=>roster.Entries.FirstOrDefault(e=>e.NameId==m.MobID)?.Version,roster);
     private static void Check(bool value) { if(!value)throw new InvalidOperationException("Roster assertion failed."); }
+    private static void HiddenVersions()
+    {
+        var roster=Catalog();var filter=Filter(roster);
+        var rows=new List<HuntTrainMob>{Found(roster.Entries.First(e=>e.Version==7)),Found(roster.Entries.First(e=>e.Version==4))};
+        filter.Select(101,6);filter.ShowEmptyRosters=false;
+        Check(filter.Groups(rows).Select(g=>g.Version).SequenceEqual(new int?[]{7,4,null}) && filter.Selected(101,rows)==7);
+        rows.RemoveAt(0);Check(filter.Selected(101,rows)==4);
+        rows.Clear();Check(filter.Groups(rows).Count==0 && filter.Selected(101,rows)==null);
+        filter.ShowEmptyRosters=true;Check(filter.Groups(rows).Count==5 && filter.Selected(101,rows)==4);
+    }
+    private static void VersionOrder()
+    {
+        var config=new HuntHelper.Configuration();
+        config.HuntTrainVersionTabOrders[101]=new(){4,7,6,uint.MaxValue};
+        config.HuntTrainVersionTabOrders[102]=new(){7,6,4,uint.MaxValue};
+        var saved=Newtonsoft.Json.JsonConvert.DeserializeObject<HuntHelper.Configuration>(Newtonsoft.Json.JsonConvert.SerializeObject(config))!;
+        Check(saved.HuntTrainVersionTabOrders[101].SequenceEqual(config.HuntTrainVersionTabOrders[101]));
+        Check(saved.HuntTrainVersionTabOrders[102].SequenceEqual(config.HuntTrainVersionTabOrders[102]));
+    }
     private static void VisibilitySetting()
     {
         Check(!new HuntHelper.Configuration().HuntTrainShowMissingRoster);

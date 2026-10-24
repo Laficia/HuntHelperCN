@@ -44,7 +44,7 @@ public class MapHelpers
     // KirisameVanilla: Map refers to the texture of a map. Territory refers to the zone of a map, like Lakeland.
     // KirisameVanilla: So in order to avoid confusing i suggest using 'Zone' instead of the word 'Map' in HuntHelper to distinguish texture map and zone map(territory)
     {
-        return DataManager.Excel.GetSheet<TerritoryType>()?.GetRowOrDefault(territoryID)?.PlaceName.ValueNullable?.Name.ToString() ?? "location not found";
+        return DataManager.Excel.GetSheet<TerritoryType>()?.GetRowOrDefault(territoryID)?.PlaceName.ValueNullable?.Name.ToString() ?? "未知地区";
     }
     public static string GetMapNameInEnglish(uint territoryID)
     {

@@ -23,6 +23,7 @@ internal static class Program
             .. AutomationChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. VersionTabChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. RosterChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            ("Chinese resources cover every shipped English key with nonempty localized text", Sync(LocalizationCoverage)),
             ("same mob/instance coexists on different worlds", Sync(WorldIdentity)),
             ("browsing B keeps recording and scans in visited A", Sync(RecordingWhileBrowsing)),
             ("delete/dead/reorder changes stay in their world", Sync(WorldScopedMutations)),
@@ -65,6 +66,18 @@ internal static class Program
         }
         Console.WriteLine($"{tests.Length - failures}/{tests.Length} regression groups passed.");
         return failures == 0 ? 0 : 1;
+    }
+
+    private static void LocalizationCoverage()
+    {
+        var folder=Path.Combine("HuntHelper","Data","Localisation");
+        var chinese=JsonConvert.DeserializeObject<Dictionary<string,Dictionary<string,string>>>(File.ReadAllText(Path.Combine(folder,"simplified chinese.json")))!;
+        var english=JsonConvert.DeserializeObject<Dictionary<string,Dictionary<string,string>>>(File.ReadAllText(Path.Combine(folder,"english.json")))!;
+        foreach(var group in english)
+            foreach(var entry in group.Value)
+                if(!chinese.TryGetValue(group.Key,out var translated) || !translated.TryGetValue(entry.Key,out var value) ||
+                    string.IsNullOrWhiteSpace(value) || !value.Any(c=>c is >= '\u4e00' and <= '\u9fff'))
+                    throw new Exception($"Missing Chinese resource {group.Key}/{entry.Key}");
     }
 
     private static Func<Task> Sync(Action action) => () => { action(); return Task.CompletedTask; };

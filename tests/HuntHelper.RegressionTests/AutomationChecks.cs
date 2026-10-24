@@ -25,6 +25,7 @@ internal static class AutomationChecks
         ("automatic death revives only when a living monster is observed", Revival),
         ("manual death is preserved when living monsters are observed", ManualDeath),
         ("manual revival suppresses the old corpse until a living sighting", ManualRevival),
+        ("manual revival survives monitoring resets until an actual living sighting", RevivalAfterReset),
         ("damaged nearby disappearance has a two-second grace", MissingGrace),
         ("unseen healthy distant or unloaded monsters cannot be inferred dead", MissingGuards),
         ("changing maps or instances clears disappearance evidence", MissingTravel),
@@ -113,6 +114,13 @@ internal static class AutomationChecks
         var m=Mob(); var d=new HuntDeathMonitor(); d.Update(C,new[]{m},new[]{Seen(0)},0); m.Dead=false; d.ManualChange(m);
         d.Update(C,new[]{m},new[]{Seen(0)},1); Check(!m.Dead); d.Update(C with {Ready=false},new[]{m},Array.Empty<HuntObservation>(),2);
         d.Update(C,new[]{m},new[]{Seen(0)},3); Check(!m.Dead); d.Update(C,new[]{m},new[]{Seen()},4); d.Update(C,new[]{m},new[]{Seen(0)},5); Check(m.Dead);
+    }
+    private static void RevivalAfterReset()
+    {
+        var m=Mob();var d=new HuntDeathMonitor();d.Update(C,new[]{m},new[]{Seen(0)},0);
+        m.Dead=false;d.ManualChange(m);d.Reset();d.Reset();
+        d.Update(C,new[]{m},new[]{Seen(0)},10);Check(!m.Dead);
+        d.Update(C,new[]{m},new[]{Seen()},20);d.Update(C,new[]{m},new[]{Seen(0)},30);Check(m.Dead);
     }
     private static void MissingGrace()
     {

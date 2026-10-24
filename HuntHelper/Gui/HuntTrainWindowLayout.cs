@@ -12,7 +12,7 @@ public static class HuntTrainWindowLayout
     }
 
     public static Vector2 MinimumSize(float scale) =>
-        Vector2.Min(new Vector2(360, 180) * scale, MaximumSize(scale));
+        Vector2.Min(new Vector2(System.Math.Min(280 * scale, 360), 160 * scale), MaximumSize(scale));
 
     public static Vector2 ClampSize(Vector2 size, float scale) =>
         Vector2.Clamp(size, MinimumSize(scale), MaximumSize(scale));
@@ -22,6 +22,7 @@ public static class HuntTrainWindowLayout
         ImGui.SetNextWindowSize(ClampSize(savedSize, scale), ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSizeConstraints(MinimumSize(scale), MaximumSize(scale));
         ImGui.SetNextWindowPos(savedPosition, ImGuiCond.FirstUseEver);
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, MinimumSize(scale));
         // Make the native resize corner visible even if another theme hides resize grips.
         ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new Vector4(.35f, .60f, .85f, .60f));
         ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, new Vector4(.40f, .70f, 1, .90f));
@@ -33,6 +34,7 @@ public static class HuntTrainWindowLayout
     {
         ImGui.End();
         ImGui.PopStyleColor(3);
+        ImGui.PopStyleVar();
     }
 
     public static void DrawSizeControls(float scale)
@@ -43,7 +45,7 @@ public static class HuntTrainWindowLayout
         var maximum = MaximumSize(scale);
         ImGui.SetNextItemWidth(110 * scale);
         var changed = ImGui.DragFloat("宽度", ref size.X, 2 * scale, minimum.X, maximum.X, "%.0f");
-        ImGui.SameLine();
+        if (ImGui.GetContentRegionAvail().X >= 330 * scale) ImGui.SameLine();
         ImGui.SetNextItemWidth(110 * scale);
         changed |= ImGui.DragFloat("高度", ref size.Y, 2 * scale, minimum.Y, maximum.Y, "%.0f");
         if (changed) ImGui.SetWindowSize(ClampSize(size, scale));

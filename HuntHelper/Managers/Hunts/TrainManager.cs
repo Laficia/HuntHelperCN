@@ -373,11 +373,13 @@ public class TrainManager : IDisposable
         HuntTrain.RemoveAll(selected.Contains);
     }
 
-    public void RestoreRecords(IEnumerable<HuntTrainMob> records)
+    public int RestoreRecords(IEnumerable<HuntTrainMob> records)
     {
-        foreach (var mob in records.Where(HuntTrain.Contains))
+        var restored = records.Where(HuntTrain.Contains).Where(m => m.Dead).Distinct().ToList();
+        foreach (var mob in restored)
         { mob.Dead = false; ManualDeadStateChanged?.Invoke(mob); }
-        SaveHuntTrainRecord();
+        if (restored.Count > 0) SaveHuntTrainRecord();
+        return restored.Count;
     }
     public bool ContainsMob(HuntTrainMob mob) =>
         _trainsByWorld.TryGetValue(mob.WorldID, out var train) &&

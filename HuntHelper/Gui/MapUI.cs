@@ -35,7 +35,7 @@ namespace HuntHelper.Gui
         private readonly IGameGui _gameGui;
 
         private string _territoryName;
-        private string WorldName => _playerState.CurrentWorld.ValueNullable?.Name.ToString() ?? "Not Found";
+        private string WorldName => _playerState.CurrentWorld.ValueNullable?.Name.ToString() ?? "未知服务器";
         private uint _territoryId;
 
         //used for combo box for language selection window
@@ -284,7 +284,7 @@ namespace HuntHelper.Gui
             ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
             ImGui.PushStyleVar(ImGuiStyleVar.WindowBorderSize, 0f);
             ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(_mapWindowColour.X, _mapWindowColour.Y, _mapWindowColour.Z, _mapWindowOpacityAsPercentage / 100f));
-            if (ImGui.Begin("Hunt Helper", ref _mapVisible, (ImGuiWindowFlags)_huntWindowFlag))
+            if (ImGui.Begin("狩猎地图###Hunt Helper", ref _mapVisible, (ImGuiWindowFlags)_huntWindowFlag))
             {
                 _currentWindowSize = (int)ImGui.GetWindowSize().X;
                 _mapWindowPos = ImGui.GetWindowPos();
@@ -385,7 +385,7 @@ namespace HuntHelper.Gui
             //this gets a little glitchy when it clips out the bottom of the screen, but I already committed and refuse to back down
             //hide grip color
             ImGui.PushStyleColor(ImGuiCol.ResizeGrip, 0);
-            if (ImGui.Begin("Options Window", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.HorizontalScrollbar))
+            if (ImGui.Begin("地图选项###Options Window", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoMove | ImGuiWindowFlags.HorizontalScrollbar))
             {
                 ImGui.SetWindowPos(bottomDockingPos);
                 ImGui.Dummy(new Vector2(0, 2f));
@@ -396,8 +396,8 @@ namespace HuntHelper.Gui
                 if (ImGui.BeginChild("##Options left side", ImGui.GetContentRegionAvail(), false, ImGuiWindowFlags.HorizontalScrollbar))
                 {
 
-                    if (ImGui.Button("Spawn Point Filter")) _ShowPointDisplaySettings = !_ShowPointDisplaySettings;
-                    ImGuiUtil.ImGui_HoveredToolTip("Select which Rank to display Spawn Points for");
+                    if (ImGui.Button("刷新点筛选")) _ShowPointDisplaySettings = !_ShowPointDisplaySettings;
+                    ImGuiUtil.ImGui_HoveredToolTip("选择要显示刷新点的怪物等级");
                     if (_ShowPointDisplaySettings)
                     {
                         ImGui.Checkbox("A", ref _displayA);
@@ -409,12 +409,12 @@ namespace HuntHelper.Gui
                         ImGui.Separator();
                         if (_spawnPointColour != HighConstrastRedPurple)
                         {
-                            if (ImGui.Button("Use High-Contrast Colour"))
+                            if (ImGui.Button("使用高对比度颜色"))
                             {
                                 _spawnPointColour = HighConstrastRedPurple;
                                 SaveSettings();
                             }
-                            ImGuiUtil.ImGui_HoveredToolTip("Use a high-contrast colour for Spawn Points,\n\nCan be changed from Visuals > Colours");
+                            ImGuiUtil.ImGui_HoveredToolTip("为刷新点使用高对比度颜色，\n\n可在「可视化 → 颜色」中调整。");
                         }
                         ImGui.Separator();
                     }
@@ -463,11 +463,11 @@ namespace HuntHelper.Gui
                     //todo update for next expac later
                     if (Constants.NEW_EXPANSION)
                     {
-                        if (ImGui.BeginTabItem("Dawntrail"))
+                        if (ImGui.BeginTabItem("黄金的遗产"))
                         {
-                            ImGui.TextWrapped("submit found hunt position data?");
+                            ImGui.TextWrapped("是否提交发现的狩猎怪坐标数据？");
 
-                            ImGui.Checkbox("opt in", ref _configuration.DawntrailSubmitPositionsData);
+                            ImGui.Checkbox("参与数据提交", ref _configuration.DawntrailSubmitPositionsData);
 
                             ImGui.EndTabItem();
                         }
@@ -762,10 +762,10 @@ namespace HuntHelper.Gui
                                     ImGui.Dummy(new Vector2(0, 4f));
 
                                     ImGui.TableNextColumn();
-                                    ImGui.ColorEdit4("Path Colour", ref _playerPathColour,
+                                    ImGui.ColorEdit4("移动轨迹颜色", ref _playerPathColour,
                                         ImGuiColorEditFlags.NoInputs | ImGuiColorEditFlags.PickerHueWheel);
                                     ImGui.SameLine();
-                                    ImGuiUtil.ImGui_HelpMarker("Set Alpha (A) to zero to disable.");
+                                    ImGuiUtil.ImGui_HelpMarker("将不透明度（A）设为 0 即可隐藏。");
 
                                     ImGui.Dummy(new Vector2(0, 4f));
 
@@ -825,7 +825,7 @@ namespace HuntHelper.Gui
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["TTSMessageLabelToolTip"]);
 
-                                    ImGui.Checkbox("FlyText##A Rank", ref _flyTxtAEnabled);
+                                    ImGui.Checkbox("屏幕浮动通知##A Rank", ref _flyTxtAEnabled);
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["FlyTextToolTip"]);
                                     ImGui.SameLine();
@@ -867,7 +867,7 @@ namespace HuntHelper.Gui
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["TTSMessageLabelToolTip"]);
 
-                                    ImGui.Checkbox("FlyText##B Rank", ref _flyTxtBEnabled);
+                                    ImGui.Checkbox("屏幕浮动通知##B Rank", ref _flyTxtBEnabled);
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["FlyTextToolTip"]);
                                     ImGui.SameLine();
@@ -909,7 +909,7 @@ namespace HuntHelper.Gui
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["TTSMessageLabelToolTip"]);
 
-                                    ImGui.Checkbox("FlyText##S Rank", ref _flyTxtSEnabled);
+                                    ImGui.Checkbox("屏幕浮动通知##S Rank", ref _flyTxtSEnabled);
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["FlyTextToolTip"]);
                                     ImGui.SameLine();
@@ -1023,8 +1023,8 @@ namespace HuntHelper.Gui
                                     ImGui.SameLine();
                                     ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["AvailableTagsToolTip"]);
                                     var tags =
-                                        "Hunt: <flag> <name> <rank> <hpp>\n\n" +
-                                        "Cosmetic: <goldstar> <silverstar> <warning> <nocircle> <controllerbutton0> <controllerbutton1>\n" +
+                                        "狩猎标签：<flag> <name> <rank> <hpp>\n\n" +
+                                        "图标标签：<goldstar> <silverstar> <warning> <nocircle> <controllerbutton0> <controllerbutton1>\n" +
                                         " <priorityworld> <elementallevel> <exclamationrectangle> <notoriousmonster> <alarm> <fanfestival>";
 
                                     ImGui.InputTextMultiline("##cosmetic tag info", ref tags, 500,
@@ -1069,7 +1069,7 @@ namespace HuntHelper.Gui
                                 ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["MobInfoColourToolTip"]);
 
                                 ImGui.TableNextColumn();
-                                ImGui.Checkbox("Nearby Mob List", ref _nearbyMobListEnabled);
+                                ImGui.Checkbox("显示附近怪物列表", ref _nearbyMobListEnabled);
                                 ImGui.SameLine();
                                 ImGuiUtil.ImGui_HelpMarker(GuiResources.MapGuiText["NearbyMobListToolTip"] +
                                                            GuiResources.MapGuiText["DragWidgetToolTip"]);
@@ -1112,42 +1112,43 @@ namespace HuntHelper.Gui
                         ImGui.EndTabItem();
                     }
 
-                    if (ImGui.BeginTabItem("Language"))
+                    if (ImGui.BeginTabItem("语言"))
                     {
                         var languages = GuiResources.GetAvailableLanguages();
+                        var languageNames = Array.ConvertAll(languages, GuiResources.LanguageDisplayName);
                         var index = Array.IndexOf(languages, _guiLanguage);
 
                         ImGui.PushItemWidth(200f);
-                        if (ImGui.Combo("##language selection", ref index, languages, languages.Length))
+                        if (ImGui.Combo("##language selection", ref index, languageNames, languageNames.Length))
                         {
                             _guiLanguage = languages[index];
                         }
                         ImGui.PopItemWidth();
                         ImGui.SameLine();
 
-                        if (ImGui.Button("OK##change language"))
+                        if (ImGui.Button("应用##change language"))
                         {
                             GuiResources.LoadGuiText(_guiLanguage);
                         }
                         ImGui.EndTabItem();
                     }
 
-                    if (ImGui.BeginTabItem("Translate"))
+                    if (ImGui.BeginTabItem("协助翻译"))
                     {
-                        ImGui.TextWrapped("If you want to help translate this plugin");
+                        ImGui.TextWrapped("如果你愿意协助翻译本插件，可访问以下页面：");
                         var url = Constants.translateUrl;
-                        ImGui.InputText(" -- click me", ref url, 100, ImGuiInputTextFlags.ReadOnly);
+                        ImGui.InputText("点击打开##GitHubTranslation", ref url, 100, ImGuiInputTextFlags.ReadOnly);
                         if (ImGui.IsItemClicked())
                         {
                             System.Diagnostics.Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                         }
                         url = Constants.translateUrlCrowdIn;
-                        ImGui.InputText(" -- click me", ref url, 100, ImGuiInputTextFlags.ReadOnly);
+                        ImGui.InputText("点击打开##CrowdinTranslation", ref url, 100, ImGuiInputTextFlags.ReadOnly);
                         if (ImGui.IsItemClicked())
                         {
                             System.Diagnostics.Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
                         }
-                        ImGui.TextWrapped("or dm me @ img#7855");
+                        ImGui.TextWrapped("也可联系原作者：img#7855");
                         ImGui.EndTabItem();
                     }
 
@@ -1202,7 +1203,7 @@ namespace HuntHelper.Gui
             }
 
             ImGui.SetNextWindowSize(new Vector2(300, 100), ImGuiCond.Always);
-            if (ImGui.Begin("help, i've fallen over", ref _settingsVisible,
+            if (ImGui.Begin("狩猎地图设置###help, i've fallen over", ref _settingsVisible,
                 ImGuiWindowFlags.NoResize | ImGuiWindowFlags.NoCollapse | ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
             {
                 ImGuiUtil.ImGui_CentreText(GuiResources.MapGuiText["DefaultSettingsWindowMessage"], _defaultTextColour);

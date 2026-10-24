@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
@@ -78,9 +78,9 @@ public unsafe class SpawnPointFinderUI : IDisposable//idk what to call this
             {
                 if (ImGui.BeginTable("sp table##", 3, ImGuiTableFlags.BordersH))
                 {
-                    ImGui.TableSetupColumn("MapName", ImGuiTableColumnFlags.WidthStretch, 50);
-                    ImGui.TableSetupColumn("MapID", ImGuiTableColumnFlags.WidthFixed, 25 * ImGuiHelpers.GlobalScale);
-                    ImGui.TableSetupColumn("Buttons", ImGuiTableColumnFlags.WidthFixed, 40 * ImGuiHelpers.GlobalScale);
+                    ImGui.TableSetupColumn("地图名称", ImGuiTableColumnFlags.WidthStretch, 50);
+                    ImGui.TableSetupColumn("地图编号", ImGuiTableColumnFlags.WidthFixed, 25 * ImGuiHelpers.GlobalScale);
+                    ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 40 * ImGuiHelpers.GlobalScale);
 
                     var i = 1;
                     var j = -1;

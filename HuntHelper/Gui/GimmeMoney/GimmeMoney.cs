@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using HuntHelper.Gui.Resource;
 using HuntHelper.Utilities;
@@ -19,7 +19,7 @@ namespace HuntHelper.Gui.GimmeMoney
             ImGui.PushStyleColor(ImGuiCol.TabActive, 0xFF000000 | 0x005E5BFF);
             ImGui.PushStyleColor(ImGuiCol.TabHovered, 0xAA000000 | 0x005E5BFF);
 
-            if (ImGui.BeginTabItem("ko-fi"))
+            if (ImGui.BeginTabItem("支持原作者（Ko-fi）"))
             {
                 _bottomPanelHeight = 120f * ImGuiHelpers.GlobalScale;
                 ImGui.TextWrapped(GuiResources.PluginText["dono"]);
@@ -46,7 +46,7 @@ namespace HuntHelper.Gui.GimmeMoney
             ImGui.PushStyleColor(ImGuiCol.Button, 0xFF000000 | 0x005E5BFF);
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, 0xAA000000 | 0x005E5BFF);
 
-            if (ImGui.Button("ko-fi"))
+            if (ImGui.Button("支持原作者（Ko-fi）"))
             {
                 var url = Constants.kofiUrl;
                 System.Diagnostics.Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });

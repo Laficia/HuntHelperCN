@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.Command;
+using Dalamud.Game.Command;
 using Dalamud.IoC;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
@@ -144,7 +144,7 @@ namespace HuntHelper
             CommandManager.AddHandler(NextHuntInTrainCommand, new CommandInfo(GetNextMobCommand) { HelpMessage = GuiResources.PluginText["/hhn helpmessage"] });
             CommandManager.AddHandler(NextHuntInTrainAetheryteCommand, new CommandInfo(GetNextMobAetheryteCommand) { HelpMessage = GuiResources.PluginText["/hhna helpmessage"] }); //todo replace msg
 #if DEBUG
-            CommandManager.AddHandler(DebugCommand, new CommandInfo(DebugWindowCommand) { HelpMessage = "random data, debug info" });
+            CommandManager.AddHandler(DebugCommand, new CommandInfo(DebugWindowCommand) { HelpMessage = "显示调试数据" });
 #endif
             CommandManager.AddHandler(CounterCommand, new CommandInfo(CounterWindowCommand) { HelpMessage = GuiResources.PluginText["/hhc helpmessage"] });
             CommandManager.AddHandler(SpawnPointCommand, new CommandInfo(SpawnPointWindowCommand) { HelpMessage = GuiResources.PluginText["/hhr helpmessage"] });

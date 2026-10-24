@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.ClientState.Fates;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
 using Dalamud.Interface;
@@ -54,12 +54,12 @@ public unsafe partial class CounterUI : IDisposable
 
     private void DrawNunWindowString(DateTime endTime)
     {
-        var startTimeString = _startTime.ToString("h:mm:ss tt", CultureInfo.InvariantCulture);
-        var endTimeString = endTime.ToString("h:mm:ss tt", CultureInfo.InvariantCulture);
+        var startTimeString = _startTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+        var endTimeString = endTime.ToString("HH:mm:ss", CultureInfo.InvariantCulture);
 
         ImGui.Text($"{startTimeString} - {endTimeString}\n");
         ImGui.SameLine();
-        Utilities.ImGuiUtil.ImGui_HelpMarker("May finish earlier based on the last failed fate before you entered the zone");
+        Utilities.ImGuiUtil.ImGui_HelpMarker("计时可能因你进入地区前最后一次危命任务失败而提前结束。");
     }
 
     private void DrawNunCountdownString(DateTime endTime)
@@ -68,7 +68,7 @@ public unsafe partial class CounterUI : IDisposable
         if (countdown.TotalSeconds < 0) countdown = TimeSpan.Zero;
         var countdownString = (countdown).ToString(@"mm\:ss", CultureInfo.InvariantCulture);
 
-        ImGui.Text($"Countdown: ");
+        ImGui.Text($"倒计时：");
         ImGui.SameLine();
         if (countdown.TotalSeconds > 300) ImGui.Text($"{countdownString}");
         else ImGui.TextColored(_green, $"{countdownString}");
@@ -76,7 +76,7 @@ public unsafe partial class CounterUI : IDisposable
 
     private void DrawNunResetButton()
     {
-        if (ImGui.Button("reset"))
+        if (ImGui.Button("重置"))
         {
             _startTime = DateTime.Now;
             _lastFailedFateInfo = string.Empty;
@@ -101,19 +101,19 @@ public unsafe partial class CounterUI : IDisposable
 
 #if DEBUG
         ImGui.PushFont(UiBuilder.MonoFont);
-        if (ImGui.CollapsingHeader("DEBUG FATE INFO"))
+        if (ImGui.CollapsingHeader("危命任务调试信息"))
         {
-            ImGui.Text($"{"Name",-35} -> {"Dura",4} | " +
-                       $"{"Rem.",5} | " +
-                       $"{"Prog",4} : {"State",12} | " +
-                       $"{"Start",10} | " +
-                       $"{"ID",4} | " +
-                       $"{"Pos"}");
+            ImGui.Text($"{"名称",-35} -> {"时长",4} | " +
+                       $"{"剩余",5} | " +
+                       $"{"进度",4} : {"状态",12} | " +
+                       $"{"开始",10} | " +
+                       $"{"编号",4} | " +
+                       $"{"位置"}");
             foreach (var fate in _fateTable)
             {
                 ImGui.Text($"{fate.Name,-35} -> {fate.Duration,4} | " +
                            $"{new TimeSpan(0, 0, 0, (int)(fate.TimeRemaining - fateRemainingTimeOffset)).ToString(@"mm\:ss"),4} | " +
-                           $"{fate.Progress,4} : {fate.State,12} | " +
+                           $"{fate.Progress,4} : {FateStateText(fate.State),12} | " +
                            $"{fate.StartTimeEpoch,10} | " +
                            $"{fate.FateId,4} | " +
                            $"{fate.Position}");
@@ -136,12 +136,12 @@ public unsafe partial class CounterUI : IDisposable
             // fate failed or a (!) fate that required [user activation] was not activated in time and disappeared
             if (cf.State == FateState.Failed || (cf.State == FateState.Preparing && _fateTable.All(f => !f.Equals(cf))))
             {
-                var failReason = cf.State == FateState.Preparing ? $"FAIL: NOT INITIATED" : "FAIL";
+                var failReason = cf.State == FateState.Preparing ? $"失败：未及时开启" : "失败";
 
                 _lastFailedFateInfo = $"{failReason}\n" +
                                       $"{cf.Name} @ {cf.Progress}%%\n\n" +
-                                      $"> {DateTime.Now.ToString("hh:mm:ss tt", CultureInfo.InvariantCulture)} <\n\n" +
-                                      $"Countdown reset.";
+                                      $"> {DateTime.Now.ToString("HH:mm:ss", CultureInfo.InvariantCulture)} <\n\n" +
+                                      $"倒计时已重置。";
                 _currentFates.Remove(cf);
                 _startTime = DateTime.Now;
                 continue;
@@ -151,14 +151,14 @@ public unsafe partial class CounterUI : IDisposable
 
     private void DrawCurrentFateUI()
     {
-        if (ImGui.CollapsingHeader("Fates"))
+        if (ImGui.CollapsingHeader("当前危命任务"))
         {
             foreach (var cf in _currentFates)
             {
                 DrawFateInfoUI(cf);
             }
         }
-        ImGuiUtil.ImGui_HoveredToolTip("Click a Fate to see it on the map.");
+        ImGuiUtil.ImGui_HoveredToolTip("点击危命任务可在地图上查看位置。");
     }
     private void DrawFateInfoUI(IFate cf)
     {
@@ -186,6 +186,15 @@ public unsafe partial class CounterUI : IDisposable
         if (ImGui.IsItemClicked()) OpenMapOnFateClick(cf);
     }
 
+    private static string FateStateText(FateState state) => state.ToString() switch
+    {
+        "Preparing" => "准备中",
+        "Running" => "进行中",
+        "Ended" => "已结束",
+        "Failed" => "失败",
+        _ => $"状态编号 {(int)state}",
+    };
+
     private string GetFateInfoString(IFate fate)
     {
         var fateName = fate.Name.ToString();
@@ -197,7 +206,7 @@ public unsafe partial class CounterUI : IDisposable
     {
         return fate.State != FateState.Preparing
             ? $"{new TimeSpan(0, 0, 0, (int)(fate.TimeRemaining - fateRemainingTimeOffset)).ToString(@"mm\:ss", CultureInfo.InvariantCulture)}"
-            : "upcoming or requires activation - can fail if not activated in time";
+            : "即将开始或需要手动开启；未及时开启可能导致失败。";
     }
 
     private void OpenMapOnFateClick(IFate fate)

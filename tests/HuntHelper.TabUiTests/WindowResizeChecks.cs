@@ -21,7 +21,7 @@ internal static class WindowResizeChecks
         Require(_size.X > smaller.X + 80 && _size.Y > smaller.Y + 40, "Corner cannot enlarge the window");
         Console.WriteLine("PASS Native resize corner enlarges both window dimensions");
         DragCorner(new Vector2(20, 30) - (_position + _size - new Vector2(4)));
-        Require(Vector2.Distance(_size, new Vector2(360, 180)) < 3, $"Wrong compact minimum: {_size}");
+        Require(Vector2.Distance(_size, new Vector2(280, 160)) < 3, $"Wrong compact minimum: {_size}");
         Console.WriteLine("PASS Compact minimum preserves usable width and height");
 
         var io = ImGui.GetIO();
@@ -34,9 +34,15 @@ internal static class WindowResizeChecks
         Console.WriteLine("PASS Real Restore default size control recovers a compact window");
 
         _scale = 1.5f; Frame(); Frame();
-        Require(_size.X >= 540 && _size.Y >= 270 && _size.X < 930 && _size.Y <= 376,
+        Require(_size.X >= 360 && _size.Y >= 240 && _size.X < 930 && _size.Y <= 376,
             $"Scaled size limits exceed the viewport or retain the old wide minimum: {_size}");
         Console.WriteLine("PASS Size limits adapt to UI scale and stay within the viewport");
+        var original=ImGui.GetStyle().WindowMinSize;
+        ImGui.GetStyle().WindowMinSize=new(420,180);
+        DragCorner(new Vector2(-900,-900));Frame();
+        Require(_size.X<420 && ImGui.GetStyle().WindowMinSize.X==420,$"Host minimum or UI scaling blocks compact width: {_size}");
+        ImGui.GetStyle().WindowMinSize=original;
+        Console.WriteLine("PASS Native window shrinks below 420 despite a host minimum and 150% UI scale");
     }
 
     private static void Frame()

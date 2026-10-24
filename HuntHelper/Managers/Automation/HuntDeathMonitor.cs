@@ -17,7 +17,14 @@ public sealed class HuntDeathMonitor
     private readonly Dictionary<HuntTrainMob, Track> _tracks = new();
     private (uint World, uint Territory, uint Map, uint Instance)? _stay;
     public void ManualChange(HuntTrainMob mob) => _tracks[mob] = new Track { SuppressCorpse = !mob.Dead };
-    public void Reset() { _tracks.Clear(); _stay = null; }
+    public void Reset()
+    {
+        // Disabling monitoring or unloading a zone must not undo an explicit manual revival.
+        foreach (var entry in _tracks.ToList())
+            if (entry.Value.SuppressCorpse) _tracks[entry.Key] = new Track { SuppressCorpse = true };
+            else _tracks.Remove(entry.Key);
+        _stay = null;
+    }
 
     public bool Update(PatrolContext context, IReadOnlyList<HuntTrainMob> records, IReadOnlyList<HuntObservation> seen, long now)
     {

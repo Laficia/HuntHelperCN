@@ -15,6 +15,15 @@ public class GuiResources
     public static readonly Dictionary<string, string> SpawnPointerFinderGuiText = new();
     public static readonly Dictionary<string, string> CounterGuiText = new();
     public static string Language = string.Empty;
+    public static string LanguageDisplayName(string language) => language.ToLowerInvariant() switch
+    {
+        "simplified chinese" => "简体中文",
+        "english" => "英语",
+        "french" => "法语",
+        "german" => "德语",
+        "japanese" => "日语",
+        _ => language,
+    };
 
 
     public static bool LoadGuiText(ClientLanguage lang)

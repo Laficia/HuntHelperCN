@@ -13,7 +13,8 @@ internal static class VersionTabChecks
         ("filtered rows retain their original indices and record identity", Indices),
         ("next hunt and selection stay within the visible version", Commands),
         ("removal and revival affect only visible records in the selected server", Mutations),
-        ("deleting a version in the current server pauses recording", Pause)
+        ("deleting a version in the current server pauses recording", Pause),
+        ("bulk revival reports affected records and preserves other versions and servers", RestoreCount)
     ];
     private static HuntTrainMob Mob(uint id, uint world = 101) => new($"Monster {id}",id,134,30,1,"Map",
         new Vector2(20,20),DateTime.UtcNow,false,world,$"World {world}","",new Vector3(10,0,10));
@@ -78,5 +79,19 @@ internal static class VersionTabChecks
         manager.AddMob(Mob(701));manager.AddMob(Mob(601));manager.RecordTrain=true;
         manager.RemoveRecords(new[]{manager.HuntTrain[0]},pauseRecording:true);
         Check(!manager.RecordTrain && manager.HuntTrain.Single().MobID==601);
+    }
+    private static void RestoreCount()
+    {
+        using var directory=new TemporaryDirectory();
+        using var manager=new TrainManager(null!,null!,Path.Combine(directory.Path,"train.json"),()=>new HuntTrainWorld(101,"A","",0));
+        manager.AddMob(Mob(701));manager.AddMob(Mob(702));manager.AddMob(Mob(601));
+        manager.SetDead(0,true);manager.SetDead(2,true);
+        var other=Mob(701,102);other.Dead=true;manager.AddMob(other);manager.SelectWorld(101);
+        var notifications=0;manager.ManualDeadStateChanged+=_=>notifications++;
+        var restored=manager.RestoreRecords(new[]{manager.HuntTrain[0],manager.HuntTrain[1],other});
+        Check(restored==1 && notifications==1 && !manager.HuntTrain[0].Dead && manager.HuntTrain[2].Dead && other.Dead);
+        Check(manager.RestoreRecords(new[]{manager.HuntTrain[0]})==0 && notifications==1);
+        using var loaded=new TrainManager(null!,null!,Path.Combine(directory.Path,"train.json"),()=>new HuntTrainWorld(101,"A","",0));
+        Check(!loaded.HuntTrain.First(m=>m.MobID==701).Dead && loaded.HuntTrain.First(m=>m.MobID==601).Dead);
     }
 }

@@ -11,6 +11,7 @@ public sealed class TrainVersionFilter
     private readonly Func<HuntTrainMob, int?> _aRankVersion;
     private readonly HuntRoster? _roster;
     private readonly Dictionary<uint, int?> _selectedByWorld = new();
+    public bool ShowEmptyRosters { get; set; } = true;
     public TrainVersionFilter(Func<HuntTrainMob, int?> aRankVersion, HuntRoster? roster = null)
     { _aRankVersion = aRankVersion; _roster = roster; }
 
@@ -24,6 +25,7 @@ public sealed class TrainVersionFilter
         {
             foreach (var expected in _roster.Entries.GroupBy(e => e.Version))
             {
+                if (!ShowEmptyRosters && !result.Any(g => g.Version == expected.Key)) continue;
                 var ids = expected.Select(e => e.NameId).ToHashSet();
                 var found = records.Where(m => ids.Contains(m.MobID)).Select(m => m.MobID).Distinct().Count();
                 result.RemoveAll(g => g.Version == expected.Key);

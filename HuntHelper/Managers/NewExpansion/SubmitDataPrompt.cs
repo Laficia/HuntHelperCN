@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using HuntHelper.Utilities;
 using System.Numerics;
@@ -23,28 +23,28 @@ namespace HuntHelper.Managers.NewExpansion
             if (!_visible) return;
 
             ImGui.SetNextWindowSize(new Vector2(630 * ImGuiHelpers.GlobalScale, 220 * ImGuiHelpers.GlobalScale));
-            if (ImGui.Begin("new expansion, who dis?"))
+            if (ImGui.Begin("新版狩猎数据提交"))
             {
                 ImGuiUtil.DoStuffWithMonoFont(() =>
                 {
-                    ImGui.TextWrapped("submit found spawn points to help make **INSERT EXPANSION NAME HERE** hunt map images?\n(this is from hunthelper btw)");
+                    ImGui.TextWrapped("是否提交已发现的刷新点，协助完善新版狩猎地图？\n此提示来自狩猎助手。");
 
                     ImGui.NewLine();
 
-                    if (ImGui.Button("yes, never show me this again", new Vector2(333 * ImGuiHelpers.GlobalScale, 25 * ImGuiHelpers.GlobalScale)))
+                    if (ImGui.Button("参与提交，不再提示", new Vector2(333 * ImGuiHelpers.GlobalScale, 25 * ImGuiHelpers.GlobalScale)))
                     {
                         _config.DawntrailSubmitPositionsData = true;
                         _config.DawntrailAlreadyPrompted = true;
                         _visible = false;
                     }
-                    if (ImGui.Button("no :(, never show me this again", new Vector2(333 * ImGuiHelpers.GlobalScale, 25 * ImGuiHelpers.GlobalScale)))
+                    if (ImGui.Button("暂不参与，不再提示", new Vector2(333 * ImGuiHelpers.GlobalScale, 25 * ImGuiHelpers.GlobalScale)))
                     {
                         _config.DawntrailAlreadyPrompted = true;
                         _visible = false;
                     }
 
                     ImGui.NewLine();
-                    ImGui.Text("You can opt in / out from the settings on the main map ui.");
+                    ImGui.Text("你可以随时在狩猎地图设置中开启或关闭数据提交。");
                 });
             }
             ImGui.End();

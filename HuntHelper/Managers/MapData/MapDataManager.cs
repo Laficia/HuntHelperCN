@@ -136,11 +136,11 @@ public class MapDataManager
 
         foreach (var map in SpawnPointsList)
         {
-            text += $"{map.MapName} - {map.MapID}\n" +
+            text += $"{MapHelpers.GetMapName(map.MapID)} - {map.MapID}\n" +
                     $"-------------------\n";
             foreach (var sp in map.Positions)
             {
-                text += $"({sp.Position.X:00.00}), ({sp.Position.Y:00.00}) \t {sp.A} {sp.B} {sp.S}\n";
+                text += $"({sp.Position.X:00.00}), ({sp.Position.Y:00.00}) \t A：{(sp.A ? "是" : "否")} B：{(sp.B ? "是" : "否")} S：{(sp.S ? "是" : "否")}\n";
             }
             text += $"-----------------------------------------\n";
         }

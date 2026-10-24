@@ -13,7 +13,7 @@ internal readonly record struct WorldTabBounds(uint WorldId, Vector2 Min, Vector
 /// <summary>A server tab strip whose visible order is always the saved order.</summary>
 public sealed class WorldTabBar
 {
-    private uint? _draggedWorld;
+    private readonly TabDragGesture _drag = new();
     private readonly List<WorldTabBounds> _bounds = new();
     internal IReadOnlyList<WorldTabBounds> VisibleTabs => _bounds;
 
@@ -24,7 +24,7 @@ public sealed class WorldTabBar
         var changed = WorldTabOrder.Synchronize(order, worlds.Select(w => w.WorldID));
         var byId = worlds.ToDictionary(w => w.WorldID);
         _bounds.Clear();
-        if (worlds.Count == 0) { _draggedWorld = null; return new(null, null, changed); }
+        if (worlds.Count == 0) { _drag.EndFrame(); return new(null, null, changed); }
 
         // Buttons avoid the native tab bar's cached display order. No drag/drop payload
         // is used, so ImGui cannot add its yellow drop target or floating preview.
@@ -43,8 +43,8 @@ public sealed class WorldTabBar
                 var min = ImGui.GetItemRectMin();
                 var max = ImGui.GetItemRectMax();
                 _bounds.Add(new(worldId, min, max, ImGui.IsMouseHoveringRect(min, max)));
-                if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left)) _draggedWorld = worldId;
-                if (clicked && _draggedWorld == null) selection = worldId;
+                _drag.RegisterItem(worldId);
+                if (clicked && !_drag.Dragging) selection = worldId;
 
                 if (ImGui.BeginPopupContextItem($"ServerMenu{worldId}"))
                 {
@@ -59,23 +59,11 @@ public sealed class WorldTabBar
                 }
             }
 
-            if (_draggedWorld is { } source)
-            {
-                ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
-                if (ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem))
-                    foreach (var target in _bounds.Where(b => b.Hovered && b.WorldId != source))
-                    {
-                        ImGui.GetWindowDrawList().AddRect(target.Min, target.Max,
-                            ImGui.GetColorU32(new Vector4(.35f, .65f, 1f, .65f)), 4 * scale);
-                        if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
-                            changed |= WorldTabOrder.MoveRelative(order, source, target.WorldId,
-                                ImGui.GetMousePos().X >= (target.Min.X + target.Max.X) / 2);
-                    }
-            }
+            changed |= _drag.Finish(order, _bounds.Select(b => (b.WorldId, b.Min, b.Max)), scale);
         }
         ImGui.EndChild();
         ImGui.PopStyleVar();
-        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _draggedWorld = null;
+        _drag.EndFrame();
         return new(selection, deletion, changed);
     }
 }

@@ -1,4 +1,4 @@
-﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
@@ -37,6 +37,7 @@ public class HuntTrainUI : IDisposable
     private bool _huntTrainWindowVisible = false;
 
     private string _copyText = GuiResources.HuntTrainGuiText["CopyText"];
+    private string _trainActionMessage = string.Empty;
     private Task _copyTextTask = Task.CompletedTask;
     private int _tooltipChangeTime = 400;
 
@@ -91,7 +92,8 @@ public class HuntTrainUI : IDisposable
         _roster = new HuntRoster(roster);
         _instances = new HuntInstanceLayout(config.HuntTrainMapInstanceCounts ??= new());
         _location = location;
-        _versions = new TrainVersionFilter(aRankVersion, _roster);
+        _versions = new TrainVersionFilter(aRankVersion, _roster) { ShowEmptyRosters = config.HuntTrainShowMissingRoster };
+        config.HuntTrainVersionTabOrders ??= new();
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
@@ -100,6 +102,7 @@ public class HuntTrainUI : IDisposable
 
     public void Draw()
     {
+        _versions.ShowEmptyRosters = _config.HuntTrainShowMissingRoster;
         var location = _location();
         if (location.Ready) _instances.Observe(location.World, location.Territory, location.Instance);
         if (_showTrainUIDuringIPCImport && _trainManager.ImportFromIPC) { _huntTrainWindowVisible = true; }
@@ -189,13 +192,14 @@ public class HuntTrainUI : IDisposable
                 if (ImGui.Checkbox("显示未发现 A 怪占位", ref showMissingRoster))
                 {
                     _config.HuntTrainShowMissingRoster = showMissingRoster;
+                    _versions.ShowEmptyRosters = showMissingRoster;
                     _config.Save();
                 }
-                ImGuiUtil.ImGui_HoveredToolTip("默认关闭，只显示已记录的怪物。开启后按当前服务器各地图的分线补齐名单；进度始终保留，设置自动保存。");
+                ImGuiUtil.ImGui_HoveredToolTip("默认关闭，只显示已记录的怪物，并隐藏无记录的版本标签。开启后按当前服务器各地图的分线补齐完整名单；设置自动保存。");
                 DrawInstanceSettings();
                 HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale);
                 ImGui.Separator();
-                if (ImGui.TreeNode("cosmetic##iwanttodeletethisbutmaybesomeusersactuallyuseit"))
+                if (ImGui.TreeNode("显示设置##iwanttodeletethisbutmaybesomeusersactuallyuseit"))
                 {
                     if (ImGui.BeginTable("settingsalignment", 2))
                     {
@@ -205,8 +209,8 @@ public class HuntTrainUI : IDisposable
                         ImGui.Checkbox(GuiResources.HuntTrainGuiText["LastSeen"], ref _showLastSeen);
                         ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["LastSeenToolTip"]);
                         ImGui.TableNextColumn();
-                        ImGui.Checkbox("Show Map Name", ref _showMapName);
-                        ImGuiUtil.ImGui_HoveredToolTip("Show Map Name");
+                        ImGui.Checkbox("显示地图名称", ref _showMapName);
+                        ImGuiUtil.ImGui_HoveredToolTip("显示地图名称");
                         ImGui.TableNextColumn();
                         ImGui.Checkbox(GuiResources.HuntTrainGuiText["ShowFlagInChat"], ref _showInChat);
                         ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["ShowFlagInChat"]);
@@ -215,7 +219,7 @@ public class HuntTrainUI : IDisposable
                     ImGui.TreePop();
                 }
 
-                if (ImGui.TreeNode("Teleport"))
+                if (ImGui.TreeNode("传送设置###Teleport"))
                 {
                     if (ImGui.BeginTable("settingsalignment", 2))
                     {
@@ -239,7 +243,7 @@ public class HuntTrainUI : IDisposable
                     ImGui.TreePop();
                 }
 
-                if (ImGui.TreeNode("IPCRelatedStuffIdk"))
+                if (ImGui.TreeNode("插件联动###IPCRelatedStuffIdk"))
                 {
                     if (ImGui.BeginTable("settingsalignment", 1))
                     {
@@ -263,8 +267,13 @@ public class HuntTrainUI : IDisposable
             ImGuiUtil.ImGui_HoveredToolTip($"删除当前 {VersionLabel} 标签内已死亡的记录");
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
 
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe)) _trainManager.RestoreRecords(VisibleMobs);
-            ImGuiUtil.ImGui_HoveredToolTip($"恢复当前 {VersionLabel} 标签内怪物为存活");
+            if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe))
+            {
+                var restored = _trainManager.RestoreRecords(VisibleMobs);
+                _trainActionMessage = restored > 0 ? $"已恢复当前 {VersionLabel} 标签内 {restored} 条记录为存活"
+                    : $"当前 {VersionLabel} 标签内没有已死亡的记录，无需恢复";
+            }
+            ImGuiUtil.ImGui_HoveredToolTip($"恢复当前 {VersionLabel} 标签内已死亡的记录为存活；只修改记录的死亡标记，不会重新扫描。");
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
 
             //position record button on far right
@@ -414,6 +423,7 @@ public class HuntTrainUI : IDisposable
         _trainManager.SelectWorld(worldId);
         _selectedIndex = _selectedByWorld.GetValueOrDefault(worldId);
         _displayedWorld = worldId;
+        _trainActionMessage = string.Empty;
     }
 
     private static string FormatWorld(string name, string dataCenter) => name;
@@ -432,8 +442,11 @@ public class HuntTrainUI : IDisposable
     private void DrawVersionTabs()
     {
         var world = _trainManager.SelectedWorldId;
-        var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale);
-        if (action.Changed) _versions.Select(world, action.Version);
+        if (!_config.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
+            _config.HuntTrainVersionTabOrders[world] = order = new();
+        var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale, order);
+        if (action.OrderChanged) _config.Save();
+        if (action.Changed) { _versions.Select(world, action.Version); _trainActionMessage = string.Empty; }
         var version = _versions.Selected(world, _mobList);
         _rosterSnapshot = null;
         if (version is >= 2)
@@ -506,7 +519,8 @@ public class HuntTrainUI : IDisposable
         var tableHeight = Math.Clamp(ImGui.GetContentRegionAvail().Y - 140 * ImGuiHelpers.GlobalScale,
             110 * ImGuiHelpers.GlobalScale, 340 * ImGuiHelpers.GlobalScale);
         if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY, new Vector2(0, tableHeight))) return;
+            ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX, new Vector2(0, tableHeight),
+            Math.Max(ImGui.GetContentRegionAvail().X, 440 * ImGuiHelpers.GlobalScale))) return;
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 70 * ImGuiHelpers.GlobalScale);
@@ -599,6 +613,7 @@ public class HuntTrainUI : IDisposable
 
     private void DrawNavigationStatus()
     {
+        if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
         if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
         if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
     }
@@ -720,7 +735,7 @@ public class HuntTrainUI : IDisposable
                         ImGui.TableNextColumn();
                         ImGui.TextUnformatted($"[{m.WorldName}] {m.Name}{m.Instance.GetInstanceGlyph()}");
                         ImGui.TableNextColumn();
-                        ImGui.TextUnformatted($"{(DateTime.Now.ToUniversalTime() - m.LastSeenUTC).TotalMinutes:0}m");
+                        ImGui.TextUnformatted($"{(DateTime.Now.ToUniversalTime() - m.LastSeenUTC).TotalMinutes:0}分");
                         ImGui.PopStyleColor();
                     }
                     ImGui.EndTable();

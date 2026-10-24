@@ -46,7 +46,7 @@ internal static unsafe class RosterPreviewRenderer
                 }
             }
         }
-        var path = Path.GetFullPath($"obj/release-staging/v1.0.0.5/roster-preview-{(showMissing ? "enabled" : "default")}.png");
+        var path = Path.GetFullPath($"obj/release-staging/v1.0.0.6/roster-preview-{(showMissing ? "enabled" : "default")}.png");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         SavePng(path, pixels);
         Console.WriteLine($"PREVIEW (simulated records): {path}");
@@ -71,7 +71,9 @@ internal static unsafe class RosterPreviewRenderer
         ImGui.TextUnformatted("当前区服：银泪湖");
         var worlds = new WorldTabBar();
         worlds.Draw([new HuntTrainWorld(1, "银泪湖", "", 5), new HuntTrainWorld(2, "水晶塔", "", 12)], 1, new List<uint> { 1, 2 });
-        new TrainVersionTabBar().Draw([new(7, "7A", 5, 12), new(6, "6A", 0, 12), new(5, "5A", 0, 12), new(4, "4A", 0, 12)], 7);
+        var groups = new List<TrainVersionGroup> { new(7, "7A", 5, 12), new(4, "4A", 2, 12), new(null, "全部", 7) };
+        if (showMissing) { groups.Insert(1,new(6,"6A",0,12));groups.Insert(2,new(5,"5A",0,12)); }
+        new TrainVersionTabBar().Draw(groups, 7);
         HuntRosterPresentation.Summary("银泪湖", 7, 5, 14, 1);
         ImGui.TextDisabled("按地图分线计数 · 怪物种类 5/12");
         string[] names = ["女王蜂", "奥迦斯", "弗克施泰因", "悼骨灾蝎", "马赫沙", "泛光晶体", "鬼灵梦", "船幽灵", "象魔修罗", "安迦达", "硕蝎", "基里麦卡拉"];

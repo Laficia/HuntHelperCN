@@ -1,4 +1,4 @@
-﻿using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Gui.FlyText;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Textures.TextureWraps;
@@ -462,7 +462,7 @@ public class HuntManager : IDisposable
     public string GetDatabaseAsString()
     {
         var text = string.Format("{0,-4} | {1,-26} | {2,-5} | {3,5}\n" +
-                   "--------------------------------------------------\n", "Rank", "Name", " ID", "Enabled");
+                   "--------------------------------------------------\n", "等级", "名称", "编号", "启用");
         text += DictToString(_arrDict);
         text += DictToString(_hwDict);
         text += DictToString(_sbDict);
@@ -547,7 +547,7 @@ public class HuntManager : IDisposable
         {
             foreach (var mob in kvp.Value)
             {
-                text += string.Format($"{mob.Rank,-4} | {mob.Name,-26} | {mob.ModelID,5} | {mob.IsEnabled,5}\n");
+                text += string.Format($"{mob.Rank,-4} | {MapHelpers.GetMobName(mob.ModelID, mob.Name),-26} | {mob.ModelID,5} | {(mob.IsEnabled ? "是" : "否"),5}\n");
             }
 
             text += "\n";
@@ -568,7 +568,7 @@ public class HuntManager : IDisposable
             if (!File.Exists(Path.Combine(_pluginInterface.AssemblyLocation.Directory?.FullName!, path)))
             {
                 ErrorPopUpVisible = true;
-                ErrorMessage += $"File {path} missing... Please replace missing file(s).\n";
+                ErrorMessage += $"缺少文件 {path}，请重新安装插件或补齐缺失文件。\n";
                 return;
             }
         }
