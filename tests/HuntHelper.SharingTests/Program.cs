@@ -88,9 +88,16 @@ internal static class Program
             for (var i = 0; i < 4; i++) Same(originalMulti[i], currentMulti[i]);
             Pass("All-server export retains distinct worlds in the current model and remains decodable by the original model");
 
+            var sRecords = new List<HuntTrainMob> { new("S怪测试",13360,1187,862,2,"遗产之地",new(18.14f,12.79f),Seen,false,1177,"银泪湖","豆豆柴") };
+            var originalS = OriginalCodec.Import(CurrentCodec.Export(sRecords),new List<OriginalMob>());
+            Equal(1,originalS.Count);Same(originalS[0],sRecords[0]);
+            var backS = CurrentCodec.Import(OriginalCodec.Export(originalS),new List<HuntTrainMob>());
+            Same(originalS[0],backS.Single());
+            Pass("S module records use the same original-compatible share format in both directions");
+
             var report = new
             {
-                CurrentVersion = "1.0.0.6",
+                CurrentVersion = "1.0.0.7",
                 OriginalVersion = "1.0.0.34",
                 OriginalCommit = "c6b85581b5c2980214272a38527ee2aaf4b18e69",
                 Format = "Base64(GZip(UTF8(JSON array)))",

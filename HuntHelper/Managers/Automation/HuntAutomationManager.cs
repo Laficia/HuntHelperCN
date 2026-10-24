@@ -30,6 +30,8 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private readonly NavigationManager _navigation;
     private readonly Configuration _config;
     private readonly HuntDeathMonitor _deaths = new();
+    private readonly HuntDeathMonitor _sDeaths = new();
+    private readonly TrainManager? _sTrains;
     private long _nextTick, _nextAction, _nextDeath, _takeoffUntil;
     private uint _recordWorld, _recordTerritory;
     private bool _disposed;
@@ -50,10 +52,12 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     public HuntAutomationManager(IClientState client, IPlayerState player, IObjectTable objects, ICondition condition,
         IAetheryteList aetherytes, IDataManager data, TrainManager trains, HuntManager hunts, NavigationManager navigation,
-        MapDataManager maps, Configuration config, string folder)
+        MapDataManager maps, Configuration config, string folder, TrainManager? sTrains = null)
     {
         _client = client; _player = player; _objects = objects; _condition = condition; _aetherytes = aetherytes;
         _data = data; _trains = trains; _hunts = hunts; _navigation = navigation; _config = config;
+        _sTrains = sTrains;
+        if (_sTrains != null) _sTrains.ManualDeadStateChanged += _sDeaths.ManualChange;
         Store = new(Path.Combine(folder, "ScanRoutes.json"));
         Session = new(this);
         _trains.ManualDeadStateChanged += _deaths.ManualChange;
@@ -90,15 +94,18 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
                 else if (AutomaticRecording && c.Ready && !c.Dead) AddPoint(30);
             }
             Session.Tick(now);
-            if (_config.HuntDeathMonitoring && now >= _nextDeath)
+            if ((_config.HuntDeathMonitoring || _config.HuntSDeathMonitoring) && now >= _nextDeath)
             {
                 _nextDeath = now + 500;
                 var observations = _objects.OfType<IBattleNpc>()
                     .Select(n => new HuntObservation(n.NameId, n.Position, n.CurrentHp, n.MaxHp)).ToList();
-                if (_deaths.Update(Context, _trains.GetAllTrainRecords(), observations, now))
+                if (_config.HuntDeathMonitoring && _deaths.Update(Context, _trains.GetAllTrainRecords(), observations, now))
                     _trains.SaveHuntTrainRecord();
+                if (_config.HuntSDeathMonitoring && _sTrains != null && _sDeaths.Update(Context,_sTrains.GetAllTrainRecords(),observations,now))
+                    _sTrains.SaveHuntTrainRecord();
             }
-            else if (!_config.HuntDeathMonitoring) _deaths.Reset();
+            if (!_config.HuntDeathMonitoring) _deaths.Reset();
+            if (!_config.HuntSDeathMonitoring) _sDeaths.Reset();
         }
         catch (Exception ex)
         {
@@ -214,6 +221,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         _disposed = true; Recording = false;
         Session.Stop("插件已卸载");
         _trains.ManualDeadStateChanged -= _deaths.ManualChange;
+        if (_sTrains != null) _sTrains.ManualDeadStateChanged -= _sDeaths.ManualChange;
         _trains.WorldDeleted -= OnWorldDeleted;
     }
 }

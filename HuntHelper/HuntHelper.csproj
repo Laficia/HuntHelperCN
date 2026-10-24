@@ -4,8 +4,8 @@
     <AssemblyName>HuntHelperCN</AssemblyName>
     <Authors>https://github.com/img02</Authors>
     <Company></Company>
-    <Version>1.0.0.6</Version>
-    <Description>Hunt map with spawns points, A-Rank train recorder (w/ export/import sharing), TTS, Chat notifications, Counters for S-Rank</Description>
+    <Version>1.0.0.7</Version>
+    <Description>国服狩猎地图、独立 A/S 怪记录、Sonar 聊天录制、区服版本分类、路线巡点和死亡监测</Description>
     <Copyright></Copyright>
     <PackageProjectUrl>https://github.com/Laficia/HuntHelperCN</PackageProjectUrl>
   </PropertyGroup>

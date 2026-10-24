@@ -29,6 +29,7 @@ namespace HuntHelper
         private const string MapWindowPresetOneSave = "/hh1save";
         private const string MapWindowPresetTwoSave = "/hh2save";
         private const string HuntTrainWindowCommand = "/hht";
+        private const string SRankWindowCommand = "/hhs";
         private const string NextHuntInTrainCommand = "/hhn";
         private const string NextHuntInTrainAetheryteCommand = "/hhna";
         private const string CounterCommand = "/hhc";
@@ -44,6 +45,9 @@ namespace HuntHelper
         private Configuration Configuration { get; init; }
         private MapUI MapUi { get; init; }
         private HuntTrainUI HuntTrainUI { get; init; }
+        private HuntTrainUI SRankUI { get; init; }
+        private TrainManager SRankManager { get; init; }
+        private SonarChatRecorder SonarRecorder { get; init; }
         private HuntAutomationManager Automation { get; init; }
         private HuntFinderUI HuntFinderUI { get; init; }
         private CounterUI CounterUI { get; init; }
@@ -114,16 +118,24 @@ namespace HuntHelper
             MapDataManager = new MapDataManager(Path.Combine(pluginInterface.AssemblyLocation.Directory?.FullName!, @"Data\SpawnPointData.json"));
             HuntManager = new HuntManager(pluginInterface, TrainManager, chatGui, flyTextGui, Configuration.TTSVolume,
                 MapHelpers.GetHuntTerritories(MapDataManager.SpawnPointsList.Select(m => (uint)m.MapID)));
+            SRankManager = new TrainManager(chatGui, gameGui, Path.Combine(pluginInterface.ConfigDirectory.FullName,"SRankTrain.json"),
+                playerState, mob => HuntManager.GetSRankVersion(mob.MobID).HasValue);
+            SonarRecorder = new SonarChatRecorder(chatGui,clientState,dataManager,HuntManager,TrainManager,SRankManager,Configuration);
 
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
                 () => condition[ConditionFlag.InFlight]);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
-                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName);
+                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
                 () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,
-                () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); });
+                () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); },
+                relayStatus:()=>SonarRecorder.AStatus,openOther:()=>{if(SRankUI is { } ui) ui.HuntTrainWindowVisible=true;});
+            SRankUI = new HuntTrainUI(SRankManager,Configuration,NavigationManager,()=>{},()=>Automation.Session.Active,
+                ()=>Automation.Session.Stop(),mob=>HuntManager.GetSRankVersion(mob.MobID),HuntManager.SRankRoster,
+                ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
+                ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true);
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
@@ -141,6 +153,9 @@ namespace HuntHelper
             CommandManager.AddHandler(MapWindowPresetOneSave, new CommandInfo(SavePresetOneCommand) { HelpMessage = GuiResources.PluginText["/hh1save helpmessage"] });
             CommandManager.AddHandler(MapWindowPresetTwoSave, new CommandInfo(SavePresetTwoCommand) { HelpMessage = GuiResources.PluginText["/hh2save helpmessage"] });
             CommandManager.AddHandler(HuntTrainWindowCommand, new CommandInfo(HuntTrainCommand) { HelpMessage = GuiResources.PluginText["/hht helpmessage"] });
+            CommandManager.AddHandler(SRankWindowCommand,new CommandInfo((_,__)=>SRankUI.HuntTrainWindowVisible=!SRankUI.HuntTrainWindowVisible){HelpMessage="打开独立S怪记录窗口"});
+            CommandManager.AddHandler("/hhsn",new CommandInfo((_,__)=>SRankUI.GetNextMobCommand()){HelpMessage="发送当前S怪标签中的下一只坐标到聊天"});
+            CommandManager.AddHandler("/hhsna",new CommandInfo((_,__)=>SRankUI.GetNextMobNearestAetheryte()){HelpMessage="发送下一只S怪的最近水晶坐标到聊天"});
             CommandManager.AddHandler(NextHuntInTrainCommand, new CommandInfo(GetNextMobCommand) { HelpMessage = GuiResources.PluginText["/hhn helpmessage"] });
             CommandManager.AddHandler(NextHuntInTrainAetheryteCommand, new CommandInfo(GetNextMobAetheryteCommand) { HelpMessage = GuiResources.PluginText["/hhna helpmessage"] }); //todo replace msg
 #if DEBUG
@@ -161,13 +176,17 @@ namespace HuntHelper
             PluginInterface.UiBuilder.OpenMainUi -= OpenHuntTrainUI;
             //save hunttrainui config first
             HuntTrainUI.SaveSettings();
+            SRankUI.SaveSettings();
             CounterUI.SaveSettings();
             SpawnPointFinderUI.SaveSettings();
 
             IpcSystem.Dispose();
+            SonarRecorder.Dispose();
             Automation.Dispose();
             NavigationManager.Dispose();
             HuntTrainUI.Dispose();
+            SRankUI.Dispose();
+            SRankManager.Dispose();
             SpawnPointFinderUI.Dispose();
             CounterUI.Dispose();
             MapUi.Dispose();
@@ -180,6 +199,9 @@ namespace HuntHelper
             CommandManager.RemoveHandler(MapWindowPresetOneSave);
             CommandManager.RemoveHandler(MapWindowPresetTwoSave);
             CommandManager.RemoveHandler(HuntTrainWindowCommand);
+            CommandManager.RemoveHandler(SRankWindowCommand);
+            CommandManager.RemoveHandler("/hhsn");
+            CommandManager.RemoveHandler("/hhsna");
             CommandManager.RemoveHandler(NextHuntInTrainCommand);
             CommandManager.RemoveHandler(CounterCommand);
             CommandManager.RemoveHandler(SpawnPointCommand);
@@ -220,7 +242,11 @@ namespace HuntHelper
                 var instance = MapHelpers.CurrentInstance;
                 foreach (var obj in ObjectTable)
                     if (obj is IBattleNpc mob && HuntManager.IsHunt(mob.NameId))
+                    {
                         HuntManager.AddToTrain(mob, territory, ClientState.MapId, instance, name, scale);
+                        if(mob.CurrentHp>0 && HuntManager.GetSRankVersion(mob.NameId).HasValue)
+                            SRankManager.ObserveMob(mob,true,territory,ClientState.MapId,instance,name,scale);
+                    }
                 _lastTrainScanError = null;
             }
             catch (Exception ex)
@@ -251,6 +277,7 @@ namespace HuntHelper
             {
                 MapUi.Draw();
                 HuntTrainUI.Draw();
+                SRankUI.Draw();
                 HuntFinderUI.Draw();
                 CounterUI.Draw();
                 SpawnPointFinderUI.Draw();

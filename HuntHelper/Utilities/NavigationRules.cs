@@ -9,9 +9,9 @@ public static class NavigationRules
         uint currentWorldId, uint currentTerritoryId, uint currentMapId, uint currentInstance)
     {
         if (worldId == 0) return "记录尚未标注区服，请先重新扫描或导入带区服的记录";
-        if (worldId != currentWorldId) return "只能移动到当前区服的 A 怪";
+        if (worldId != currentWorldId) return "只能移动到当前区服的 怪物";
         if (territoryId != currentTerritoryId || mapId != currentMapId) return "只有在同一张地图时才能移动";
-        if (instance != currentInstance) return "请先切换到该 A 怪所在分线";
+        if (instance != currentInstance) return "请先切换到该 怪物所在分线";
         return string.Empty;
     }
 

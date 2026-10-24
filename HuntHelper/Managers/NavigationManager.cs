@@ -45,6 +45,10 @@ public sealed class NavigationManager : IDisposable
 
     public string LastMessage { get; private set; } = string.Empty;
     public bool OwnsMovement => _movingTo != null;
+    public bool IsMovingTo(HuntTrainMob mob)
+    {
+        lock (_requestLock) return ReferenceEquals(_movingTo, mob);
+    }
 
     public NavigationManager(IDalamudPluginInterface pluginInterface, IClientState clientState,
         IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework, Func<bool>? isFlying = null)
@@ -83,7 +87,7 @@ public sealed class NavigationManager : IDisposable
         if (_disposed || !_clientState.IsLoggedIn || !_playerState.IsLoaded || _objectTable.LocalPlayer == null ||
             _clientState.TerritoryType == 0 || _clientState.MapId == 0)
             return "请先登录并等待地图加载完成";
-        if (mob.Dead) return "该 A 怪已标记死亡";
+        if (mob.Dead) return "该 怪物已标记死亡";
         return NavigationRules.GetLocationMismatch(mob.WorldID, mob.TerritoryID, mob.MapID, mob.Instance,
             _playerState.CurrentWorld.RowId, _clientState.TerritoryType, _clientState.MapId, MapHelpers.CurrentInstance);
     }
@@ -135,7 +139,7 @@ public sealed class NavigationManager : IDisposable
                     if (!NavigationRules.IsFinite(mapPosition)) throw new InvalidOperationException("地图坐标超出有效范围");
                     var floor = _pointOnFloor.InvokeFunc(mapPosition, false, 5f);
                     if (floor == null || !NavigationRules.IsFinite(floor.Value))
-                        throw new InvalidOperationException("无法找到该坐标的可行走地面，请重新扫描这个 A 怪");
+                        throw new InvalidOperationException("无法找到该坐标的可行走地面，请重新扫描这个 怪物");
                     destination = floor.Value;
                 }
 

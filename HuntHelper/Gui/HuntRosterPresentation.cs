@@ -10,9 +10,9 @@ public static class HuntRosterPresentation
     public static readonly Vector4 FoundColor = new(.39f, .84f, .67f, 1);
     public static readonly Vector4 MissingColor = new(.96f, .42f, .46f, 1);
 
-    public static void Summary(string world, int version, int found, int total, float scale)
+    public static void Summary(string world, int version, int found, int total, float scale, string rankLabel = "A")
     {
-        ImGui.TextColored(new Vector4(.84f, .91f, 1, 1), $"{world}  /  {version}A");
+        ImGui.TextColored(new Vector4(.84f, .91f, 1, 1), $"{world}  /  {version}{rankLabel}");
         ImGui.SameLine();
         ImGui.TextDisabled($"  {found} / {total}");
         ImGui.PushStyleColor(ImGuiCol.PlotHistogram, new Vector4(.23f, .63f, .85f, 1));

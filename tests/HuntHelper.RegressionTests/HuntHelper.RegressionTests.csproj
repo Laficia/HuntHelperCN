@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Utilities\HuntRelayParser.cs" Link="Production\HuntRelayParser.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionFilter.cs" Link="Production\TrainVersionFilter.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRoster.cs" Link="Production\HuntRoster.cs" />
@@ -24,6 +25,7 @@
     <Compile Include="..\..\HuntHelper\Utilities\NavigationRules.cs" Link="Production\NavigationRules.cs" />
     <Compile Include="..\..\HuntHelper\Managers\ImageDownloader.cs" Link="Production\ImageDownloader.cs" />
     <Compile Include="..\..\HuntHelper\Configuration.cs" Link="Production\Configuration.cs" />
+    <Compile Include="..\..\HuntHelper\HuntTrainSettings.cs" Link="Production\HuntTrainSettings.cs" />
     <Compile Include="..\..\HuntHelper\Preset.cs" Link="Production\Preset.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\WorldTabOrder.cs" Link="Production\WorldTabOrder.cs" />
   </ItemGroup>

@@ -37,6 +37,12 @@ internal static class VersionTabUiChecks
         if(!Tabs.VisibleTabs.Select(b=>b.Version).SequenceEqual(new int?[]{7,6,5,4,null}) || !ImGui.GetDragDropPayload().IsNull)
             throw new Exception("Reverse version drag or saved-order reload failed");
         Console.WriteLine("PASS Native reverse version drag survives order reload without yellow drag targets");
+        _groups=new(){new(7,"7S",1,6),new(6,"6S",1,6),new(2,"2S",1,17)};
+        _order=new();_selected=7;Frame();Frame();Click(6);
+        Drag(6,2,true);Frame();
+        if(_selected!=6 || !Tabs.VisibleTabs.Select(b=>b.Version).SequenceEqual(new int?[]{7,2,6}) || !ImGui.GetDragDropPayload().IsNull)
+            throw new Exception("S version selection or drag failed");
+        Console.WriteLine("PASS Native S-rank version tabs reuse selection and blue-feedback drag behavior");
     }
     private static void Frame()
     {

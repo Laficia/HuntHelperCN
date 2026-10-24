@@ -20,6 +20,7 @@ internal static class Program
     {
         (string Name, Func<Task> Run)[] tests =
         [
+            .. RelayChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. AutomationChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. VersionTabChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. RosterChecks.Tests.Select(t => (t.Name, Sync(t.Run))),

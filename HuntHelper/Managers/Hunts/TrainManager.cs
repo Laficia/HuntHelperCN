@@ -12,6 +12,8 @@ using System.Linq;
 
 namespace HuntHelper.Managers.Hunts;
 
+public enum RelayRecordResult { Ignored, Added, Updated }
+
 public class TrainList<T> : List<T>
 {
     public event Action? TrainChanged;
@@ -71,6 +73,7 @@ public class TrainManager : IDisposable
     private readonly IChatGui _chatGui;
     private readonly IGameGui _gameGui;
     private readonly Func<HuntTrainWorld> _currentWorldProvider;
+    private readonly Func<HuntTrainMob, bool> _acceptRecord;
     private readonly string _huntTrainFilePath;
     private readonly Dictionary<uint, TrainList<HuntTrainMob>> _trainsByWorld = new();
     private readonly Dictionary<uint, HuntTrainWorld> _worlds = new();
@@ -103,17 +106,20 @@ public class TrainManager : IDisposable
 
     public uint CurrentWorldId => GetCurrentWorld().WorldID;
 
-    public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, IPlayerState playerState)
-        : this(chatGui, gameGui, huntTrainFilePath, () => ReadCurrentWorld(playerState))
+    public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, IPlayerState playerState,
+        Func<HuntTrainMob, bool>? acceptRecord = null)
+        : this(chatGui, gameGui, huntTrainFilePath, () => ReadCurrentWorld(playerState), acceptRecord)
     {
     }
 
-    public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, Func<HuntTrainWorld> currentWorldProvider)
+    public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, Func<HuntTrainWorld> currentWorldProvider,
+        Func<HuntTrainMob, bool>? acceptRecord = null)
     {
         _chatGui = chatGui;
         _gameGui = gameGui;
         _huntTrainFilePath = huntTrainFilePath;
         _currentWorldProvider = currentWorldProvider;
+        _acceptRecord = acceptRecord ?? (_ => true);
         LoadHuntTrainRecord();
         GetCurrentWorld();
     }
@@ -229,10 +235,27 @@ public class TrainManager : IDisposable
     // Recording always targets the character's visited world, independently of the UI tab.
     public void AddMob(HuntTrainMob mob)
     {
+        if (!_acceptRecord(mob)) return;
         var world = GetCurrentWorld();
         var train = GetOrCreateTrain(world.WorldID);
         if (train.Any(m => m.IsSameAs(mob.MobID, mob.Instance, world.WorldID))) return;
         train.Add(mob.WithWorld(world));
+    }
+
+    public RelayRecordResult RecordRelay(HuntTrainMob mob)
+    {
+        if (!RecordTrain || !_acceptRecord(mob) || !mob.HasWorldMetadata || mob.WorldID == 0 || mob.TerritoryID == 0 || mob.MapID == 0 ||
+            !float.IsFinite(mob.Position.X) || !float.IsFinite(mob.Position.Y)) return RelayRecordResult.Ignored;
+        RememberWorld(new(mob.WorldID, mob.WorldName, mob.DataCenterName, 0));
+        var train = GetOrCreateTrain(mob.WorldID);
+        var existing = train.FirstOrDefault(m => m.IsSameAs(mob.MobID, mob.Instance, mob.WorldID) && m.TerritoryID == mob.TerritoryID);
+        if (existing == null) { train.Add(mob); return RelayRecordResult.Added; }
+        if (!existing.WorldPosition.HasValue || System.Numerics.Vector2.DistanceSquared(existing.Position, mob.Position) > .2f * .2f)
+        { existing.Position = mob.Position; existing.WorldPosition = null; }
+        if (mob.LastSeenUTC > existing.LastSeenUTC) existing.LastSeenUTC = mob.LastSeenUTC;
+        // A map-only announcement cannot revive a dead record or fabricate a height.
+        SaveHuntTrainRecord();
+        return RelayRecordResult.Updated;
     }
 
     public bool UpdateLastSeen(IBattleNpc mob, uint instance, float? zoneMapCoordSize = null)
@@ -259,7 +282,7 @@ public class TrainManager : IDisposable
         if (!valid)
         {
             sb.AddUiForeground(textColor);
-            sb.AddText("Nothing Left");
+            sb.AddText("没有下一只记录");
             sb.AddUiForegroundOff();
             _chatGui.Print(sb.BuiltString);
             return;
@@ -315,7 +338,7 @@ public class TrainManager : IDisposable
         ImportedTrain.Clear();
         foreach (var mob in snapshot)
         {
-            if (mob == null) continue;
+            if (mob == null || !_acceptRecord(mob)) continue;
             var world = mob.HasWorldMetadata
                 ? new HuntTrainWorld(mob.WorldID, mob.WorldName, mob.DataCenterName, 0)
                 : destination;
@@ -435,7 +458,7 @@ public class TrainManager : IDisposable
         catch (Exception ex)
         {
             _canSave = false;
-            PersistenceError = $"Unable to load hunt train data; original file preserved: {ex.Message}";
+            PersistenceError = $"无法读取狩猎记录，已保留原文件：{ex.Message}";
             PluginLog.Error(PersistenceError);
             return;
         }
@@ -449,7 +472,7 @@ public class TrainManager : IDisposable
             _worlds.Clear();
             foreach (var mob in records)
             {
-                if (mob == null) continue;
+                if (mob == null || !_acceptRecord(mob)) continue;
                 // Old local files deliberately stay world 0 instead of inheriting a login world.
                 RememberWorld(new HuntTrainWorld(mob.WorldID, mob.WorldName, mob.DataCenterName, 0));
                 GetOrCreateTrain(mob.WorldID).Add(mob);
@@ -477,7 +500,7 @@ public class TrainManager : IDisposable
             }
             catch (Exception ex)
             {
-                PersistenceError = $"Unable to save hunt train data: {ex.Message}";
+                PersistenceError = $"无法保存狩猎记录：{ex.Message}";
                 PluginLog.Error(PersistenceError);
             }
             finally

@@ -10,17 +10,18 @@ public sealed class TrainVersionFilter
 {
     private readonly Func<HuntTrainMob, int?> _aRankVersion;
     private readonly HuntRoster? _roster;
+    private readonly string _rankLabel;
     private readonly Dictionary<uint, int?> _selectedByWorld = new();
     public bool ShowEmptyRosters { get; set; } = true;
-    public TrainVersionFilter(Func<HuntTrainMob, int?> aRankVersion, HuntRoster? roster = null)
-    { _aRankVersion = aRankVersion; _roster = roster; }
+    public TrainVersionFilter(Func<HuntTrainMob, int?> aRankVersion, HuntRoster? roster = null, string rankLabel = "A")
+    { _aRankVersion = aRankVersion; _roster = roster; _rankLabel = rankLabel; }
 
     private int Category(HuntTrainMob mob) => _aRankVersion(mob) is { } version && version >= 2 ? version : 0;
 
     public List<TrainVersionGroup> Groups(IReadOnlyList<HuntTrainMob> records)
     {
         var result = records.GroupBy(Category).OrderByDescending(g => g.Key)
-            .Select(g => new TrainVersionGroup(g.Key, g.Key == 0 ? "其它" : $"{g.Key}A", g.Count())).ToList();
+            .Select(g => new TrainVersionGroup(g.Key, g.Key == 0 ? "其它" : $"{g.Key}{_rankLabel}", g.Count())).ToList();
         if (_roster != null)
         {
             foreach (var expected in _roster.Entries.GroupBy(e => e.Version))
@@ -29,7 +30,7 @@ public sealed class TrainVersionFilter
                 var ids = expected.Select(e => e.NameId).ToHashSet();
                 var found = records.Where(m => ids.Contains(m.MobID)).Select(m => m.MobID).Distinct().Count();
                 result.RemoveAll(g => g.Version == expected.Key);
-                result.Add(new TrainVersionGroup(expected.Key, $"{expected.Key}A", found, ids.Count));
+                result.Add(new TrainVersionGroup(expected.Key, $"{expected.Key}{_rankLabel}", found, ids.Count));
             }
             result = result.OrderByDescending(g => g.Version).ToList();
         }

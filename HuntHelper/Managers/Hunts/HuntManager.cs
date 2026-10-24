@@ -35,8 +35,14 @@ public class HuntManager : IDisposable
     private readonly Dictionary<HuntRank, List<Mob>> _dtDict;
     private readonly Dictionary<uint, int> _aRankVersions = new();
     private readonly List<HuntRosterEntry> _aRankRoster = new();
+    private readonly List<HuntRosterEntry> _sRankRoster = new();
+    private readonly Dictionary<uint, int> _sRankVersions = new();
+    private readonly List<HuntRelaySpecies> _relaySpecies = new();
     private readonly IReadOnlyDictionary<uint, uint> _huntTerritories;
     public IReadOnlyList<HuntRosterEntry> ARankRoster => _aRankRoster;
+    public IReadOnlyList<HuntRosterEntry> SRankRoster => _sRankRoster;
+    public IReadOnlyList<HuntRelaySpecies> RelaySpecies => _relaySpecies;
+    public int? GetSRankVersion(uint nameId) => _sRankVersions.TryGetValue(nameId, out var version) ? version : null;
     public int? GetARankVersion(uint nameId) => _aRankVersions.TryGetValue(nameId, out var version) ? version : null;
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly IChatGui _chatGui;
@@ -442,6 +448,7 @@ public class HuntManager : IDisposable
         });
         _aRankVersions.Clear();
         _aRankRoster.Clear();
+        _sRankRoster.Clear(); _sRankVersions.Clear(); _relaySpecies.Clear();
         foreach (var (version, dictionary) in new[] { (7, _dtDict), (6, _ewDict), (5, _shbDict), (4, _sbDict), (3, _hwDict), (2, _arrDict) })
             if (dictionary.TryGetValue(HuntRank.A, out var monsters))
                 foreach (var monster in monsters)
@@ -449,6 +456,17 @@ public class HuntManager : IDisposable
                     if (!_aRankVersions.TryAdd(monster.ModelID, version)) continue;
                     var localName = MapHelpers.GetMobName(monster.ModelID, monster.Name);
                     _aRankRoster.Add(new HuntRosterEntry(version, monster.ModelID, localName, _huntTerritories.GetValueOrDefault(monster.ModelID)));
+                    _relaySpecies.Add(new("A", monster.ModelID, localName, monster.Name, _huntTerritories.GetValueOrDefault(monster.ModelID), version));
+                }
+        foreach (var (version, dictionary) in new[] { (7, _dtDict), (6, _ewDict), (5, _shbDict), (4, _sbDict), (3, _hwDict), (2, _arrDict) })
+            if (dictionary.TryGetValue(HuntRank.S, out var monsters))
+                foreach (var monster in monsters)
+                {
+                    if (!_sRankVersions.TryAdd(monster.ModelID, version)) continue;
+                    var localName = MapHelpers.GetMobName(monster.ModelID, monster.Name);
+                    var territory = _huntTerritories.GetValueOrDefault(monster.ModelID);
+                    _sRankRoster.Add(new(version, monster.ModelID, localName, territory));
+                    _relaySpecies.Add(new("S", monster.ModelID, localName, monster.Name, territory, version));
                 }
     }
 

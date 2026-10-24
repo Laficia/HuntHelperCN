@@ -20,6 +20,11 @@ public class HuntTrainUI : IDisposable
 {
     private readonly TrainManager _trainManager;
     private readonly Configuration _config;
+    private readonly HuntTrainSettings _settings;
+    private readonly string _rankLabel;
+    private readonly bool _isS;
+    private readonly Func<string>? _relayStatus;
+    private readonly Action? _openOther;
     private readonly NavigationManager _navigation;
     private readonly Action _openFinder;
     private readonly Func<bool> _patrolActive;
@@ -84,16 +89,20 @@ public class HuntTrainUI : IDisposable
 
     public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
         Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion,
-        IReadOnlyList<HuntRosterEntry> roster, Func<(uint World, uint Territory, uint Instance, bool Ready)> location)
+        IReadOnlyList<HuntRosterEntry> roster, Func<(uint World, uint Territory, uint Instance, bool Ready)> location,
+        string rankLabel = "A", Func<string>? relayStatus = null, Action? openOther = null)
     {
+        _isS = rankLabel == "S"; _rankLabel = rankLabel;
+        _settings = _isS ? (config.SRankTrain ??= new()) : config;
+        _relayStatus = relayStatus; _openOther = openOther;
         _trainManager = trainManager;
         _navigation = navigation;
         _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
         _roster = new HuntRoster(roster);
-        _instances = new HuntInstanceLayout(config.HuntTrainMapInstanceCounts ??= new());
+        _instances = new HuntInstanceLayout(_settings.HuntTrainMapInstanceCounts ??= new());
         _location = location;
-        _versions = new TrainVersionFilter(aRankVersion, _roster) { ShowEmptyRosters = config.HuntTrainShowMissingRoster };
-        config.HuntTrainVersionTabOrders ??= new();
+        _versions = new TrainVersionFilter(aRankVersion, _roster, rankLabel) { ShowEmptyRosters = _settings.HuntTrainShowMissingRoster };
+        _settings.HuntTrainVersionTabOrders ??= new();
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
@@ -102,7 +111,7 @@ public class HuntTrainUI : IDisposable
 
     public void Draw()
     {
-        _versions.ShowEmptyRosters = _config.HuntTrainShowMissingRoster;
+        _versions.ShowEmptyRosters = _settings.HuntTrainShowMissingRoster;
         var location = _location();
         if (location.Ready) _instances.Observe(location.World, location.Territory, location.Instance);
         if (_showTrainUIDuringIPCImport && _trainManager.ImportFromIPC) { _huntTrainWindowVisible = true; }
@@ -116,37 +125,37 @@ public class HuntTrainUI : IDisposable
 
     private void LoadSettings()
     {
-        _huntTrainWindowSize = _config.HuntTrainWindowSize;
-        _huntTrainWindowPos = _config.HuntTrainWindowPos;
+        _huntTrainWindowSize = _settings.HuntTrainWindowSize;
+        _huntTrainWindowPos = _settings.HuntTrainWindowPos;
         _savedWindowSize = _huntTrainWindowSize;
         _savedWindowPos = _huntTrainWindowPos;
-        _showLastSeen = _config.HuntTrainShowLastSeen;
-        _useBorder = _config.HuntTrainUseBorder;
-        _openMap = _config.HuntTrainNextOpensMap;
-        _teleportMe = _config.HuntTrainNextTeleportMe;
-        _teleportMeOnCommand = _config.HuntTrainNextTeleportMeOnCommand;
-        _showTeleButtons = _config.HuntTrainShowTeleportButtons;
-        _teleToAetheryte = _config.HuntTrainTeleportToAetheryte;
-        _showInChat = _config.HuntTrainShowFlagInChat;
-        _showTrainUIDuringIPCImport = _config.HuntTrainShowUIDuringIPCImport;
-        _showMapName = _config.HuntTrainShowMapName;
+        _showLastSeen = _settings.HuntTrainShowLastSeen;
+        _useBorder = _settings.HuntTrainUseBorder;
+        _openMap = _settings.HuntTrainNextOpensMap;
+        _teleportMe = _settings.HuntTrainNextTeleportMe;
+        _teleportMeOnCommand = _settings.HuntTrainNextTeleportMeOnCommand;
+        _showTeleButtons = _settings.HuntTrainShowTeleportButtons;
+        _teleToAetheryte = _settings.HuntTrainTeleportToAetheryte;
+        _showInChat = _settings.HuntTrainShowFlagInChat;
+        _showTrainUIDuringIPCImport = _settings.HuntTrainShowUIDuringIPCImport;
+        _showMapName = _settings.HuntTrainShowMapName;
     }
 
     public void SaveSettings()
     {
-        //_config.HuntTrainWindowVisible = HuntTrainWindowVisible;
-        _config.HuntTrainWindowSize = _huntTrainWindowSize;
-        _config.HuntTrainWindowPos = _huntTrainWindowPos;
-        _config.HuntTrainShowLastSeen = _showLastSeen;
-        _config.HuntTrainUseBorder = _useBorder;
-        _config.HuntTrainNextOpensMap = _openMap;
-        _config.HuntTrainNextTeleportMe = _teleportMe;
-        _config.HuntTrainNextTeleportMeOnCommand = _teleportMeOnCommand;
-        _config.HuntTrainShowTeleportButtons = _showTeleButtons;
-        _config.HuntTrainTeleportToAetheryte = _teleToAetheryte;
-        _config.HuntTrainShowFlagInChat = _showInChat;
-        _config.HuntTrainShowUIDuringIPCImport = _showTrainUIDuringIPCImport;
-        _config.HuntTrainShowMapName = _showMapName;
+        //_settings.HuntTrainWindowVisible = HuntTrainWindowVisible;
+        _settings.HuntTrainWindowSize = _huntTrainWindowSize;
+        _settings.HuntTrainWindowPos = _huntTrainWindowPos;
+        _settings.HuntTrainShowLastSeen = _showLastSeen;
+        _settings.HuntTrainUseBorder = _useBorder;
+        _settings.HuntTrainNextOpensMap = _openMap;
+        _settings.HuntTrainNextTeleportMe = _teleportMe;
+        _settings.HuntTrainNextTeleportMeOnCommand = _teleportMeOnCommand;
+        _settings.HuntTrainShowTeleportButtons = _showTeleButtons;
+        _settings.HuntTrainTeleportToAetheryte = _teleToAetheryte;
+        _settings.HuntTrainShowFlagInChat = _showInChat;
+        _settings.HuntTrainShowUIDuringIPCImport = _showTrainUIDuringIPCImport;
+        _settings.HuntTrainShowMapName = _showMapName;
     }
 
 
@@ -169,15 +178,23 @@ public class HuntTrainUI : IDisposable
         ImGui.PushStyleColor(ImGuiCol.TableRowBg, new Vector4(.08f, .105f, .15f, .65f));
         ImGui.PushStyleColor(ImGuiCol.TableRowBgAlt, new Vector4(.105f, .135f, .18f, .65f));
 
-        if (HuntTrainWindowLayout.Begin($"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
+        if (HuntTrainWindowLayout.Begin(_isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
             ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, ImGuiHelpers.GlobalScale))
         {
             _huntTrainWindowSize = ImGui.GetWindowSize();
             _huntTrainWindowPos = ImGui.GetWindowPos();
 
 
-            if (ImGui.Button("找怪 / 路线录制")) _openFinder();
-            if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
+            if (!_isS)
+            {
+                if (ImGui.Button("找怪 / 路线录制")) _openFinder();
+                if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
+            }
+            if (_openOther != null)
+            {
+                if (!_isS) ImGui.SameLine();
+                if (ImGui.Button(_isS ? "A怪狩猎车 /hht" : "S怪记录 /hhs")) _openOther();
+            }
             DrawWorldTabs();
             DrawVersionTabs();
             DrawTrainRows();
@@ -188,14 +205,23 @@ public class HuntTrainUI : IDisposable
 
             if (ImGui.TreeNode($"{GuiResources.HuntTrainGuiText["Settings"]}"))
             {
-                var showMissingRoster = _config.HuntTrainShowMissingRoster;
-                if (ImGui.Checkbox("显示未发现 A 怪占位", ref showMissingRoster))
+                var showMissingRoster = _settings.HuntTrainShowMissingRoster;
+                if (ImGui.Checkbox($"显示未发现 {_rankLabel} 怪占位", ref showMissingRoster))
                 {
-                    _config.HuntTrainShowMissingRoster = showMissingRoster;
+                    _settings.HuntTrainShowMissingRoster = showMissingRoster;
                     _versions.ShowEmptyRosters = showMissingRoster;
                     _config.Save();
                 }
                 ImGuiUtil.ImGui_HoveredToolTip("默认关闭，只显示已记录的怪物，并隐藏无记录的版本标签。开启后按当前服务器各地图的分线补齐完整名单；设置自动保存。");
+                var sonar = _settings.HuntTrainCaptureSonar;
+                if (ImGui.Checkbox($"录制 Sonar 聊天中的 {_rankLabel} 怪", ref sonar))
+                { _settings.HuntTrainCaptureSonar = sonar; _config.Save(); }
+                ImGuiUtil.ImGui_HoveredToolTip("仅在本模块开启录制时接收。需包含可识别怪物、地图链接和明确区服；按消息中的区服和分线保存，不修改另一模块。");
+                if (_isS)
+                {
+                    var monitor = _config.HuntSDeathMonitoring;
+                    if (ImGui.Checkbox("自动监测 S 怪死亡", ref monitor)) { _config.HuntSDeathMonitoring = monitor; _config.Save(); }
+                }
                 DrawInstanceSettings();
                 HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale);
                 ImGui.Separator();
@@ -233,8 +259,10 @@ public class HuntTrainUI : IDisposable
                         ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleportOnClick"], ref _teleportMe);
                         ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleportOnClickToolTip"]);
                         ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleportOnCommand"], ref _teleportMeOnCommand);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleportOnCommand"]);
+                        var commandText = GuiResources.HuntTrainGuiText["TeleportOnCommand"];
+                        if (_isS) commandText = commandText.Replace("/hhn", "/hhsn");
+                        ImGui.Checkbox(commandText, ref _teleportMeOnCommand);
+                        ImGuiUtil.ImGui_HoveredToolTip(commandText);
                         ImGui.TableNextColumn();
                         ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleportToAetheryte"], ref _teleToAetheryte);
                         ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleportToAetheryte"]);
@@ -243,7 +271,7 @@ public class HuntTrainUI : IDisposable
                     ImGui.TreePop();
                 }
 
-                if (ImGui.TreeNode("插件联动###IPCRelatedStuffIdk"))
+                if (!_isS && ImGui.TreeNode("插件联动###IPCRelatedStuffIdk"))
                 {
                     if (ImGui.BeginTable("settingsalignment", 1))
                     {
@@ -313,9 +341,9 @@ public class HuntTrainUI : IDisposable
                 var selectedName = _trainManager.GetWorlds().FirstOrDefault(w => w.WorldID == _trainManager.SelectedWorldId)?.WorldName ?? "当前服务器";
                 if (ImGui.MenuItem($"当前服务器：{selectedName}（{_mobList.Count} 条）", enabled: _mobList.Count > 0))
                     CopyExportCode(_trainManager.ExportSelectedTrain());
-                var all = _trainManager.GetAllTrainRecords(_config.HuntTrainWorldTabOrder);
+                var all = _trainManager.GetAllTrainRecords(_settings.HuntTrainWorldTabOrder);
                 if (ImGui.MenuItem($"全部服务器（{all.Select(m => m.WorldID).Distinct().Count()} 服，{all.Count} 条）", enabled: all.Count > 0))
-                    CopyExportCode(_trainManager.ExportAllTrains(_config.HuntTrainWorldTabOrder));
+                    CopyExportCode(_trainManager.ExportAllTrains(_settings.HuntTrainWorldTabOrder));
                 if (ImGui.IsItemHovered())
                     ImGui.SetTooltip("定制版可按服务器恢复。原版不区分区服，分享给原版用户时建议导出单个服务器。");
                 ImGui.EndPopup();
@@ -380,14 +408,14 @@ public class HuntTrainUI : IDisposable
         }
         var worlds = _trainManager.GetWorlds();
         EnsureVisibleWorld(worlds, current.WorldID);
-        _config.HuntTrainWorldTabOrder ??= new();
-        var action = _worldTabs.Draw(worlds, _trainManager.SelectedWorldId, _config.HuntTrainWorldTabOrder, ImGuiHelpers.GlobalScale);
+        _settings.HuntTrainWorldTabOrder ??= new();
+        var action = _worldTabs.Draw(worlds, _trainManager.SelectedWorldId, _settings.HuntTrainWorldTabOrder, ImGuiHelpers.GlobalScale);
         if (action.Selected is { } selected) SelectDisplayedWorld(selected);
         if (action.Deleted is { } deleted)
         {
-            if (deleted == current.WorldID) _navigation.Stop();
+            if (_trainManager.GetTrainRecords(deleted).Any(_navigation.IsMovingTo)) _navigation.Stop();
             _trainManager.DeleteWorld(deleted);
-            _config.HuntTrainWorldTabOrder.Remove(deleted);
+            _settings.HuntTrainWorldTabOrder.Remove(deleted);
             EnsureVisibleWorld(_trainManager.GetWorlds(), current.WorldID);
             _selectedByWorld.Remove(deleted);
             _versions.Forget(deleted);
@@ -412,7 +440,7 @@ public class HuntTrainUI : IDisposable
         { SelectDisplayedWorld(currentWorld); return; }
         var next = worlds.FirstOrDefault(w => w.WorldID == selected)
             ?? worlds.FirstOrDefault(w => w.WorldID == currentWorld)
-            ?? worlds.OrderBy(w => _config.HuntTrainWorldTabOrder?.IndexOf(w.WorldID) ?? int.MaxValue).First();
+            ?? worlds.OrderBy(w => _settings.HuntTrainWorldTabOrder?.IndexOf(w.WorldID) ?? int.MaxValue).First();
         SelectDisplayedWorld(next.WorldID);
     }
 
@@ -442,8 +470,8 @@ public class HuntTrainUI : IDisposable
     private void DrawVersionTabs()
     {
         var world = _trainManager.SelectedWorldId;
-        if (!_config.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
-            _config.HuntTrainVersionTabOrders[world] = order = new();
+        if (!_settings.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
+            _settings.HuntTrainVersionTabOrders[world] = order = new();
         var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale, order);
         if (action.OrderChanged) _config.Save();
         if (action.Changed) { _versions.Select(world, action.Version); _trainActionMessage = string.Empty; }
@@ -456,12 +484,12 @@ public class HuntTrainUI : IDisposable
             var species = _roster.Progress(world, version.Value, _mobList);
             var progress = _rosterSnapshot.Progress;
             var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
-            HuntRosterPresentation.Summary(name, version.Value, progress.Found, progress.Total, ImGuiHelpers.GlobalScale);
+            HuntRosterPresentation.Summary(name, version.Value, progress.Found, progress.Total, ImGuiHelpers.GlobalScale, _rankLabel);
             ImGuiUtil.ImGui_HoveredToolTip("进度按服务器、地图和分线分别计算，死亡记录仍算已发现；不同分线不会互相填满占位。版本标签仍显示怪物种类数。占位不写入真实记录。");
             if (progress.Total != species.Total)
                 ImGui.TextDisabled($"按地图分线计数 · 怪物种类 {species.Found}/{species.Total}");
             if (progress.Found < progress.Total && !_trainManager.RecordTrain && !_patrolActive())
-                ImGui.TextDisabled("开启下方记录或使用找怪扫描，发现后会自动标出。");
+                ImGui.TextWrapped(_isS ? "开启下方录制后，附近 S 怪和 Sonar 定位消息会录入此模块。" : "开启下方记录或使用找怪扫描，发现后会自动标出。");
         }
         ClampSelection();
     }
@@ -508,7 +536,7 @@ public class HuntTrainUI : IDisposable
     private void DrawTrainRows()
     {
         var visible = VisibleIndices;
-        IReadOnlyList<HuntRosterSlot> missing = _config.HuntTrainShowMissingRoster && _rosterSnapshot != null
+        IReadOnlyList<HuntRosterSlot> missing = _settings.HuntTrainShowMissingRoster && _rosterSnapshot != null
             ? _rosterSnapshot.Missing : Array.Empty<HuntRosterSlot>();
         if (visible.Count == 0 && missing.Count == 0)
         {
@@ -577,7 +605,7 @@ public class HuntTrainUI : IDisposable
             if (ImGui.Button("移动")) _navigation.TryMoveTo(mob);
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                ImGui.SetTooltip(reason.Length != 0 ? reason : "调用国服 vnavmesh 前往该 A 怪点位；起飞后使用飞行路线，仅限同区服、同地图、同分线");
+                ImGui.SetTooltip(reason.Length != 0 ? reason : "调用国服 vnavmesh 前往该怪物点位；起飞后使用飞行路线，仅限同区服、同地图、同分线");
             if (_showLastSeen)
             {
                 ImGui.TableNextColumn();
@@ -614,6 +642,7 @@ public class HuntTrainUI : IDisposable
     private void DrawNavigationStatus()
     {
         if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
+        if (_relayStatus?.Invoke() is { Length: > 0 } relayMessage) ImGui.TextWrapped(relayMessage);
         if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
         if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
     }
