@@ -6,6 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolModels.cs" Link="Production\PatrolModels.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolSession.cs" Link="Production\PatrolSession.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\HuntDeathMonitor.cs" Link="Production\HuntDeathMonitor.cs" />
     <Reference Include="Newtonsoft.Json">
       <HintPath>$(DALAMUD_HOME)\Newtonsoft.Json.dll</HintPath>
       <Private>true</Private>

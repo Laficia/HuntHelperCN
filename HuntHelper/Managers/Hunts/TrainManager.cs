@@ -86,6 +86,11 @@ public class TrainManager : IDisposable
     public bool RecordTrain = false;
     public bool ImportFromIPC = false;
     public string? PersistenceError { get; private set; }
+    public event Action<HuntTrainMob>? ManualDeadStateChanged;
+    public event Action<uint>? WorldDeleted;
+
+    public IReadOnlyList<HuntTrainMob> GetTrainRecords(uint worldId) =>
+        _trainsByWorld.TryGetValue(worldId, out var records) ? records : Array.Empty<HuntTrainMob>();
 
     public uint SelectedWorldId
     {
@@ -367,12 +372,13 @@ public class TrainManager : IDisposable
 
     public void TrainUnkillAll()
     {
-        HuntTrain.ForEach(m => m.Dead = false);
+        HuntTrain.ForEach(m => { m.Dead = false; ManualDeadStateChanged?.Invoke(m); });
         SaveHuntTrainRecord();
     }
 
     public void DeleteWorld(uint worldId)
     {
+        WorldDeleted?.Invoke(worldId);
         // Explicitly deleting a server must not recreate its tab on the next scan.
         // Starting recording again will rediscover any live nearby A rank.
         if (worldId == CurrentWorldId) RecordTrain = false;
@@ -387,6 +393,7 @@ public class TrainManager : IDisposable
         var train = HuntTrain;
         if (index < 0 || index >= train.Count || train[index].Dead == dead) return;
         train[index].Dead = dead;
+        ManualDeadStateChanged?.Invoke(train[index]);
         SaveHuntTrainRecord();
     }
 

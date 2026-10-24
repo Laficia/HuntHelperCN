@@ -77,8 +77,8 @@ try {
         if ($normalizedName.StartsWith('/') -or $normalizedName -match '(^|/)\.\.(/|$)' -or $normalizedName.Contains(':')) {
             throw "Unsafe archive path: $normalizedName"
         }
-        if ([IO.Path]::GetFileName($normalizedName) -ieq 'HuntTrain.json') {
-            throw 'The release archive must not contain user data HuntTrain.json.'
+        if ([IO.Path]::GetFileName($normalizedName) -in @('HuntTrain.json', 'ScanRoutes.json')) {
+            throw 'The release archive must not contain player hunt records or recorded routes.'
         }
         if ($entries.ContainsKey($normalizedName)) {
             throw "Duplicate archive entry: $normalizedName"
@@ -132,10 +132,11 @@ foreach ($property in $manifest.PSObject.Properties) {
     $releaseManifest[$property.Name] = $property.Value
 }
 $releaseManifest['RepoUrl'] = $repositoryUrl
-$releaseManifest['Punchline'] = '国服狩猎雷达：区服独立记录、自动地图图片与 vnavmesh 移动。'
+$releaseManifest['Punchline'] = '国服狩猎助手：区服隔离、路线录制、自动巡点找怪与死亡监测。'
 $releaseManifest['Description'] = @'
 基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。
 A 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。
+/hht 顶部「找怪 / 路线录制」可按版本与地图选择，支持路线录制、vnavmesh 巡点扫描及当前区服死亡监测。跨图仅使用已解锁水晶正常传送，无坐标 TP；扫描结果保存到角色当前所在服务器。
 原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。
 '@.Trim()
 $releaseManifest['DownloadLinkInstall'] = $downloadUrl
@@ -162,13 +163,16 @@ $releaseNotes = @"
 
 适配国服 XIVLauncherCN / Dalamud API 15；按本机 Dalamud 15.0.3.9 编译。
 
-- 插件显示名称统一为「狩猎助手Hunt Helper」，内部标识仍为 HuntHelperCN，沿用原配置、记录与地图缓存目录。
-- 单服务器分享码导入预览增加「导入服务器」选择，支持原版无区服代码；确认前可切换目标服，取消不会修改现有记录。
-- 多服务器分享码仍按各自区服导入；覆盖与合并只影响选定目标服或代码涉及的服务器，保留原版分享码兼容性。
-- 保留窗口缩放、单服/全服导出、标签拖拽/右键菜单、空标签清理、原地重新录制、地图缓存与国服 vnavmesh 寻路功能。
+- /hht 顶部新增「找怪 / 路线录制」，支持版本、地图及 A/B 等级选择。选择地图后点击「开始找怪」，扫描结果写入角色实际所在服务器，换服停止。
+- 支持手动三维录点、按移动距离自动录点、顺序调整、排序、倒序、预览和独立路线码导入导出。路线保存在 pluginConfigs/HuntHelperCN/ScanRoutes.json，更新不会替换玩家路线。
+- 巡点采用国服 vnavmesh，支持正常上坐骑及在允许时起飞；跨图保留已解锁水晶的普通传送。无指定坐标 TP。没有自定义路线时使用内置二维刷新点查询地面高度，多层地图建议录制三维路线。
+- 新增当前服务器、地图、分线范围内的怪物死亡监测；结合已见受伤记录、近距离与消失宽限判断，保留手动状态优先。可在找怪窗口关闭。
+- 扫描当前分线；无可用水晶、无法确定高度或寻路失败时停止并提示。进入战斗、死亡、换服或外部切图/切线时停止巡点。
+- 保留原版狩猎车分享码互通、服务器标签、原有导航、地图缓存及所有既有功能。
 
-本次按要求将实际版本号从 1.0.0.39 重置为 $version。卫月不会将高版本自动降级，订阅地址无法强制重新安装。
-已安装 1.0.0.35～39 的用户必须在卫月手动卸载旧版，再从原订阅安装「狩猎助手Hunt Helper」；保留配置，不要使用清除配置选项。历次发布和本地更新前备份均保留。
+1.0.0.1 可通过原订阅正常更新。由于此前重置版本号，仍在使用 1.0.0.35～39 的用户需要保留配置并重新安装。
+已备份 1.0.0.1 安装包、源码、订阅、配置与狩猎记录；旧版本 GitHub Release 也保留，可用于回退。玩家记录和自定义路线不包含在发布包中。
+固定 1.0.0.1 回退订阅：https://raw.githubusercontent.com/$Repository/main/rollback-1.0.0.1.json 。回退时停用原订阅，保留配置卸载后从旧版订阅重新安装；完整步骤见 README-CN.md。
 
 卫月第三方插件库订阅地址：
 $subscriptionUrl

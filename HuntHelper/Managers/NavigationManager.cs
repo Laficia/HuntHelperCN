@@ -181,6 +181,24 @@ public sealed class NavigationManager : IDisposable
         }
     }
 
+    public bool TryResolvePatrolPoint(uint mapId, Vector2 coordinates, out Vector3 destination, out string error)
+    {
+        destination = default; error = string.Empty;
+        try
+        {
+            var map = _dataManager.GetExcelSheet<Map>().GetRowOrDefault(mapId);
+            if (map == null || map.Value.SizeFactor == 0 || !_pointOnFloor.HasFunction)
+                throw new InvalidOperationException("需要地图数据及国服 vnavmesh 地面查询接口");
+            var origin = NavigationRules.FromHuntMapCoordinates(coordinates, map.Value.SizeFactor);
+            var point = _pointOnFloor.InvokeFunc(origin, false, 10f);
+            if (point is not { } resolved || !NavigationRules.IsFinite(resolved))
+                throw new InvalidOperationException("内置二维点无法确定高度，请录制该地图的三维路线");
+            destination = resolved;
+            return true;
+        }
+        catch (Exception ex) { error = ex.Message; return false; }
+    }
+
     public void Stop()
     {
         lock (_requestLock) StopCurrentRequest();

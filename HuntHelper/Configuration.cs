@@ -12,6 +12,7 @@ namespace HuntHelper
     public class Configuration : IPluginConfiguration
     {
         public int Version { get; set; } = 0;
+        public bool HuntDeathMonitoring { get; set; } = true;
 
         #region Main Map Window
 

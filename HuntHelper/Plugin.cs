@@ -8,6 +8,7 @@ using Dalamud.Plugin.Services;
 using HuntHelper.Gui;
 using HuntHelper.Gui.Resource;
 using HuntHelper.Managers;
+using HuntHelper.Managers.Automation;
 using HuntHelper.Managers.Hunts;
 using HuntHelper.Managers.MapData;
 using HuntHelper.Managers.NewExpansion;
@@ -42,6 +43,8 @@ namespace HuntHelper
         private Configuration Configuration { get; init; }
         private MapUI MapUi { get; init; }
         private HuntTrainUI HuntTrainUI { get; init; }
+        private HuntAutomationManager Automation { get; init; }
+        private HuntFinderUI HuntFinderUI { get; init; }
         private CounterUI CounterUI { get; init; }
         private PointerUI PointerUI { get; init; }
         private SpawnPointFinderUI SpawnPointFinderUI { get; init; }
@@ -113,7 +116,11 @@ namespace HuntHelper
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
                 () => condition[ConditionFlag.InFlight]);
-            HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager);
+            Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
+                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName);
+            HuntFinderUI = new HuntFinderUI(Automation, Configuration);
+            HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
+                () => Automation.Session.Stop());
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
@@ -155,6 +162,7 @@ namespace HuntHelper
             SpawnPointFinderUI.SaveSettings();
 
             IpcSystem.Dispose();
+            Automation.Dispose();
             NavigationManager.Dispose();
             HuntTrainUI.Dispose();
             SpawnPointFinderUI.Dispose();
@@ -235,10 +243,12 @@ namespace HuntHelper
             // Recording runs even when the map is closed, collapsed, or fails to draw.
             // Keep train mutations on the same UI tick as row/menu operations.
             ScanHuntTrain();
+            Automation.Tick();
             try
             {
                 MapUi.Draw();
                 HuntTrainUI.Draw();
+                HuntFinderUI.Draw();
                 CounterUI.Draw();
                 SpawnPointFinderUI.Draw();
                 PointerUI.Draw();

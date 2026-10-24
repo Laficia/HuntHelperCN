@@ -21,6 +21,9 @@ public class HuntTrainUI : IDisposable
     private readonly TrainManager _trainManager;
     private readonly Configuration _config;
     private readonly NavigationManager _navigation;
+    private readonly Action _openFinder;
+    private readonly Func<bool> _patrolActive;
+    private readonly Action _stopPatrol;
     private readonly Dictionary<uint, int> _selectedByWorld = new();
     private uint? _displayedWorld;
     private readonly WorldTabBar _worldTabs = new();
@@ -69,10 +72,12 @@ public class HuntTrainUI : IDisposable
         set => _huntTrainWindowVisible = value;
     }
 
-    public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation)
+    public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
+        Action openFinder, Func<bool> patrolActive, Action stopPatrol)
     {
         _trainManager = trainManager;
         _navigation = navigation;
+        _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
@@ -146,6 +151,8 @@ public class HuntTrainUI : IDisposable
             _huntTrainWindowPos = ImGui.GetWindowPos();
 
 
+            if (ImGui.Button("找怪 / 路线录制")) _openFinder();
+            if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
             DrawWorldTabs();
             DrawTrainRows();
             DrawNavigationStatus();
@@ -395,7 +402,7 @@ public class HuntTrainUI : IDisposable
         }
         var columns = 4 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
         if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH | ImGuiTableFlags.Resizable)) return;
-        ImGui.TableSetupColumn("A 怪", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("区服", ImGuiTableColumnFlags.WidthFixed, 105 * ImGuiHelpers.GlobalScale);
         if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 106 * ImGuiHelpers.GlobalScale);
@@ -446,7 +453,7 @@ public class HuntTrainUI : IDisposable
                 ImGui.SameLine();
             }
             var reason = _navigation.GetDisabledReason(mob);
-            ImGui.BeginDisabled(reason.Length != 0);
+            ImGui.BeginDisabled(reason.Length != 0 || _patrolActive());
             if (ImGui.Button("移动")) _navigation.TryMoveTo(mob);
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
@@ -474,7 +481,7 @@ public class HuntTrainUI : IDisposable
     private void DrawNavigationStatus()
     {
         if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
-        if (_navigation.OwnsMovement && ImGui.Button("停止移动")) _navigation.Stop();
+        if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
     }
 
     private void DrawTeleportPluginNotFoundModal()
