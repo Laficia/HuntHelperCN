@@ -20,6 +20,7 @@ internal static class Program
     {
         (string Name, Func<Task> Run)[] tests =
         [
+            .. RecoveryChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. RelayChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. AutomationChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. VersionTabChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
@@ -230,7 +231,12 @@ internal static class Program
         Equal(source.Dead, preview.Dead);
         Equal(original, JsonConvert.SerializeObject(source));
         True(f.Manager.SetImportWorld(WorldA));
-        Equal(original, JsonConvert.SerializeObject(f.Manager.ImportedTrain.Single()));
+        var imported = f.Manager.ImportedTrain.Single();
+        Equal(HuntRecordSource.Import, imported.Source);
+        True(imported.ImportedAtUtc.HasValue);
+        Equal(source.LastSeenUTC, imported.LastSeenUTC);
+        Equal(source.WorldPosition, imported.WorldPosition);
+        Equal(original, JsonConvert.SerializeObject(source));
         f.Manager.SelectWorld(102);
         f.Manager.ImportTrainAll();
         Equal(7u, f.Rows(101).Single().MobID);

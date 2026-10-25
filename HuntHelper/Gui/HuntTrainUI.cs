@@ -43,6 +43,8 @@ public class HuntTrainUI : IDisposable
 
     private string _copyText = GuiResources.HuntTrainGuiText["CopyText"];
     private string _trainActionMessage = string.Empty;
+    private TrainSnapshot? _pendingRestore;
+    private bool _openRestore;
     private Task _copyTextTask = Task.CompletedTask;
     private int _tooltipChangeTime = 400;
 
@@ -223,6 +225,7 @@ public class HuntTrainUI : IDisposable
                     if (ImGui.Checkbox("自动监测 S 怪死亡", ref monitor)) { _config.HuntSDeathMonitoring = monitor; _config.Save(); }
                 }
                 DrawInstanceSettings();
+                DrawSnapshotSettings();
                 HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale);
                 ImGui.Separator();
                 if (ImGui.TreeNode("显示设置##iwanttodeletethisbutmaybesomeusersactuallyuseit"))
@@ -232,8 +235,8 @@ public class HuntTrainUI : IDisposable
                         ImGui.TableNextColumn();
                         ImGui.Checkbox(GuiResources.HuntTrainGuiText["Border"], ref _useBorder); //doesn't do anything anymore
                         ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["LastSeen"], ref _showLastSeen);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["LastSeenToolTip"]);
+                        ImGui.Checkbox("显示信息时间", ref _showLastSeen);
+                        ImGuiUtil.ImGui_HoveredToolTip("现场、Sonar接收与导入时间分开展示在悬停提示中。列表年龄仅表示兼容的信息时间，不保证怪物存活。");
                         ImGui.TableNextColumn();
                         ImGui.Checkbox("显示地图名称", ref _showMapName);
                         ImGuiUtil.ImGui_HoveredToolTip("显示地图名称");
@@ -298,11 +301,16 @@ public class HuntTrainUI : IDisposable
             if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe))
             {
                 var restored = _trainManager.RestoreRecords(VisibleMobs);
-                _trainActionMessage = restored > 0 ? $"已恢复当前 {VersionLabel} 标签内 {restored} 条记录为存活"
-                    : $"当前 {VersionLabel} 标签内没有已死亡的记录，无需恢复";
+                _trainActionMessage = _trainManager.ActionError ?? (restored > 0 ? $"已恢复当前 {VersionLabel} 标签内 {restored} 条记录为存活"
+                    : $"当前 {VersionLabel} 标签内没有已死亡的记录，无需恢复");
             }
             ImGuiUtil.ImGui_HoveredToolTip($"恢复当前 {VersionLabel} 标签内已死亡的记录为存活；只修改记录的死亡标记，不会重新扫描。");
             ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
+            var latestBackup = _trainManager.Snapshots.List().FirstOrDefault();
+            ImGui.BeginDisabled(latestBackup == null);
+            if (ImGui.SmallButton("撤销")) RequestRestore(latestBackup!);
+            ImGui.EndDisabled();
+            ImGuiUtil.ImGui_HoveredToolTip("恢复最近一次手动操作前的备份；需确认影响服务器。自动扫描和死亡监测不逐条生成撤销记录。");
 
             //position record button on far right
             ImGui.SetCursorPosX(ImGui.GetWindowSize().X - (50 * ImGuiHelpers.GlobalScale));
@@ -374,6 +382,7 @@ public class HuntTrainUI : IDisposable
 
             DrawDeleteModal();
             DrawImportWindowModal();
+            DrawRestoreModal();
             #endregion
 
             if (_teleportManager.TeleportPluginNotFound) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["TeleportWindowTitle"]}##ModalPopupWindowThingymajig");
@@ -413,12 +422,15 @@ public class HuntTrainUI : IDisposable
         if (action.Selected is { } selected) SelectDisplayedWorld(selected);
         if (action.Deleted is { } deleted)
         {
-            if (_trainManager.GetTrainRecords(deleted).Any(_navigation.IsMovingTo)) _navigation.Stop();
-            _trainManager.DeleteWorld(deleted);
-            _settings.HuntTrainWorldTabOrder.Remove(deleted);
-            EnsureVisibleWorld(_trainManager.GetWorlds(), current.WorldID);
-            _selectedByWorld.Remove(deleted);
-            _versions.Forget(deleted);
+            var stop = _trainManager.GetTrainRecords(deleted).Any(_navigation.IsMovingTo);
+            if (_trainManager.DeleteWorld(deleted))
+            {
+                if (stop) _navigation.Stop();
+                _settings.HuntTrainWorldTabOrder.Remove(deleted);
+                EnsureVisibleWorld(_trainManager.GetWorlds(), current.WorldID);
+                _selectedByWorld.Remove(deleted);
+                _versions.Forget(deleted);
+            }
         }
         if (action.OrderChanged || action.Deleted.HasValue) _config.Save();
         ClampSelection();
@@ -551,7 +563,7 @@ public class HuntTrainUI : IDisposable
         ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 70 * ImGuiHelpers.GlobalScale);
         if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 106 * ImGuiHelpers.GlobalScale);
-        if (_showLastSeen) ImGui.TableSetupColumn("发现", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
+        if (_showLastSeen) ImGui.TableSetupColumn("信息", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("死亡", ImGuiTableColumnFlags.WidthFixed, 36 * ImGuiHelpers.GlobalScale);
         ImGui.TableHeadersRow();
         for (var row = 0; row < visible.Count; row++)
@@ -570,7 +582,7 @@ public class HuntTrainUI : IDisposable
                 if (_teleportMe && CanTeleport(mob)) _teleportManager.TeleportToHunt(mob);
             }
             ImGui.PopStyleColor();
-            ImGuiUtil.ImGui_HoveredToolTip($"{FormatWorld(mob.WorldName, mob.DataCenterName)}\n{MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n右键可选择、删除或调整顺序");
+            ImGuiUtil.ImGui_HoveredToolTip($"{FormatWorld(mob.WorldName, mob.DataCenterName)}\n{MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n右键可选择、删除或调整顺序");
             if (ImGui.BeginPopupContextItem("HuntRowContext"))
             {
                 if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuSelect"])) _selectedIndex = n;
@@ -607,13 +619,14 @@ public class HuntTrainUI : IDisposable
             {
                 ImGui.TableNextColumn();
                 ImGui.TextUnformatted($"{Math.Max(0, (DateTime.UtcNow - mob.LastSeenUTC).TotalMinutes):0}m");
+                ImGuiUtil.ImGui_HoveredToolTip(HuntRecordInfo.Describe(mob));
             }
             ImGui.TableNextColumn();
             var dead = mob.Dead;
             if (ImGui.Checkbox("##dead", ref dead))
             {
                 if (!listChanged) _trainManager.SetDead(n, dead);
-                if (dead && n == _selectedIndex) SelectNext();
+                if (mob.Dead && n == _selectedIndex) SelectNext();
             }
             ImGui.PopID();
             if (listChanged) break;
@@ -639,6 +652,7 @@ public class HuntTrainUI : IDisposable
     private void DrawNavigationStatus()
     {
         if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
+        if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
         if (_relayStatus?.Invoke() is { Length: > 0 } relayMessage) ImGui.TextWrapped(relayMessage);
         if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
         if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
@@ -750,7 +764,7 @@ public class HuntTrainUI : IDisposable
                     ImGui.TableNextColumn();
                     ImGui.TextUnformatted(GuiResources.HuntTrainGuiText["NameHeader"]);
                     ImGui.TableNextColumn();
-                    ImGui.TextUnformatted(GuiResources.HuntTrainGuiText["LastSeenHeader"]);
+                    ImGui.TextUnformatted("信息时间");
                     foreach (var m in _importedTrain)
                     {   //green text if new mob, grey text if exists.
                         ImGui.PushStyleColor(ImGuiCol.Text,
@@ -790,13 +804,13 @@ public class HuntTrainUI : IDisposable
             ImGui.SameLine(); ImGui.Dummy(new Vector2(16, 0));
             ImGui.SameLine();
 
-            if (ImGui.Checkbox(GuiResources.HuntTrainGuiText["UpdateLastSeenCheckbox"], ref _importUpdateTime))
+            if (ImGui.Checkbox("更新已有记录的信息时间与坐标", ref _importUpdateTime))
             {
                 _importNew = true;
                 _importAll = false;
             }
             ;
-            ImGui.SameLine(); ImGuiUtil.ImGui_HelpMarker(GuiResources.HuntTrainGuiText["UpdateLastSeenCheckboxToolTip"]);
+            ImGui.SameLine(); ImGuiUtil.ImGui_HelpMarker("合并新增记录；已有记录仅在导入信息更新时替换时间和坐标。导入接收时间与现场发现时间分别保存。");
 
             ImGui.Dummy(new Vector2(0, 12));
             ImGui.Dummy(new Vector2(6, 0));
@@ -805,13 +819,16 @@ public class HuntTrainUI : IDisposable
             {
                 if (_importNew || _importUpdateTime || _importAll)
                 {
-                    ImportTrainData();
-                    _importedTrain.Clear();
-                    ImGui.CloseCurrentPopup();
+                    if (ImportTrainData())
+                    {
+                        _importedTrain.Clear();
+                        ImGui.CloseCurrentPopup();
+                    }
                 }
             }
             ImGui.SameLine(); ImGui.Dummy(new Vector2(6, 0));
             ImGui.SameLine();
+            if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
             if (ImGui.Button(GuiResources.HuntTrainGuiText["CancelButton"], new Vector2(80, 0)))
             {
                 _importedTrain.Clear();
@@ -822,15 +839,57 @@ public class HuntTrainUI : IDisposable
         }
     }
 
-    private void ImportTrainData()
+    private bool ImportTrainData()
     {
         _selectedIndex = 0;
         if (_importAll)
         {
-            _trainManager.ImportTrainAll();
-            return;
+            return _trainManager.ImportTrainAll();
         }
-        _trainManager.ImportTrainNew(_importUpdateTime);
+        return _trainManager.ImportTrainNew(_importUpdateTime);
+    }
+
+    private void DrawSnapshotSettings()
+    {
+        if (!ImGui.TreeNode("备份与撤销（最近10次）")) return;
+        ImGui.TextWrapped("手动删除、清空、导入、标死/恢复和调整车序前自动备份。仅含本模块怪物记录，不含路线或配置。A/S各自保存；恢复只替换涉及服务器。自动扫描不占用历史。");
+        foreach (var snapshot in _trainManager.Snapshots.List())
+            if (ImGui.SmallButton($"恢复 {snapshot.CreatedUtc.ToLocalTime():MM-dd HH:mm:ss} · {snapshot.Operation} · {snapshot.Worlds.Length}服 {snapshot.Records.Count}条##{snapshot.Id}"))
+                RequestRestore(snapshot);
+        if (_trainManager.Snapshots.Error != null) ImGui.TextWrapped(_trainManager.Snapshots.Error);
+        ImGui.TreePop();
+    }
+
+    private void RequestRestore(TrainSnapshot snapshot)
+    {
+        _pendingRestore = snapshot;
+        _openRestore = true;
+    }
+
+    private void DrawRestoreModal()
+    {
+        if (!HuntSnapshotRestorePopup.Begin(ref _openRestore, ImGuiHelpers.GlobalScale)) return;
+        if (_pendingRestore is { } snapshot)
+        {
+            ImGui.TextWrapped($"恢复「{snapshot.Operation}」之前的记录？时间：{snapshot.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm:ss}");
+            var names = _trainManager.GetImportWorlds().ToDictionary(w => w.WorldID, w => w.WorldName);
+            ImGui.TextWrapped("涉及服务器：" + string.Join("、", snapshot.Worlds.Select(w => names.GetValueOrDefault(w, $"区服{w}"))));
+            ImGui.TextWrapped("这些服务器在此操作之后新增或修改的记录会被替换；本模块其它服和另一模块不受影响。恢复前会再备份当前状态，可再次撤销。涉及当前服时暂停该模块录制及对应巡点。");
+            if (ImGui.Button("确认恢复"))
+            {
+                var stop = snapshot.Worlds.SelectMany(w => _trainManager.GetTrainRecords(w)).Any(_navigation.IsMovingTo);
+                if (_trainManager.RestoreSnapshot(snapshot.Id))
+                {
+                    if (stop) _navigation.Stop();
+                    ClampSelection(); _trainActionMessage = "已恢复涉及服务器的备份记录";
+                    _pendingRestore = null; ImGui.CloseCurrentPopup();
+                }
+            }
+            ImGui.SameLine();
+            if (ImGui.Button("取消")) { _pendingRestore = null; ImGui.CloseCurrentPopup(); }
+            if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
+        }
+        ImGui.EndPopup();
     }
 
     //changes tooltip temporarily when clicked. ^^)b
@@ -854,6 +913,7 @@ public class HuntTrainUI : IDisposable
         ClampSelection();
         if (VisibleIndices.Count == 0) { _trainManager.SendTrainFlag(-1, false, true); return; }
         if (_selectedIndex < _mobList.Count) _trainManager.TrainMarkAsDead(_selectedIndex);
+        if (_trainManager.ActionError != null) return;
         SelectNext();
         if (!_mobList[_selectedIndex].Dead)
         {

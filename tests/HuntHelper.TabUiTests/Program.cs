@@ -51,6 +51,7 @@ internal static unsafe class Program
             VersionTabUiChecks.Run();
             FinderActionChecks.Run();
             RosterPresentationChecks.Run();
+            SnapshotPopupChecks.Run();
             if (args.Contains("--render-roster")) RosterPreviewRenderer.Render(args.Contains("--show-missing"));
             return 0;
         }

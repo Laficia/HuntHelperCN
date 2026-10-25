@@ -95,9 +95,24 @@ internal static class Program
             Same(originalS[0],backS.Single());
             Pass("S module records use the same original-compatible share format in both directions");
 
+            sRecords[0].Source = HuntRecordSource.Sonar;
+            sRecords[0].RecordedAtUtc = Seen;
+            sRecords[0].LastObservedUtc = Seen.AddMinutes(-10);
+            sRecords[0].SonarReceivedUtc = Seen.AddMinutes(5);
+            sRecords[0].ImportedAtUtc = Seen.AddMinutes(6);
+            var enrichedCode = CurrentCodec.Export(sRecords);
+            var enriched = CurrentCodec.Import(enrichedCode,new List<HuntTrainMob>()).Single();
+            Equal(HuntRecordSource.Sonar,enriched.Source); Equal(sRecords[0].LastObservedUtc,enriched.LastObservedUtc);
+            Equal(sRecords[0].SonarReceivedUtc,enriched.SonarReceivedUtc); Equal(sRecords[0].ImportedAtUtc,enriched.ImportedAtUtc);
+            var oldEnriched = OriginalCodec.Import(enrichedCode,new List<OriginalMob>());
+            Same(oldEnriched.Single(),sRecords[0]);
+            var legacyMetadata = CurrentCodec.Import(OriginalCodec.Export(oldEnriched),new List<HuntTrainMob>()).Single();
+            Equal(HuntRecordSource.Unknown,legacyMetadata.Source);True(legacyMetadata.LastObservedUtc==null);
+            Pass("Provenance and separate timestamps round trip in the fork while original sharing remains compatible");
+
             var report = new
             {
-                CurrentVersion = "1.0.0.9",
+                CurrentVersion = "1.0.0.10",
                 OriginalVersion = "1.0.0.34",
                 OriginalCommit = "c6b85581b5c2980214272a38527ee2aaf4b18e69",
                 Format = "Base64(GZip(UTF8(JSON array)))",
@@ -135,9 +150,11 @@ internal static class Program
         public void Dispose()
         {
             Manager.Dispose();
-            // Only delete this exact generated file, then the empty generated directory.
-            File.Delete(Path.Combine(_dir, "HuntTrain.json"));
-            Directory.Delete(_dir);
+            var parent = Path.GetFullPath(Path.Combine(Path.GetTempPath(), "HuntHelper.ShareCompatibility"));
+            var resolved = Path.GetFullPath(_dir);
+            if (!resolved.StartsWith(parent + Path.DirectorySeparatorChar,StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Refusing to clean outside the generated test directory");
+            Directory.Delete(resolved,true);
         }
     }
     private sealed class Host : IChatGui, IGameGui

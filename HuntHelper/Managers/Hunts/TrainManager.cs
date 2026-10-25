@@ -83,6 +83,8 @@ public class TrainManager : IDisposable
     private bool _suppressSave;
     private bool _canSave = true;
     private DateTime _lastSaveUtc;
+    public TrainSnapshotStore Snapshots { get; }
+    public string? ActionError { get; private set; }
 
     public TrainList<HuntTrainMob> HuntTrain => GetOrCreateTrain(SelectedWorldId);
     public readonly List<HuntTrainMob> ImportedTrain = new();
@@ -120,6 +122,7 @@ public class TrainManager : IDisposable
         _huntTrainFilePath = huntTrainFilePath;
         _currentWorldProvider = currentWorldProvider;
         _acceptRecord = acceptRecord ?? (_ => true);
+        Snapshots = new TrainSnapshotStore(huntTrainFilePath);
         LoadHuntTrainRecord();
         GetCurrentWorld();
     }
@@ -246,12 +249,18 @@ public class TrainManager : IDisposable
     {
         if (!RecordTrain || !_acceptRecord(mob) || !mob.HasWorldMetadata || mob.WorldID == 0 || mob.TerritoryID == 0 || mob.MapID == 0 ||
             !float.IsFinite(mob.Position.X) || !float.IsFinite(mob.Position.Y)) return RelayRecordResult.Ignored;
+        mob.Source = HuntRecordSource.Sonar;
+        mob.SonarReceivedUtc ??= mob.LastSeenUTC;
+        mob.RecordedAtUtc ??= mob.SonarReceivedUtc;
         RememberWorld(new(mob.WorldID, mob.WorldName, mob.DataCenterName, 0));
         var train = GetOrCreateTrain(mob.WorldID);
         var existing = train.FirstOrDefault(m => m.IsSameAs(mob.MobID, mob.Instance, mob.WorldID) && m.TerritoryID == mob.TerritoryID);
         if (existing == null) { train.Add(mob); return RelayRecordResult.Added; }
         if (!existing.WorldPosition.HasValue || System.Numerics.Vector2.DistanceSquared(existing.Position, mob.Position) > .2f * .2f)
-        { existing.Position = mob.Position; existing.WorldPosition = null; }
+        { existing.Position = mob.Position; existing.WorldPosition = null; existing.Source = HuntRecordSource.Sonar; }
+        if (!existing.SonarReceivedUtc.HasValue || mob.SonarReceivedUtc > existing.SonarReceivedUtc)
+            existing.SonarReceivedUtc = mob.SonarReceivedUtc;
+        if (existing.Source == HuntRecordSource.Unknown) existing.Source = HuntRecordSource.Sonar;
         if (mob.LastSeenUTC > existing.LastSeenUTC) existing.LastSeenUTC = mob.LastSeenUTC;
         // A map-only announcement cannot revive a dead record or fabricate a height.
         SaveHuntTrainRecord();
@@ -264,6 +273,9 @@ public class TrainManager : IDisposable
         var existing = GetOrCreateTrain(world.WorldID).FirstOrDefault(m => m.IsSameAs(mob.NameId, instance, world.WorldID));
         if (existing == null) return false;
         existing.LastSeenUTC = DateTime.UtcNow;
+        existing.Source = HuntRecordSource.Scan;
+        existing.LastObservedUtc = existing.LastSeenUTC;
+        existing.RecordedAtUtc ??= existing.LastSeenUTC;
         existing.WorldPosition = mob.Position;
         if (zoneMapCoordSize.HasValue)
             existing.Position = MapHelpers.ConvertToMapCoordinate(mob.Position, zoneMapCoordSize.Value);
@@ -343,65 +355,77 @@ public class TrainManager : IDisposable
                 ? new HuntTrainWorld(mob.WorldID, mob.WorldName, mob.DataCenterName, 0)
                 : destination;
             RememberWorld(world);
-            ImportedTrain.Add(mob.WithWorld(world));
+            var imported = mob.WithWorld(world);
+            imported.Source = HuntRecordSource.Import;
+            imported.ImportedAtUtc = DateTime.UtcNow;
+            imported.RecordedAtUtc ??= imported.ImportedAtUtc;
+            ImportedTrain.Add(imported);
         }
         if (MapHelpers.DataManager != null) MapHelpers.LocaliseMobNames(ImportedTrain);
     }
 
-    public void ImportTrainAll()
+    public bool ImportTrainAll()
     {
-        if (ImportedTrain.Count == 0) return;
-        _suppressSave = true;
-        try
+        if (ImportedTrain.Count == 0) return false;
+        return Change("覆盖导入", ImportedTrain.Select(m => m.WorldID), () =>
         {
             foreach (var group in ImportedTrain.GroupBy(m => m.WorldID))
-                GetOrCreateTrain(group.Key).ReplaceWith(group.Select(m => m.WithWorld(WorldWithCount(group.Key))));
-        }
-        finally { _suppressSave = false; }
-        SaveHuntTrainRecord();
+                GetOrCreateTrain(group.Key).ReplaceWith(group.Select(m => ImportCopy(m, WorldWithCount(group.Key))));
+        });
     }
 
-    public void ImportTrainNew(bool updateOldTime)
+    public bool ImportTrainNew(bool updateOldTime)
     {
-        if (ImportedTrain.Count == 0) return;
-        _suppressSave = true;
-        try
+        if (ImportedTrain.Count == 0) return false;
+        return Change("合并导入", ImportedTrain.Select(m => m.WorldID), () =>
         {
             foreach (var mob in ImportedTrain)
             {
                 var train = GetOrCreateTrain(mob.WorldID);
                 var existing = train.FirstOrDefault(m => m.IsSameAs(mob.MobID, mob.Instance, mob.WorldID));
-                if (existing == null) train.Add(mob.WithWorld(WorldWithCount(mob.WorldID)));
+                if (existing == null) train.Add(ImportCopy(mob, WorldWithCount(mob.WorldID)));
                 else if (updateOldTime && mob.LastSeenUTC > existing.LastSeenUTC)
                 {
                     existing.LastSeenUTC = mob.LastSeenUTC;
                     existing.Position = mob.Position;
                     existing.WorldPosition = mob.WorldPosition;
+                    existing.Source = HuntRecordSource.Import;
+                    existing.ImportedAtUtc = DateTime.UtcNow;
+                    existing.LastObservedUtc = mob.LastObservedUtc;
+                    existing.SonarReceivedUtc = mob.SonarReceivedUtc;
                 }
             }
-        }
-        finally { _suppressSave = false; }
-        SaveHuntTrainRecord();
+        });
     }
 
-    public void TrainRemoveDead() => HuntTrain.RemoveAll(m => m.Dead);
+    public void TrainRemoveDead() => RemoveRecords(HuntTrain.Where(m => m.Dead));
+
+    private static HuntTrainMob ImportCopy(HuntTrainMob mob, HuntTrainWorld world)
+    {
+        var copy = mob.WithWorld(world);
+        copy.Source = HuntRecordSource.Import;
+        copy.ImportedAtUtc = DateTime.UtcNow;
+        copy.RecordedAtUtc ??= copy.ImportedAtUtc;
+        return copy;
+    }
     public void RemoveRecords(IEnumerable<HuntTrainMob> records, bool pauseRecording = false)
     {
         var selected = records.Where(HuntTrain.Contains).ToHashSet();
+        if (selected.Count == 0) return;
+        if (!Change(pauseRecording ? "清空标签" : "删除记录", new[] { SelectedWorldId }, () => HuntTrain.RemoveAll(selected.Contains))) return;
         if (pauseRecording && SelectedWorldId == CurrentWorldId)
         {
             WorldDeleted?.Invoke(SelectedWorldId);
             RecordTrain = false;
         }
-        HuntTrain.RemoveAll(selected.Contains);
     }
 
     public int RestoreRecords(IEnumerable<HuntTrainMob> records)
     {
         var restored = records.Where(HuntTrain.Contains).Where(m => m.Dead).Distinct().ToList();
-        foreach (var mob in restored)
-        { mob.Dead = false; ManualDeadStateChanged?.Invoke(mob); }
-        if (restored.Count > 0) SaveHuntTrainRecord();
+        if (restored.Count == 0) return 0;
+        if (!Change("恢复存活", new[] { SelectedWorldId }, () => restored.ForEach(m => m.Dead = false))) return 0;
+        foreach (var mob in restored) ManualDeadStateChanged?.Invoke(mob);
         return restored.Count;
     }
     public bool ContainsMob(HuntTrainMob mob) =>
@@ -409,22 +433,23 @@ public class TrainManager : IDisposable
         train.Any(existing => existing.IsSameAs(mob.MobID, mob.Instance, mob.WorldID));
     public void TrainRemove(HuntTrainMob mob)
     {
-        if (mob != null) HuntTrain.Remove(mob);
+        if (mob != null) RemoveRecords(new[] { mob });
     }
 
     public void TrainUnkillAll()
     {
-        HuntTrain.ForEach(m => { m.Dead = false; ManualDeadStateChanged?.Invoke(m); });
-        SaveHuntTrainRecord();
+        RestoreRecords(HuntTrain);
     }
 
-    public void DeleteWorld(uint worldId)
+    public bool DeleteWorld(uint worldId)
     {
+        if (!_trainsByWorld.TryGetValue(worldId, out var train) || train.Count == 0) return false;
+        if (!Change("删除服务器", new[] { worldId }, train.Clear)) return false;
         WorldDeleted?.Invoke(worldId);
         // Explicitly deleting a server must not recreate its tab on the next scan.
         // Starting recording again will rediscover any live nearby A rank.
         if (worldId == CurrentWorldId) RecordTrain = false;
-        if (_trainsByWorld.TryGetValue(worldId, out var train)) train.Clear();
+        return true;
     }
 
     public void TrainDelete() => DeleteWorld(SelectedWorldId);
@@ -432,18 +457,64 @@ public class TrainManager : IDisposable
 
     public void SetDead(int index, bool dead)
     {
+        ActionError = null;
         var train = HuntTrain;
         if (index < 0 || index >= train.Count || train[index].Dead == dead) return;
-        train[index].Dead = dead;
+        if (!Change(dead ? "标记死亡" : "恢复存活", new[] { SelectedWorldId }, () => train[index].Dead = dead)) return;
         ManualDeadStateChanged?.Invoke(train[index]);
-        SaveHuntTrainRecord();
     }
 
     public void SwapTrainMobs(int first, int second)
     {
         var train = HuntTrain;
         if (first < 0 || second < 0 || first >= train.Count || second >= train.Count || first == second) return;
-        train.Swap(first, second);
+        Change("调整车序", new[] { SelectedWorldId }, () => train.Swap(first, second));
+    }
+
+    private static List<HuntTrainMob> Clone(IEnumerable<HuntTrainMob> records) =>
+        JsonConvert.DeserializeObject<List<HuntTrainMob>>(JsonConvert.SerializeObject(records))!;
+
+    private void ReplaceWorlds(uint[] worlds, IEnumerable<HuntTrainMob> records)
+    {
+        var rows = records.ToList();
+        foreach (var mob in rows) RememberWorld(new(mob.WorldID, mob.WorldName, mob.DataCenterName, 0));
+        foreach (var world in worlds) GetOrCreateTrain(world).ReplaceWith(rows.Where(m => m.WorldID == world));
+    }
+
+    private bool Change(string operation, IEnumerable<uint> worldIds, Action change)
+    {
+        ActionError = null;
+        if (!_canSave) { ActionError = "记录文件异常，未执行操作；请先保留原文件并排查"; return false; }
+        var worlds = worldIds.Distinct().ToArray();
+        var before = Clone(GetAllTrainRecords().Where(m => worlds.Contains(m.WorldID)));
+        if (!Snapshots.Capture(operation, worlds, before)) { ActionError = Snapshots.Error; return false; }
+        _suppressSave = true;
+        try
+        {
+            change();
+            if (SaveHuntTrainRecord()) return true;
+            ReplaceWorlds(worlds, before);
+            ActionError = "保存失败，已撤销本次修改：" + PersistenceError;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            ReplaceWorlds(worlds, before);
+            ActionError = "操作失败，已保留原记录：" + ex.Message;
+            return false;
+        }
+        finally { _suppressSave = false; }
+    }
+
+    public bool RestoreSnapshot(string id)
+    {
+        if (!Snapshots.Read(id, out var snapshot)) { ActionError = Snapshots.Error; return false; }
+        if (snapshot!.Records.Any(m => !_acceptRecord(m))) { ActionError = "备份包含不属于本模块的记录，未执行恢复"; return false; }
+        if (!Change("恢复备份前", snapshot.Worlds, () => ReplaceWorlds(snapshot.Worlds, snapshot.Records))) return false;
+        if (snapshot.Worlds.Contains(CurrentWorldId)) { RecordTrain = false; WorldDeleted?.Invoke(CurrentWorldId); }
+        foreach (var world in snapshot.Worlds)
+            foreach (var mob in GetTrainRecords(world)) ManualDeadStateChanged?.Invoke(mob);
+        return true;
     }
 
     public void LoadHuntTrainRecord()
@@ -481,9 +552,9 @@ public class TrainManager : IDisposable
         finally { _suppressSave = false; }
     }
 
-    public void SaveHuntTrainRecord()
+    public bool SaveHuntTrainRecord()
     {
-        if (!_canSave) return;
+        if (!_canSave) return false;
         lock (_saveLock)
         {
             var tempPath = _huntTrainFilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
@@ -497,11 +568,13 @@ public class TrainManager : IDisposable
                 else File.Move(tempPath, _huntTrainFilePath);
                 _lastSaveUtc = DateTime.UtcNow;
                 PersistenceError = null;
+                return true;
             }
             catch (Exception ex)
             {
                 PersistenceError = $"无法保存狩猎记录：{ex.Message}";
                 PluginLog.Error(PersistenceError);
+                return false;
             }
             finally
             {

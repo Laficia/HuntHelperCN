@@ -77,7 +77,8 @@ try {
         if ($normalizedName.StartsWith('/') -or $normalizedName -match '(^|/)\.\.(/|$)' -or $normalizedName.Contains(':')) {
             throw "Unsafe archive path: $normalizedName"
         }
-        if ([IO.Path]::GetFileName($normalizedName) -in @('HuntTrain.json', 'SRankTrain.json', 'ScanRoutes.json')) {
+        if ([IO.Path]::GetFileName($normalizedName) -in @('HuntTrain.json', 'SRankTrain.json', 'ScanRoutes.json') -or
+            $normalizedName -match '(^|/)Backups(/|$)') {
             throw 'The release archive must not contain player hunt records or recorded routes.'
         }
         if ($entries.ContainsKey($normalizedName)) {
@@ -163,13 +164,15 @@ $releaseNotes = @"
 
 适配国服 XIVLauncherCN / Dalamud API 15；按本机 Dalamud 15.0.3.9 编译。
 
-- A/S版本标签只显示实际已录入数，例如5A (3)、7S (2)；下方摘要显示已录入3。
-- 移除3/12式总数、进度条、未发现汇总和分线种类比例。不同分线分别计数，包含死亡记录，占位不计入。
-- 保留可选占位、红色未发现行、区服版本隔离、Sonar录制、导入导出、正常水晶传送及vnavmesh移动。
+- Sonar未录入原因提示：录制开关、地图链接、区服、名称和分线等问题在窗口显示，不刷普通聊天。
+- 记录来源和时间分开：现场扫描、Sonar、导入、历史来源；悬停查看现场发现、Sonar接收和导入时间。接收/导入不当成现场确认，旧数据不伪造来源。
+- A/S分别保留最近10次手动操作前的记录快照，增加撤销和折叠历史恢复；覆盖前再次确认服务器与范围，恢复前也备份，支持撤销恢复。
+- 仅恢复涉及服的怪物记录，这些服的后续新增修改会被替换；其它服、另一模块、路线和窗口设置不动。备份失败阻止操作，记录保存失败回滚。自动扫描不逐条占用快照。
+- 保留简洁计数、服务器/版本/分线隔离、Sonar录制、正常水晶传送和vnavmesh移动。同步中文使用手册。
 
-1.0.0.1～8可通过原订阅正常更新。此前1.0.0.35～39用户需保留配置后重新安装。
-更新前备份1.0.0.8源码、包、订阅与已有玩家配置、记录和路线；旧版Release保留，玩家文件不上传。
-固定1.0.0.8回退订阅：https://raw.githubusercontent.com/$Repository/main/rollback-1.0.0.8.json 。停用原订阅，保留配置卸载后从旧版订阅重新安装，步骤见README-CN.md。
+1.0.0.1～9可通过原订阅更新。此前1.0.0.35～39用户需备份并保留配置重新安装。
+更新前备份1.0.0.9源码、包、订阅及现有玩家文件；旧版Release保留，玩家数据与运行时快照不上传。
+固定1.0.0.9回退订阅：https://raw.githubusercontent.com/$Repository/main/rollback-1.0.0.9.json 。停用原订阅，保留配置卸载后从旧版订阅重装，覆盖文件前另存最新数据。
 
 卫月第三方插件库订阅地址：
 $subscriptionUrl

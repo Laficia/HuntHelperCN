@@ -7,6 +7,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Gui\HuntSnapshotRestorePopup.cs" Link="Production\HuntSnapshotRestorePopup.cs" />
     <Reference Include="Dalamud.Bindings.ImGui"><HintPath>$(DALAMUD_HOME)\Dalamud.Bindings.ImGui.dll</HintPath></Reference>
     <Reference Include="HexaGen.Runtime"><HintPath>$(DALAMUD_HOME)\HexaGen.Runtime.dll</HintPath></Reference>
     <None Include="$(DALAMUD_HOME)\cimgui.dll" Link="cimgui.dll" CopyToOutputDirectory="PreserveNewest" />
