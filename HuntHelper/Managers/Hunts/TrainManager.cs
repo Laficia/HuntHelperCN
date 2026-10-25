@@ -471,6 +471,20 @@ public class TrainManager : IDisposable
         Change("调整车序", new[] { SelectedWorldId }, () => train.Swap(first, second));
     }
 
+    public bool ReorderTrainMobs(IReadOnlyList<HuntTrainMob> visible, IReadOnlyList<HuntTrainMob> reordered)
+    {
+        var train = HuntTrain;
+        if (visible.Count < 2 || visible.Count != reordered.Count || visible.Distinct().Count() != visible.Count ||
+            reordered.Distinct().Count() != visible.Count || reordered.Any(m => !visible.Contains(m)) ||
+            visible.Any(m => m.WorldID != SelectedWorldId)) return false;
+        var slots = visible.Select(m => train.IndexOf(m)).ToArray();
+        if (slots.Any(i => i < 0) || !slots.SequenceEqual(slots.OrderBy(i => i)) || visible.SequenceEqual(reordered)) return false;
+        var replacement = train.ToList();
+        for (var i = 0; i < slots.Length; i++) replacement[slots[i]] = reordered[i];
+        // Replace only the visible slots, retaining every hidden version's position.
+        return Change("拖拽调整车序", new[] { SelectedWorldId }, () => train.ReplaceWith(replacement));
+    }
+
     private static List<HuntTrainMob> Clone(IEnumerable<HuntTrainMob> records) =>
         JsonConvert.DeserializeObject<List<HuntTrainMob>>(JsonConvert.SerializeObject(records))!;
 

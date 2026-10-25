@@ -12,6 +12,9 @@ internal static class RecoveryChecks
 {
     public static readonly (string Name, Action Run)[] Tests =
     [
+        ("drag reorder inserts visible records without moving hidden versions or other servers", DragReorder),
+        ("drag reorder ignores invalid, stale, foreign and unchanged record sets", InvalidReorder),
+        ("S drag order persists and undo restores the previous server order", SReorder),
         ("Sonar failures distinguish name map world coordinates and conflicting instances", Diagnostics),
         ("legacy records never fabricate an origin or local observation time", LegacyTimes),
         ("live observations record real scan provenance without losing Sonar receipt time", ScanTimes),
@@ -46,6 +49,40 @@ internal static class RecoveryChecks
         public TrainManager M {get;}
         public Fixture(){M=new(new Host(),new Host(),FilePath,()=>World);}
         public void Dispose(){M.Dispose();Dir.Dispose();}
+    }
+    private static void DragReorder()
+    {
+        using var f=new Fixture();foreach(var id in new uint[]{1,90,2,91,3})f.M.AddMob(Mob(id));
+        f.World=B;f.M.AddMob(Mob(7));f.M.SelectWorld(101);
+        var rows=f.M.HuntTrain.Where(m=>m.MobID<90).ToArray();
+        Check(f.M.ReorderTrainMobs(rows,new[]{rows[1],rows[2],rows[0]}));
+        Check(f.M.HuntTrain.Select(m=>m.MobID).SequenceEqual(new uint[]{2,90,3,91,1}));
+        Check(f.M.GetTrainRecords(102).Single().MobID==7 && ReferenceEquals(f.M.HuntTrain[4],rows[0]));
+        var snapshot=f.M.Snapshots.List().Single();Check(snapshot.Operation=="拖拽调整车序");
+        Check(f.M.RestoreSnapshot(snapshot.Id) && f.M.HuntTrain.Select(m=>m.MobID).SequenceEqual(new uint[]{1,90,2,91,3}));
+    }
+    private static void InvalidReorder()
+    {
+        using var f=new Fixture();f.M.AddMob(Mob(1));f.M.AddMob(Mob(2));var rows=f.M.HuntTrain.ToArray();
+        Check(!f.M.ReorderTrainMobs(rows,rows));
+        Check(!f.M.ReorderTrainMobs(rows,new[]{rows[0],rows[0]}));
+        Check(!f.M.ReorderTrainMobs(rows,new[]{rows[1],Mob(9)}));
+        Check(!f.M.ReorderTrainMobs(new[]{rows[1],rows[0]},rows));
+        f.World=B;f.M.AddMob(Mob(8));f.M.SelectWorld(102);
+        Check(!f.M.ReorderTrainMobs(rows,new[]{rows[1],rows[0]}));
+        Check(f.M.Snapshots.List().Count==0 && f.M.GetTrainRecords(101).Select(m=>m.MobID).SequenceEqual(new uint[]{1,2}));
+    }
+    private static void SReorder()
+    {
+        using var dir=new TemporaryDirectory();var path=Path.Combine(dir.Path,"SRankTrain.json");
+        using(var s=new TrainManager(new Host(),new Host(),path,()=>A,m=>m.MobID>=20))
+        {
+            s.AddMob(Mob(20));s.AddMob(Mob(21));var rows=s.HuntTrain.ToArray();
+            Check(s.ReorderTrainMobs(rows,new[]{rows[1],rows[0]}) && s.Snapshots.List().Count==1);
+        }
+        using var reload=new TrainManager(new Host(),new Host(),path,()=>A,m=>m.MobID>=20);
+        Check(reload.HuntTrain.Select(m=>m.MobID).SequenceEqual(new uint[]{21,20}));
+        Check(reload.RestoreSnapshot(reload.Snapshots.List().Single().Id) && reload.HuntTrain[0].MobID==20);
     }
     private static void Diagnostics()
     {

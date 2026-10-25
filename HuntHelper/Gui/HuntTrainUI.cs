@@ -38,6 +38,7 @@ public class HuntTrainUI : IDisposable
     private readonly Dictionary<uint, int> _selectedByWorld = new();
     private uint? _displayedWorld;
     private readonly WorldTabBar _worldTabs = new();
+    private readonly HuntRowDragGesture<HuntTrainMob> _rowDrag = new();
 
     private bool _huntTrainWindowVisible = false;
 
@@ -549,12 +550,15 @@ public class HuntTrainUI : IDisposable
             ? _rosterSnapshot.Missing : Array.Empty<HuntRosterSlot>();
         if (visible.Count == 0 && missing.Count == 0)
         {
+            _rowDrag.Cancel();
             ImGui.TextWrapped("当前标签暂无记录。可在设置开启未发现占位，或开始记录／找怪扫描。");
             return;
         }
         var columns = 4 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
         var tableHeight = Math.Clamp(ImGui.GetContentRegionAvail().Y - 140 * ImGuiHelpers.GlobalScale,
             110 * ImGuiHelpers.GlobalScale, 340 * ImGuiHelpers.GlobalScale);
+        var visibleMobs = visible.Select(i => _mobList[i]).ToList();
+        _rowDrag.Begin($"{_trainManager.SelectedWorldId}/{VersionLabel}", visibleMobs);
         if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH |
             ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX, new Vector2(0, tableHeight),
             Math.Max(ImGui.GetContentRegionAvail().X, 440 * ImGuiHelpers.GlobalScale))) return;
@@ -575,14 +579,15 @@ public class HuntTrainUI : IDisposable
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
             ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? _deadTextColour : Vector4.One);
-            if (ImGui.Selectable($"{mob.Name} {mob.Instance.GetInstanceGlyph()}", n == _selectedIndex))
+            if (_rowDrag.Selectable(mob, $"{mob.Name} {mob.Instance.GetInstanceGlyph()}", n == _selectedIndex))
             {
                 _selectedIndex = n;
                 _trainManager.SendTrainFlag(n, _openMap, _showInChat);
                 if (_teleportMe && CanTeleport(mob)) _teleportManager.TeleportToHunt(mob);
             }
             ImGui.PopStyleColor();
-            ImGuiUtil.ImGui_HoveredToolTip($"{FormatWorld(mob.WorldName, mob.DataCenterName)}\n{MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n右键可选择、删除或调整顺序");
+            if (!_rowDrag.Dragging)
+                ImGuiUtil.ImGui_HoveredToolTip($"{FormatWorld(mob.WorldName, mob.DataCenterName)}\n{MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n左键拖动名称调整车序；拖到目标名称上半部／下半部插入其前／后\n右键可选择、删除或调整顺序");
             if (ImGui.BeginPopupContextItem("HuntRowContext"))
             {
                 if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuSelect"])) _selectedIndex = n;
@@ -629,7 +634,7 @@ public class HuntTrainUI : IDisposable
                 if (mob.Dead && n == _selectedIndex) SelectNext();
             }
             ImGui.PopID();
-            if (listChanged) break;
+            if (listChanged) { _rowDrag.Cancel(); break; }
         }
         foreach (var expected in missing)
         {
@@ -644,7 +649,9 @@ public class HuntTrainUI : IDisposable
             if (_showLastSeen) { ImGui.TableNextColumn(); ImGui.TextDisabled("--"); }
             ImGui.TableNextColumn(); ImGui.TextDisabled("--");
         }
+        var reordered = _rowDrag.Finish(ImGuiHelpers.GlobalScale);
         ImGui.EndTable();
+        if (reordered != null) ApplyTrainChange(() => _trainManager.ReorderTrainMobs(visibleMobs, reordered));
     }
 
     private bool CanTeleport(HuntTrainMob mob) => mob.WorldID != 0 && mob.WorldID == _trainManager.CurrentWorldId;

@@ -11,3 +11,5 @@ Window checks link the production `HuntTrainWindowLayout`, drag the real native 
 Roster presentation checks exercise the production summary and status badges and ensure their scoped styles are restored. On Windows, pass --render-roster (optionally --show-missing) to render a Chinese preview using simulated records and the Microsoft YaHei font installed in Windows. The offscreen CPU renderer writes obj/release-staging/v1.0.0.6/roster-preview-default.png; this is a layout preview, not an in-game screenshot.
 
 Version and server bars share TabDragGesture. Checks drag versions both ways, reload the order, verify no native payload, click Start and Stop at the same position, and verify a scaled window can shrink below a host minimum of 420 pixels.
+
+Record-row checks link the production HuntRowDragGesture and inject real ImGui mouse/key events. They verify plain click selection, insertion both directions, no click activation while dragging, no-op/outside drops, Escape cancellation, cancellation after world/version/list changes, long-table edge scrolling, and absence of native yellow drag/drop payloads.
