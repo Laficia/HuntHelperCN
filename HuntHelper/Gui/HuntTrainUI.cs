@@ -99,6 +99,7 @@ public class HuntTrainUI : IDisposable
         _settings = _isS ? (config.SRankTrain ??= new()) : config;
         _relayStatus = relayStatus; _openOther = openOther;
         _trainManager = trainManager;
+        _trainManager.RecordInserted += OnRecordInserted;
         _navigation = navigation;
         _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
         _roster = new HuntRoster(roster);
@@ -123,7 +124,16 @@ public class HuntTrainUI : IDisposable
 
     public void Dispose()
     {
+        _trainManager.RecordInserted -= OnRecordInserted;
         //SaveSettings();
+    }
+
+    private void OnRecordInserted(uint world, int index, int previousCount)
+    {
+        if (_displayedWorld == world)
+            _selectedIndex = TrainVersionFilter.AfterInsertion(_selectedIndex, index, previousCount);
+        else if (_selectedByWorld.TryGetValue(world, out var selected))
+            _selectedByWorld[world] = TrainVersionFilter.AfterInsertion(selected, index, previousCount);
     }
 
     private void LoadSettings()

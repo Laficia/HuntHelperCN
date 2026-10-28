@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Utilities\ARankMapOrder.cs" Link="Production\ARankMapOrder.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRecordInfo.cs" Link="Production\HuntRecordInfo.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\TrainSnapshotStore.cs" Link="Production\TrainSnapshotStore.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRelayParser.cs" Link="Production\HuntRelayParser.cs" />

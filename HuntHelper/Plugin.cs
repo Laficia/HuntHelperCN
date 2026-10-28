@@ -114,7 +114,7 @@ namespace HuntHelper
 
             var trainPath = Path.Combine(pluginInterface.ConfigDirectory.FullName, "HuntTrain.json");
             LegacyDataMigration.CopyTrainIfMissing(trainPath, PluginDir);
-            TrainManager = new TrainManager(chatGui, gameGui, trainPath, playerState);
+            TrainManager = new TrainManager(chatGui, gameGui, trainPath, playerState, defaultARankMapOrder: true);
             MapDataManager = new MapDataManager(Path.Combine(pluginInterface.AssemblyLocation.Directory?.FullName!, @"Data\SpawnPointData.json"));
             HuntManager = new HuntManager(pluginInterface, TrainManager, chatGui, flyTextGui, Configuration.TTSVolume,
                 MapHelpers.GetHuntTerritories(MapDataManager.SpawnPointsList.Select(m => (uint)m.MapID)));

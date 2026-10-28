@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Utilities\ARankMapOrder.cs" Link="Current\ARankMapOrder.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\TrainSnapshotStore.cs" Link="Production\TrainSnapshotStore.cs" />
     <Reference Include="Newtonsoft.Json"><HintPath>$(DALAMUD_HOME)\Newtonsoft.Json.dll</HintPath></Reference>
     <Compile Include="..\..\HuntHelper\Utilities\ExportImport.cs" Link="Current\ExportImport.cs" />

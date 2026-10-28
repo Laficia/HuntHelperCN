@@ -15,3 +15,5 @@ The checks cover world identity and isolation, recording while browsing another 
 JPEG fixtures exercise transport and marker validation, not image decoding. These tests do not verify live game rendering, Dalamud IPC binding, actual pathfinding, or VNavmesh behavior. Generated files are confined to unique subdirectories under the system temporary directory's `HuntHelper.RegressionTests` folder and removed after each check.
 
 Drag reorder recovery checks exercise the real manager: visible-slot insertion preserves hidden versions and other servers, rejects invalid/stale/foreign/unchanged sets without taking snapshots, preserves live record identity, captures one pre-drop snapshot, and persists/undoes S order across restart.
+
+Map-order checks cover the real A-manager insertion path for all 24 requested maps, verify territory IDs against shipped spawn-point names, stable same-map/instance ordering, visited-vs-Sonar world isolation, manual order persistence and preservation during repeated scans, selected-object indexing, and unchanged imports/S recording. New records are inserted; existing records are never globally re-sorted.

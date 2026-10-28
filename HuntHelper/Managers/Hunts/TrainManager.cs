@@ -30,6 +30,12 @@ public class TrainList<T> : List<T>
         NotifyChanged();
     }
 
+    public new void Insert(int index, T item)
+    {
+        base.Insert(index, item);
+        NotifyChanged();
+    }
+
     public new bool Remove(T item)
     {
         var removed = base.Remove(item);
@@ -74,6 +80,7 @@ public class TrainManager : IDisposable
     private readonly IGameGui _gameGui;
     private readonly Func<HuntTrainWorld> _currentWorldProvider;
     private readonly Func<HuntTrainMob, bool> _acceptRecord;
+    private readonly bool _defaultARankMapOrder;
     private readonly string _huntTrainFilePath;
     private readonly Dictionary<uint, TrainList<HuntTrainMob>> _trainsByWorld = new();
     private readonly Dictionary<uint, HuntTrainWorld> _worlds = new();
@@ -93,6 +100,7 @@ public class TrainManager : IDisposable
     public string? PersistenceError { get; private set; }
     public event Action<HuntTrainMob>? ManualDeadStateChanged;
     public event Action<uint>? WorldDeleted;
+    public event Action<uint, int, int>? RecordInserted;
 
     public IReadOnlyList<HuntTrainMob> GetTrainRecords(uint worldId) =>
         _trainsByWorld.TryGetValue(worldId, out var records) ? records : Array.Empty<HuntTrainMob>();
@@ -109,19 +117,20 @@ public class TrainManager : IDisposable
     public uint CurrentWorldId => GetCurrentWorld().WorldID;
 
     public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, IPlayerState playerState,
-        Func<HuntTrainMob, bool>? acceptRecord = null)
-        : this(chatGui, gameGui, huntTrainFilePath, () => ReadCurrentWorld(playerState), acceptRecord)
+        Func<HuntTrainMob, bool>? acceptRecord = null, bool defaultARankMapOrder = false)
+        : this(chatGui, gameGui, huntTrainFilePath, () => ReadCurrentWorld(playerState), acceptRecord, defaultARankMapOrder)
     {
     }
 
     public TrainManager(IChatGui chatGui, IGameGui gameGui, string huntTrainFilePath, Func<HuntTrainWorld> currentWorldProvider,
-        Func<HuntTrainMob, bool>? acceptRecord = null)
+        Func<HuntTrainMob, bool>? acceptRecord = null, bool defaultARankMapOrder = false)
     {
         _chatGui = chatGui;
         _gameGui = gameGui;
         _huntTrainFilePath = huntTrainFilePath;
         _currentWorldProvider = currentWorldProvider;
         _acceptRecord = acceptRecord ?? (_ => true);
+        _defaultARankMapOrder = defaultARankMapOrder;
         Snapshots = new TrainSnapshotStore(huntTrainFilePath);
         LoadHuntTrainRecord();
         GetCurrentWorld();
@@ -242,7 +251,7 @@ public class TrainManager : IDisposable
         var world = GetCurrentWorld();
         var train = GetOrCreateTrain(world.WorldID);
         if (train.Any(m => m.IsSameAs(mob.MobID, mob.Instance, world.WorldID))) return;
-        train.Add(mob.WithWorld(world));
+        InsertRecordedMob(train, mob.WithWorld(world));
     }
 
     public RelayRecordResult RecordRelay(HuntTrainMob mob)
@@ -255,7 +264,7 @@ public class TrainManager : IDisposable
         RememberWorld(new(mob.WorldID, mob.WorldName, mob.DataCenterName, 0));
         var train = GetOrCreateTrain(mob.WorldID);
         var existing = train.FirstOrDefault(m => m.IsSameAs(mob.MobID, mob.Instance, mob.WorldID) && m.TerritoryID == mob.TerritoryID);
-        if (existing == null) { train.Add(mob); return RelayRecordResult.Added; }
+        if (existing == null) { InsertRecordedMob(train, mob); return RelayRecordResult.Added; }
         if (!existing.WorldPosition.HasValue || System.Numerics.Vector2.DistanceSquared(existing.Position, mob.Position) > .2f * .2f)
         { existing.Position = mob.Position; existing.WorldPosition = null; existing.Source = HuntRecordSource.Sonar; }
         if (!existing.SonarReceivedUtc.HasValue || mob.SonarReceivedUtc > existing.SonarReceivedUtc)
@@ -265,6 +274,14 @@ public class TrainManager : IDisposable
         // A map-only announcement cannot revive a dead record or fabricate a height.
         SaveHuntTrainRecord();
         return RelayRecordResult.Updated;
+    }
+
+    private void InsertRecordedMob(TrainList<HuntTrainMob> train, HuntTrainMob mob)
+    {
+        var previousCount = train.Count;
+        var index = _defaultARankMapOrder ? ARankMapOrder.InsertionIndex(train, mob) : previousCount;
+        train.Insert(index, mob);
+        RecordInserted?.Invoke(mob.WorldID, index, previousCount);
     }
 
     public bool UpdateLastSeen(IBattleNpc mob, uint instance, float? zoneMapCoordSize = null)

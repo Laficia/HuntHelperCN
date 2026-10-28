@@ -59,6 +59,9 @@ public sealed class TrainVersionFilter
 
     public static int Clamp(int selected, IReadOnlyList<int> visible) => visible.Contains(selected) ? selected : visible.FirstOrDefault(0);
 
+    public static int AfterInsertion(int selected, int inserted, int previousCount) =>
+        selected >= 0 && selected < previousCount && inserted <= selected ? selected + 1 : selected;
+
     public static int NextLiving(int selected, IReadOnlyList<int> visible, IReadOnlyList<HuntTrainMob> records)
     {
         var position = visible.ToList().IndexOf(selected);
