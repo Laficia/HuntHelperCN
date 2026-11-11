@@ -24,6 +24,7 @@ namespace Dalamud.Plugin.Ipc
     public interface ICallGateSubscriber<T1, T2, TRet> : ICallGateSubscriber
     {
         void InvokeAction(T1 first, T2 second);
+        TRet InvokeFunc(T1 first, T2 second);
     }
 
     public interface ICallGateSubscriber<T1, T2, T3, TRet> : ICallGateSubscriber

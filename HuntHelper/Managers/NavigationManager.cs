@@ -5,11 +5,8 @@ using HuntHelper.Managers.Hunts.Models;
 using HuntHelper.Utilities;
 using Lumina.Excel.Sheets;
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using Action = System.Action;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace HuntHelper.Managers;
 
@@ -26,21 +23,19 @@ public sealed class NavigationManager : IDisposable
     private readonly ICallGateSubscriber<bool> _pathfinding;
     private readonly ICallGateSubscriber<bool> _running;
     private readonly ICallGateSubscriber<bool> _movementAllowed;
-    private readonly ICallGateSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>> _findPath;
-    private readonly ICallGateSubscriber<List<Vector3>, bool, object> _move;
+    private readonly ICallGateSubscriber<Vector3, bool, bool> _move;
     private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> _pointOnFloor;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestReachable;
     private readonly Func<bool> _isFlying;
+    private readonly Func<Action?>? _pendingStopResolver;
+    private Action? _pendingStop;
     private bool _requestFly;
     private Vector3 _destination;
-    private int _pathRetries;
+    public bool Interrupted { get; private set; }
     private readonly ICallGateSubscriber<object> _stop;
     private string _availability = string.Empty;
     private long _lastStatusCheck;
     private HuntTrainMob? _movingTo;
-    private Task<List<Vector3>>? _pendingPath;
-    private CancellationTokenSource? _pathCancellation;
-    private bool _startedMovement;
     private bool _disposed;
 
     public string LastMessage { get; private set; } = string.Empty;
@@ -51,7 +46,7 @@ public sealed class NavigationManager : IDisposable
     }
 
     public NavigationManager(IDalamudPluginInterface pluginInterface, IClientState clientState,
-        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework, Func<bool>? isFlying = null)
+        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework, Func<bool>? isFlying = null, Func<Action?>? pendingStopResolver = null)
     {
         _clientState = clientState;
         _playerState = playerState;
@@ -59,13 +54,13 @@ public sealed class NavigationManager : IDisposable
         _dataManager = dataManager;
         _framework = framework;
         _isFlying = isFlying ?? (() => false);
+        _pendingStopResolver = pendingStopResolver;
         _nearestReachable = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         _ready = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
-        _pathfinding = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.PathfindInProgress");
+        _pathfinding = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         _running = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
         _movementAllowed = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.GetMovementAllowed");
-        _findPath = pluginInterface.GetIpcSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>>("vnavmesh.Nav.PathfindCancelable");
-        _move = pluginInterface.GetIpcSubscriber<List<Vector3>, bool, object>("vnavmesh.Path.MoveTo");
+        _move = pluginInterface.GetIpcSubscriber<Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo");
         _pointOnFloor = pluginInterface.GetIpcSubscriber<Vector3, bool, float, Vector3?>("vnavmesh.Query.Mesh.PointOnFloor");
         _stop = pluginInterface.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
         _framework.Update += OnFrameworkUpdate;
@@ -98,7 +93,7 @@ public sealed class NavigationManager : IDisposable
         _lastStatusCheck = Environment.TickCount64;
         try
         {
-            if (!_ready.HasFunction || !_findPath.HasFunction || !_move.HasAction || !_stop.HasAction ||
+            if (!_ready.HasFunction || !_move.HasFunction || !_stop.HasAction ||
                 !_running.HasFunction || !_pathfinding.HasFunction)
                 _availability = "请先安装并启用支持导航接口的 vnavmesh";
             else if (_movingTo != null) _availability = "本插件正在寻路或移动，请先停止当前路线";
@@ -125,7 +120,6 @@ public sealed class NavigationManager : IDisposable
                 return false;
             }
 
-            CancellationTokenSource? cancellation = null;
             try
             {
                 Vector3 destination;
@@ -147,7 +141,6 @@ public sealed class NavigationManager : IDisposable
                 if (reason.Length != 0) throw new InvalidOperationException(reason);
                 var player = _objectTable.LocalPlayer ?? throw new InvalidOperationException("无法读取玩家位置");
                 _requestFly = _isFlying();
-                _pathRetries = 0;
                 _destination = destination;
                 var from = player.Position;
                 if (!_requestFly && _nearestReachable.HasFunction)
@@ -157,27 +150,22 @@ public sealed class NavigationManager : IDisposable
                 }
                 if (!NavigationRules.IsFinite(from) || !NavigationRules.IsFinite(destination))
                     throw new InvalidOperationException("vnavmesh 返回了无效的网格坐标，请等待网格加载完成后重试");
-                cancellation = new CancellationTokenSource();
-                var task = _findPath.InvokeFunc(from, destination, _requestFly, cancellation.Token)
-                    ?? throw new InvalidOperationException("vnavmesh 未返回寻路任务");
-                // A stopped/disposed request can complete later. Observe faults without
-                // retaining this manager or attaching any continuation that can move.
-                _ = task.ContinueWith(static completed => { _ = completed.Exception; },
-                    CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
-                _pendingPath = task;
-                _pathCancellation = cancellation;
-                cancellation = null;
+                _pendingStop = _pendingStopResolver?.Invoke();
+                if (_pendingStopResolver != null && _pendingStop == null)
+                    throw new InvalidOperationException("无法确认当前 vnavmesh 的完整停止接口，请更新国服 vnavmesh 后重试");
+                // Native SimpleMove owns calculation and execution. Native stop and input
+                // preferences cancel that same request; HHT never restarts a late result.
+                if (!_move.InvokeFunc(destination, _requestFly))
+                    throw new InvalidOperationException("vnavmesh 未接受移动请求，请检查其状态和设置");
+                _destination = destination;
                 _movingTo = mob;
-                _startedMovement = false;
+                Interrupted = false;
                 _lastStatusCheck = 0;
                 LastMessage = $"正在寻路：{mob.Name}（{mob.WorldName}）";
                 return true;
             }
             catch (Exception ex)
             {
-                cancellation?.Cancel();
-                cancellation?.Dispose();
                 LastMessage = $"无法移动：{ex.Message}";
                 PluginLog.Warning(ex, "Could not request vnavmesh pathfinding");
                 return false;
@@ -196,11 +184,16 @@ public sealed class NavigationManager : IDisposable
             var origin = NavigationRules.FromHuntMapCoordinates(coordinates, map.Value.SizeFactor);
             var point = _pointOnFloor.InvokeFunc(origin, false, 10f);
             if (point is not { } resolved || !NavigationRules.IsFinite(resolved))
-                throw new InvalidOperationException("内置二维点无法确定高度，请录制该地图的三维路线");
+                throw new InvalidOperationException("预设点无法确定高度，请等待网格加载或更新 vnavmesh 后重试");
             destination = resolved;
             return true;
         }
         catch (Exception ex) { error = ex.Message; return false; }
+    }
+
+    public void NotifyStopCommand()
+    {
+        lock (_requestLock) { if (_movingTo == null) return; Interrupted = true; StopCurrentRequest(); }
     }
 
     public void Stop()
@@ -210,19 +203,15 @@ public sealed class NavigationManager : IDisposable
 
     private void StopCurrentRequest()
     {
-        if (_movingTo == null && _pendingPath == null) return;
-        var wasMoving = _startedMovement;
-        // Invalidate ownership before cancelling or invoking IPC. A late path result
-        // is only a discarded task; it can never enter the movement executor.
-        ClearCurrentRequest(true);
+        if (_movingTo == null) return;
+        var cancelPending = _pendingStop;
+        ClearCurrentRequest();
         try
         {
-            if (wasMoving)
-            {
-                if (!_stop.HasAction) throw new InvalidOperationException("vnavmesh 停止接口不可用");
-                _stop.InvokeAction();
-            }
-            LastMessage = wasMoving ? "已停止本插件发起的移动" : "已取消本插件发起的寻路";
+            cancelPending?.Invoke();
+            if (!_stop.HasAction) throw new InvalidOperationException("vnavmesh 停止接口不可用");
+            _stop.InvokeAction(); // Also stop the executor; older CN builds only do this part.
+            LastMessage = "已停止本插件发起的寻路和移动";
         }
         catch (Exception ex)
         {
@@ -231,18 +220,10 @@ public sealed class NavigationManager : IDisposable
         }
     }
 
-    private void ClearCurrentRequest(bool cancel)
+    private void ClearCurrentRequest()
     {
-        _pendingPath = null;
         _movingTo = null;
-        _startedMovement = false;
-        var cancellation = _pathCancellation;
-        _pathCancellation = null;
-        if (cancellation != null)
-        {
-            if (cancel) cancellation.Cancel();
-            cancellation.Dispose();
-        }
+        _pendingStop = null;
         _lastStatusCheck = 0;
     }
 
@@ -253,74 +234,25 @@ public sealed class NavigationManager : IDisposable
             if (_disposed || _movingTo == null) return;
             if (GetContextReason(_movingTo).Length != 0)
             {
+                Interrupted = true;
                 StopCurrentRequest();
                 return;
             }
-
-            if (_pendingPath is { } pending)
-            {
-                if (!pending.IsCompleted) return;
-                try
-                {
-                    var path = pending.GetAwaiter().GetResult();
-                    if (path.Count == 0 && !_requestFly && _pathRetries == 0 && _nearestReachable.HasFunction)
-                    {
-                        _pathRetries++;
-                        var from = _nearestReachable.InvokeFunc(_objectTable.LocalPlayer!.Position, 10f, 30f);
-                        var to = _nearestReachable.InvokeFunc(_destination, 10f, 30f);
-                        if (from is { } start && to is { } end && NavigationRules.IsFinite(start) && NavigationRules.IsFinite(end))
-                        {
-                            _pendingPath = _findPath.InvokeFunc(start, end, false, _pathCancellation!.Token);
-                            _ = _pendingPath.ContinueWith(static t => { _ = t.Exception; }, CancellationToken.None,
-                                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-                            LastMessage = "正在使用国服 vnavmesh 的可达网格点重新寻路";
-                            return;
-                        }
-                    }
-                    if (path.Count == 0 || path.Any(p => !NavigationRules.IsFinite(p)))
-                        throw new InvalidOperationException(_requestFly ? "国服 vnavmesh 未找到飞行路线，请检查该地图飞行网格" : "国服 vnavmesh 未找到连通的地面路线；若需飞行，请先骑乘并起飞后点击移动");
-                    var reason = GetContextReason(_movingTo);
-                    if (reason.Length != 0) throw new InvalidOperationException(reason);
-                    if (!_ready.HasFunction || !_ready.InvokeFunc() || !_move.HasAction || !_stop.HasAction)
-                        throw new InvalidOperationException("vnavmesh 地图网格或移动接口已失效");
-                    if (!_running.HasFunction || !_pathfinding.HasFunction || _running.InvokeFunc() || _pathfinding.InvokeFunc())
-                        throw new InvalidOperationException("vnavmesh 已开始其他路线，本次寻路已取消");
-                    if (_movementAllowed.HasFunction && !_movementAllowed.InvokeFunc())
-                        throw new InvalidOperationException("vnavmesh 移动已暂停");
-
-                    // This is the sole movement entry point. It runs on Framework,
-                    // under the same lock as Stop/Dispose, after checking ownership.
-                    _startedMovement = true;
-                    _move.InvokeAction(path, _requestFly);
-                    _pendingPath = null;
-                    _pathCancellation?.Dispose();
-                    _pathCancellation = null;
-                    LastMessage = $"已开始移动：{_movingTo.Name}（{_movingTo.WorldName}）";
-                }
-                catch (OperationCanceledException)
-                {
-                    ClearCurrentRequest(false);
-                    LastMessage = "寻路已取消";
-                }
-                catch (Exception ex)
-                {
-                    if (_startedMovement) StopCurrentRequest();
-                    else ClearCurrentRequest(false);
-                    LastMessage = $"无法移动：{ex.Message}";
-                    PluginLog.Warning(ex, "Could not start vnavmesh movement");
-                }
-                return;
-            }
-
             try
             {
-                if (!_running.InvokeFunc())
-                {
-                    ClearCurrentRequest(false);
-                    LastMessage = "本次移动已结束";
-                }
+                if (_pathfinding.InvokeFunc() || _running.InvokeFunc()) return;
+                var delta = _objectTable.LocalPlayer!.Position - _destination;
+                if (!_requestFly) delta.Y = 0;
+                // Completion reporting only; never override native movement preferences.
+                Interrupted = delta.LengthSquared() > 25;
+                ClearCurrentRequest();
+                LastMessage = Interrupted ? "vnavmesh 已停止或取消移动；本插件不会自动重启路线" : "已到达目标点位";
             }
-            catch (Exception) { StopCurrentRequest(); }
+            catch (Exception)
+            {
+                Interrupted = true;
+                StopCurrentRequest();
+            }
         }
     }
 

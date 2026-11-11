@@ -53,6 +53,8 @@ internal static unsafe class Program
             RosterPresentationChecks.Run();
             SnapshotPopupChecks.Run();
             RowDragChecks.Run();
+            PointMacroUiChecks.Run();
+            if (args.Contains("--render-point-macros")) PointMacroUiChecks.RenderPreview();
             WorldPickerChecks.Run();
             if (args.Contains("--render-world-picker")) WorldPickerPreview.Render();
             if (args.Contains("--render-roster")) RosterPreviewRenderer.Render(args.Contains("--show-missing"));

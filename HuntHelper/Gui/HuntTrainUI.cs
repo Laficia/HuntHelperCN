@@ -25,6 +25,8 @@ public class HuntTrainUI : IDisposable
     private readonly bool _isS;
     private readonly Func<string>? _relayStatus;
     private readonly Action? _openOther;
+    private readonly HuntPointMacroManager? _macros;
+    private readonly Action? _openMacros;
     private readonly NavigationManager _navigation;
     private readonly Action _openFinder;
     private readonly Func<bool> _patrolActive;
@@ -93,11 +95,11 @@ public class HuntTrainUI : IDisposable
     public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
         Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion,
         IReadOnlyList<HuntRosterEntry> roster, Func<(uint World, uint Territory, uint Instance, bool Ready)> location,
-        string rankLabel = "A", Func<string>? relayStatus = null, Action? openOther = null)
+        string rankLabel = "A", Func<string>? relayStatus = null, Action? openOther = null, HuntPointMacroManager? macros = null, Action? openMacros = null)
     {
         _isS = rankLabel == "S"; _rankLabel = rankLabel;
         _settings = _isS ? (config.SRankTrain ??= new()) : config;
-        _relayStatus = relayStatus; _openOther = openOther;
+        _relayStatus = relayStatus; _openOther = openOther; _macros = macros; _openMacros = openMacros;
         _trainManager = trainManager;
         _trainManager.RecordInserted += OnRecordInserted;
         _navigation = navigation;
@@ -208,6 +210,7 @@ public class HuntTrainUI : IDisposable
                 if (!_isS) ImGui.SameLine();
                 if (ImGui.Button(_isS ? "A怪狩猎车 /hht" : "S怪记录 /hhs")) _openOther();
             }
+            if (_openMacros != null) { ImGui.SameLine(); if (ImGui.Button("预设宏")) _openMacros(); }
             DrawWorldTabs();
             DrawVersionTabs();
             DrawTrainRows();
@@ -226,6 +229,12 @@ public class HuntTrainUI : IDisposable
                     _config.Save();
                 }
                 ImGuiUtil.ImGui_HoveredToolTip("默认关闭，只显示已记录的怪物，并隐藏无记录的版本标签。开启后按当前服务器各地图的分线补齐完整名单；设置自动保存。");
+                if (!_isS)
+                {
+                    var syncKills = _config.SonarSyncAKills;
+                    if (ImGui.Checkbox("同步 Sonar A怪击杀标记", ref syncKills)) { _config.SonarSyncAKills = syncKills; _config.Save(); }
+                    ImGuiUtil.ImGui_HoveredToolTip("默认开启；只标记明确匹配的已有 A 怪，不要求开启录制。缺少区服或分线时跳过。");
+                }
                 var sonar = _settings.HuntTrainCaptureSonar;
                 if (ImGui.Checkbox($"录制 Sonar 聊天中的 {_rankLabel} 怪", ref sonar))
                 { _settings.HuntTrainCaptureSonar = sonar; _config.Save(); }
@@ -571,12 +580,12 @@ public class HuntTrainUI : IDisposable
         _rowDrag.Begin($"{_trainManager.SelectedWorldId}/{VersionLabel}", visibleMobs);
         if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH |
             ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX, new Vector2(0, tableHeight),
-            Math.Max(ImGui.GetContentRegionAvail().X, 440 * ImGuiHelpers.GlobalScale))) return;
+            Math.Max(ImGui.GetContentRegionAvail().X, 485 * ImGuiHelpers.GlobalScale))) return;
         ImGui.TableSetupScrollFreeze(0, 1);
         ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
         ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 70 * ImGuiHelpers.GlobalScale);
         if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 106 * ImGuiHelpers.GlobalScale);
+        ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 154 * ImGuiHelpers.GlobalScale);
         if (_showLastSeen) ImGui.TableSetupColumn("信息", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
         ImGui.TableSetupColumn("死亡", ImGuiTableColumnFlags.WidthFixed, 36 * ImGuiHelpers.GlobalScale);
         ImGui.TableHeadersRow();
@@ -630,6 +639,12 @@ public class HuntTrainUI : IDisposable
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
                 ImGui.SetTooltip(reason.Length != 0 ? reason : "调用国服 vnavmesh 前往该怪物点位；起飞后使用飞行路线，仅限同区服、同地图、同分线");
+            if (_macros != null)
+            {
+                ImGui.SameLine();
+                if (ImGui.Button("坐标")) _macros.Send(mob, _rankLabel);
+                ImGuiUtil.ImGui_HoveredToolTip($"发送已保存的 {_rankLabel} 预设宏；使用该记录的服务器和点位");
+            }
             if (_showLastSeen)
             {
                 ImGui.TableNextColumn();
@@ -671,6 +686,7 @@ public class HuntTrainUI : IDisposable
         if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
         if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
         if (_relayStatus?.Invoke() is { Length: > 0 } relayMessage) ImGui.TextWrapped(relayMessage);
+        if (_macros?.Status is { Length: > 0 } macroStatus) ImGui.TextWrapped(macroStatus);
         if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
         if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
     }

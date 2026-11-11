@@ -44,15 +44,22 @@ public sealed class SonarChatRecorder : IDisposable
             var index = links.Count == 0 ? payloads.Count : payloads.IndexOf(links[0]);
             var before = string.Concat(payloads.Take(index).OfType<TextPayload>().Select(p => p.Text));
             var after = string.Concat(payloads.Skip(index + 1).OfType<TextPayload>().Select(p => p.Text));
-            var tagged = payloads.OfType<DalamudLinkPayload>().Any(p => p.Plugin.Contains("Sonar", StringComparison.OrdinalIgnoreCase)) ||
+            var nativeSonar = string.Equals(message.Sender.TextValue.Trim(), "Sonar", StringComparison.OrdinalIgnoreCase);
+            var tagged = nativeSonar || payloads.OfType<DalamudLinkPayload>().Any(p => p.Plugin.Contains("Sonar", StringComparison.OrdinalIgnoreCase)) ||
                 before.Contains("[Sonar", StringComparison.OrdinalIgnoreCase);
+            var killed = SonarKillMessage.TryStrip(after, out var livingLocation);
+            if (killed) after = livingLocation;
             rank = HuntRelayParser.RankHint(before);
             if (rank is not ("A" or "S" or "SS") && (!tagged || rank != null)) return;
             if (rank == null && !_hunts.RelaySpecies.Any(s =>
                 !string.IsNullOrWhiteSpace(s.Name) && before.Contains(s.Name, StringComparison.OrdinalIgnoreCase) ||
                 !string.IsNullOrWhiteSpace(s.Alias) && before.Contains(s.Alias, StringComparison.OrdinalIgnoreCase))) return;
             if (rank == "SS") { Report("S", "未录入：目前仅支持 S 怪，不含 SS 及随从"); return; }
-            if (rank is "A" or "S")
+            if (killed)
+            {
+                if (!_config.SonarSyncAKills || !tagged || rank != "A") return;
+            }
+            else if (rank is "A" or "S")
             {
                 var target = rank == "A" ? _a : _s;
                 var enabled = rank == "A" ? _config.HuntTrainCaptureSonar : _config.SRankTrain.HuntTrainCaptureSonar;
@@ -72,6 +79,16 @@ public sealed class SonarChatRecorder : IDisposable
                 DateTime.UtcNow, out var relay, out var failure, tagged) || relay == null)
             { Report(rank, "未录入：" + failure); return; }
             rank = relay.Rank;
+            if (killed)
+            {
+                var counts = _config.HuntTrainMapInstanceCounts;
+                if (relay.Mob.Instance == 0 && counts.TryGetValue(relay.Mob.WorldID, out var maps) &&
+                    maps.TryGetValue(relay.Mob.TerritoryID, out var count) && count > 1)
+                { Report("A", "未标记死亡：击杀播报未指定分线"); return; }
+                var marked = _a.MarkSonarKilled(relay.Mob, DateTime.UtcNow, out var reason);
+                Report("A", marked ? $"已标记死亡 {relay.Mob.Name}（{relay.Mob.WorldName}，{relay.Mob.Instance}线）" : "未标记死亡：" + reason);
+                return;
+            }
             var manager = rank == "A" ? _a : _s;
             var capture = rank == "A" ? _config.HuntTrainCaptureSonar : _config.SRankTrain.HuntTrainCaptureSonar;
             if (!manager.RecordTrain || !capture) { Report(rank, "未录入：请开启本模块录制及 Sonar 聊天录制设置"); return; }

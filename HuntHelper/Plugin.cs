@@ -47,6 +47,8 @@ namespace HuntHelper
         private HuntTrainUI HuntTrainUI { get; init; }
         private HuntTrainUI SRankUI { get; init; }
         private TrainManager SRankManager { get; init; }
+        private HuntPointMacroManager PointMacros { get; init; }
+        private HuntPointMacroUI PointMacroUI { get; init; }
         private SonarChatRecorder SonarRecorder { get; init; }
         private HuntAutomationManager Automation { get; init; }
         private HuntFinderUI HuntFinderUI { get; init; }
@@ -58,6 +60,7 @@ namespace HuntHelper
         private TrainManager TrainManager { get; init; }
         private MapDataManager MapDataManager { get; init; }
         private IpcSystem IpcSystem { get; init; }
+        private NavigationStopCommandObserver StopCommandObserver { get; init; }
         private NavigationManager NavigationManager { get; init; }
 
         public static ICallGateSubscriber<uint, byte, bool> TeleportIpc { get; private set; }
@@ -81,7 +84,8 @@ namespace HuntHelper
             IGameGui gameGui,
             IFateTable fateTable,
             IPluginLog pluginLog,
-            IAetheryteList aeth)
+            IAetheryteList aeth,
+            IGameInteropProvider gameInterop)
         {
             this.CommandManager = commandManager;
             PluginInterface = pluginInterface;
@@ -118,24 +122,40 @@ namespace HuntHelper
             MapDataManager = new MapDataManager(Path.Combine(pluginInterface.AssemblyLocation.Directory?.FullName!, @"Data\SpawnPointData.json"));
             HuntManager = new HuntManager(pluginInterface, TrainManager, chatGui, flyTextGui, Configuration.TTSVolume,
                 MapHelpers.GetHuntTerritories(MapDataManager.SpawnPointsList.Select(m => (uint)m.MapID)));
+            TrainManager.ImportOrderEligible = mob => HuntManager.GetARankVersion(mob.MobID).HasValue;
+            TrainManager.ImportEntryPoints = mob =>
+            {
+                if (clientState.IsLoggedIn && playerState.IsLoaded && objectTable.LocalPlayer is { } player &&
+                    playerState.CurrentWorld.RowId == mob.WorldID && clientState.TerritoryType == mob.TerritoryID &&
+                    clientState.MapId == mob.MapID && MapHelpers.CurrentInstance == mob.Instance)
+                    return new[] { MapHelpers.ConvertToMapCoordinate(player.Position, HuntManager.GetMapZoneScale(mob.TerritoryID)) };
+                var unlocked = aeth.Select(a => a.AetheryteId).ToHashSet();
+                return TeleportManager.GetPatrolCrystals(mob.TerritoryID)
+                    .Where(a => unlocked.Contains(a.AetheryteID)).Select(a => a.Position).ToArray();
+            };
             SRankManager = new TrainManager(chatGui, gameGui, Path.Combine(pluginInterface.ConfigDirectory.FullName,"SRankTrain.json"),
                 playerState, mob => HuntManager.GetSRankVersion(mob.MobID).HasValue);
             SonarRecorder = new SonarChatRecorder(chatGui,clientState,dataManager,HuntManager,TrainManager,SRankManager,Configuration);
 
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
+            var stopCompatibility = new VnavmeshStopCompatibility(commandManager);
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
-                () => condition[ConditionFlag.InFlight]);
+                () => condition[ConditionFlag.InFlight], stopCompatibility.Resolve);
+            StopCommandObserver = new NavigationStopCommandObserver(gameInterop, NavigationManager);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
+            Configuration.PointMacros ??= new();
+            PointMacros = new HuntPointMacroManager(Configuration, playerState, clientState, framework);
+            PointMacroUI = new HuntPointMacroUI(Configuration.PointMacros, Configuration.Save, () => PointMacros.Busy, () => PointMacros.Status, PointMacros.Cancel);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
                 () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,
                 () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); },
-                relayStatus:()=>SonarRecorder.AStatus,openOther:()=>{if(SRankUI is { } ui) ui.HuntTrainWindowVisible=true;});
+                relayStatus:()=>SonarRecorder.AStatus,openOther:()=>{if(SRankUI is { } ui) ui.HuntTrainWindowVisible=true;}, macros: PointMacros, openMacros: () => PointMacroUI.Open("A"));
             SRankUI = new HuntTrainUI(SRankManager,Configuration,NavigationManager,()=>{},()=>Automation.Session.Active,
                 ()=>Automation.Session.Stop(),mob=>HuntManager.GetSRankVersion(mob.MobID),HuntManager.SRankRoster,
                 ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
-                ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true);
+                ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true, PointMacros, () => PointMacroUI.Open("S"));
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
@@ -182,7 +202,9 @@ namespace HuntHelper
 
             IpcSystem.Dispose();
             SonarRecorder.Dispose();
+            PointMacros.Dispose();
             Automation.Dispose();
+            StopCommandObserver.Dispose();
             NavigationManager.Dispose();
             HuntTrainUI.Dispose();
             SRankUI.Dispose();
@@ -279,6 +301,7 @@ namespace HuntHelper
                 HuntTrainUI.Draw();
                 SRankUI.Draw();
                 HuntFinderUI.Draw();
+                PointMacroUI.Draw();
                 CounterUI.Draw();
                 SpawnPointFinderUI.Draw();
                 PointerUI.Draw();

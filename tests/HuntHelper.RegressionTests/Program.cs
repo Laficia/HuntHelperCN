@@ -20,6 +20,8 @@ internal static class Program
     {
         (string Name, Func<Task> Run)[] tests =
         [
+            .. SonarEventChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. PointAndImportChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. WorldCatalogChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MultiWorldPatrolChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. SmartPatrolChecks.Tests.Select(t => (t.Name, Sync(t.Run))),

@@ -150,6 +150,7 @@ public sealed class PatrolSession
                 Message = $"{route.Name}：前往扫描点 {PointIndex + 1}，已处理 {_visited.Count}/{route.Points.Count}";
                 break;
             case PatrolState.Moving:
+                if (_host.NavigationInterrupted) { Stop("vnavmesh 已中止移动，找怪已停止"); return; }
                 if (PointConfirmed(_target) || Vector3.Distance(c.Position, _target) <= ApproachRadius)
                     BeginScan(route, c, now);
                 else if (!_host.Navigating) Stop($"未到达扫描点：{_host.NavigationMessage}");

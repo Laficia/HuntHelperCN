@@ -43,6 +43,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     public PatrolSession Session { get; }
     public List<PatrolRoute> Maps { get; } = new();
     public bool Navigating => _navigation.OwnsMovement;
+    public bool NavigationInterrupted => _navigation.Interrupted;
     public string NavigationMessage => _navigation.LastMessage;
     public PatrolContext Context => new(_player.CurrentWorld.RowId, _client.TerritoryType, _client.MapId,
         MapHelpers.CurrentInstance, _objects.LocalPlayer?.Position ?? Vector3.Zero,

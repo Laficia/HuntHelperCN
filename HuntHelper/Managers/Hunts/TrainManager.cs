@@ -95,6 +95,8 @@ public class TrainManager : IDisposable
 
     public TrainList<HuntTrainMob> HuntTrain => GetOrCreateTrain(SelectedWorldId);
     public readonly List<HuntTrainMob> ImportedTrain = new();
+    public Func<HuntTrainMob, bool>? ImportOrderEligible { get; set; }
+    public Func<HuntTrainMob, IReadOnlyList<System.Numerics.Vector2>>? ImportEntryPoints { get; set; }
     public bool RecordTrain = false;
     public bool ImportFromIPC = false;
     public string? PersistenceError { get; private set; }
@@ -276,6 +278,27 @@ public class TrainManager : IDisposable
         return RelayRecordResult.Updated;
     }
 
+    public bool MarkSonarKilled(HuntTrainMob relay, DateTime receivedUtc, out string failure)
+    {
+        failure = "";
+        if (relay.WorldID == 0 || relay.TerritoryID == 0 || relay.MapID == 0 || !_acceptRecord(relay))
+        { failure = "击杀信息的服务器或目标无效"; return false; }
+        var candidates = GetTrainRecords(relay.WorldID).Where(m => m.MobID == relay.MobID &&
+            m.TerritoryID == relay.TerritoryID && m.MapID == relay.MapID).ToList();
+        if (relay.Instance == 0 && candidates.Any(m => m.Instance != 0))
+        { failure = "击杀播报未明确分线，已保留各线记录"; return false; }
+        var matches = candidates.Where(m => m.Instance == relay.Instance).ToList();
+        if (matches.Count != 1) { failure = matches.Count == 0 ? "没有对应服务器／地图／分线的已录入记录" : "存在重复记录，无法唯一匹配"; return false; }
+        var record = matches[0];
+        if (record.LastObservedUtc > receivedUtc || record.SonarKilledUtc >= receivedUtc)
+        { failure = "击杀信息早于已有确认时间"; return false; }
+        record.Dead = true;
+        record.SonarKilledUtc = receivedUtc;
+        // Preserve location, source and observed time. This is not a new encounter.
+        SaveHuntTrainRecord();
+        return true;
+    }
+
     private void InsertRecordedMob(TrainList<HuntTrainMob> train, HuntTrainMob mob)
     {
         var previousCount = train.Count;
@@ -387,7 +410,7 @@ public class TrainManager : IDisposable
         return Change("覆盖导入", ImportedTrain.Select(m => m.WorldID), () =>
         {
             foreach (var group in ImportedTrain.GroupBy(m => m.WorldID))
-                GetOrCreateTrain(group.Key).ReplaceWith(group.Select(m => ImportCopy(m, WorldWithCount(group.Key))));
+                GetOrCreateTrain(group.Key).ReplaceWith(OrderedImport(group.Select(m => ImportCopy(m, WorldWithCount(group.Key))).ToList()));
         });
     }
 
@@ -412,8 +435,19 @@ public class TrainManager : IDisposable
                     existing.SonarReceivedUtc = mob.SonarReceivedUtc;
                 }
             }
+            var affected = ImportedTrain.Select(m => (m.WorldID, m.TerritoryID, m.MapID, m.Instance)).ToHashSet();
+            foreach (var world in ImportedTrain.Select(m => m.WorldID).Distinct())
+            {
+                var train = GetOrCreateTrain(world);
+                train.ReplaceWith(OrderedImport(train, affected));
+            }
         });
     }
+
+    private IReadOnlyList<HuntTrainMob> OrderedImport(IReadOnlyList<HuntTrainMob> records,
+        ISet<(uint World, uint Territory, uint Map, uint Instance)>? affected = null) =>
+        ImportOrderEligible == null ? records : HuntImportOrder.Optimize(records, ImportOrderEligible,
+            ImportEntryPoints ?? (_ => Array.Empty<System.Numerics.Vector2>()), affected);
 
     public void TrainRemoveDead() => RemoveRecords(HuntTrain.Where(m => m.Dead));
 

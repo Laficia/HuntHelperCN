@@ -54,6 +54,7 @@ public interface IPatrolHost
     void AbortWorldTravel() { }
     PatrolContext Context { get; }
     bool Navigating { get; }
+    bool NavigationInterrupted => false;
     string NavigationMessage { get; }
     bool Teleport(PatrolRoute route, out string error);
     bool Teleport(PatrolRoute route, PatrolTeleport? plan, out string error) => Teleport(route, out error);

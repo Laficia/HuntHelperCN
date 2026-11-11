@@ -6,6 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Managers\SonarChatRecorder.cs" Link="Production\SonarChatRecorder.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\HuntPointMacroSettings.cs" Link="Production\HuntPointMacroSettings.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\SonarKillMessage.cs" Link="Production\SonarKillMessage.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\HuntImportOrder.cs" Link="Production\HuntImportOrder.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\HuntPointMacro.cs" Link="Production\HuntPointMacro.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntWorldCatalog.cs" Link="Production\HuntWorldCatalog.cs" />
     <None Include="..\Fixtures\CnWorldCatalog.json" Link="CnWorldCatalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolTravelPlanner.cs" Link="Production\PatrolTravelPlanner.cs" />
