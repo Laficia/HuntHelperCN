@@ -64,19 +64,30 @@ public class MapHelpers
         return DataManager.GetExcelSheet<TerritoryType>().GetRowOrDefault(territoryID)?.Map.RowId ?? 0;
     }
 
+    public static string WorldCatalogError { get; private set; } = string.Empty;
     public static IReadOnlyList<HuntTrainWorld> GetImportableWorlds(uint currentWorldId)
     {
-        if (DataManager == null) return Array.Empty<HuntTrainWorld>();
-        var sheet = DataManager.GetExcelSheet<World>();
-        var region = sheet.GetRowOrDefault(currentWorldId)?.DataCenter.ValueNullable?.Region.RowId;
-        var worlds = new List<HuntTrainWorld>();
-        foreach (var world in sheet)
+        WorldCatalogError = string.Empty;
+        if (DataManager == null) { WorldCatalogError = "游戏服务器数据尚未就绪，请稍后刷新"; return Array.Empty<HuntTrainWorld>(); }
+        try
         {
-            var dc = world.DataCenter.ValueNullable;
-            if (!world.IsPublic || dc == null || (region.HasValue && dc.Value.Region.RowId != region.Value)) continue;
-            worlds.Add(new HuntTrainWorld(world.RowId, world.Name.ToString(), dc.Value.Name.ToString(), 0));
+            var rows = new List<HuntWorldCatalogEntry>();
+            foreach (var world in DataManager.GetExcelSheet<World>())
+            {
+                var dc = world.DataCenter.ValueNullable;
+                rows.Add(new(world.RowId, world.Name.ToString(), world.DataCenter.RowId,
+                    dc?.Name.ToString() ?? string.Empty, dc?.Region.RowId ?? 0, world.IsPublic));
+            }
+            var worlds = HuntWorldCatalog.Select(rows, currentWorldId, _clientState?.ClientLanguage == (ClientLanguage)4);
+            if (worlds.Count == 0) WorldCatalogError = "暂未读取到可选服务器，请等待角色加载完成后刷新";
+            return worlds;
         }
-        return worlds;
+        catch (Exception ex)
+        {
+            WorldCatalogError = "读取服务器名单失败，请点击刷新重试";
+            PluginLog.Warning(ex, "Unable to load the hunt world catalog");
+            return Array.Empty<HuntTrainWorld>();
+        }
     }
 
     //convert map scale (100/95) to map size (41/43.1)

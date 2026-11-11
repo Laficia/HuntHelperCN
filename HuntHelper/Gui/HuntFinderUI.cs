@@ -21,7 +21,8 @@ public sealed class HuntFinderUI
     private string _feedback = string.Empty;
     private IReadOnlyList<HuntTrainWorld> _worldCatalog = Array.Empty<HuntTrainWorld>();
     private uint _catalogWorld;
-    private string? _dataCenter;
+    private readonly HuntWorldPicker _worldPicker = new();
+    private long _nextCatalogRefresh;
 
     public HuntFinderUI(HuntAutomationManager automation, Configuration config)
     {
@@ -158,29 +159,15 @@ public sealed class HuntFinderUI
             System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/NightmareXIV/Lifestream") { UseShellExecute = true });
         if (_automation.WorldTravelError.Length != 0) ImGui.TextWrapped(_automation.WorldTravelError);
         var current = _automation.Context.World;
-        if (current != 0 && (_catalogWorld != current || _worldCatalog.Count == 0))
-        { _worldCatalog = MapHelpers.GetImportableWorlds(current); _catalogWorld = current; }
-        _dataCenter ??= _worldCatalog.FirstOrDefault(w => w.WorldID == current)?.DataCenterName;
-        if (ImGui.BeginCombo("服务器分组", _dataCenter ?? "全部"))
+        var now = Environment.TickCount64;
+        if (current != 0 && (_catalogWorld != current || _worldCatalog.Count == 0) && now >= _nextCatalogRefresh)
         {
-            if (ImGui.Selectable("全部", _dataCenter == "")) _dataCenter = "";
-            foreach (var dc in _worldCatalog.Select(w => w.DataCenterName).Distinct().Order())
-                if (ImGui.Selectable(dc, dc == _dataCenter)) _dataCenter = dc;
-            ImGui.EndCombo();
+            _worldCatalog = MapHelpers.GetImportableWorlds(current); _catalogWorld = current;
+            _nextCatalogRefresh = now + 3000;
         }
+        if (ImGui.SmallButton("刷新服务器列表")) { _catalogWorld = 0; _nextCatalogRefresh = 0; }
+        if (MapHelpers.WorldCatalogError.Length != 0) ImGui.TextWrapped(MapHelpers.WorldCatalogError);
         var order = _config.HuntFinderWorlds ??= new();
-        if (ImGui.BeginChild("FinderWorlds", new Vector2(0,100 * ImGuiHelpers.GlobalScale),true))
-        {
-            foreach (var world in _worldCatalog.Where(w => string.IsNullOrEmpty(_dataCenter) || w.DataCenterName == _dataCenter))
-            {
-                var index = order.IndexOf(world.WorldID); var chosen = index >= 0;
-                if (ImGui.Checkbox($"{(chosen ? (index + 1) + ". " : "")}{world.WorldName}###FinderWorld{world.WorldID}",ref chosen))
-                { if (chosen) order.Add(world.WorldID); else order.Remove(world.WorldID); _config.Save(); }
-            }
-        }
-        ImGui.EndChild();
-        var names = order.Select(id => _worldCatalog.FirstOrDefault(w => w.WorldID == id)?.WorldName ?? $"区服{id}");
-        ImGui.TextWrapped(order.Count == 0 ? "请按执行先后顺序勾选服务器" : "执行顺序：" + string.Join(" → ",names));
-        if (ImGui.SmallButton("清空服务器选择")) { order.Clear(); _config.Save(); }
+        if (_worldPicker.Draw(_worldCatalog,current,order,ImGuiHelpers.GlobalScale)) _config.Save();
     }
 }

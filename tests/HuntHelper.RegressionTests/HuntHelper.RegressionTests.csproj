@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Utilities\HuntWorldCatalog.cs" Link="Production\HuntWorldCatalog.cs" />
+    <None Include="..\Fixtures\CnWorldCatalog.json" Link="CnWorldCatalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolTravelPlanner.cs" Link="Production\PatrolTravelPlanner.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\ARankMapOrder.cs" Link="Production\ARankMapOrder.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRecordInfo.cs" Link="Production\HuntRecordInfo.cs" />

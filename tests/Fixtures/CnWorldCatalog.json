@@ -1,0 +1,282 @@
+[
+  {
+    "WorldId": 1042,
+    "Name": "拉诺西亚",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1043,
+    "Name": "紫水栈桥",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1044,
+    "Name": "幻影群岛",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1045,
+    "Name": "摩杜纳",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1060,
+    "Name": "萌芽池",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1076,
+    "Name": "白金幻象",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1081,
+    "Name": "神意之地",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1106,
+    "Name": "静语庄园",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1113,
+    "Name": "旅人栈桥",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1121,
+    "Name": "拂晓之间",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1166,
+    "Name": "龙巢神殿",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1167,
+    "Name": "红玉海",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1169,
+    "Name": "延夏",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1170,
+    "Name": "潮风亭",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1171,
+    "Name": "神拳痕",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1172,
+    "Name": "白银乡",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1173,
+    "Name": "宇宙和音",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1174,
+    "Name": "沃仙曦染",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1175,
+    "Name": "晨曦王座",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1176,
+    "Name": "梦羽宝境",
+    "DataCenterId": 102,
+    "DataCenterName": "莫古力",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1177,
+    "Name": "海猫茶屋",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1178,
+    "Name": "柔风海湾",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1179,
+    "Name": "琥珀原",
+    "DataCenterId": 103,
+    "DataCenterName": "猫小胖",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1180,
+    "Name": "太阳海岸",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1183,
+    "Name": "银泪湖",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1186,
+    "Name": "伊修加德",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1192,
+    "Name": "水晶塔",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1200,
+    "Name": "亚马乌罗提",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1201,
+    "Name": "红茶川",
+    "DataCenterId": 104,
+    "DataCenterName": "豆豆柴",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 0,
+    "Name": "Dev",
+    "DataCenterId": 0,
+    "DataCenterName": "Unknown",
+    "Region": 0,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 21,
+    "Name": "Ravana",
+    "DataCenterId": 9,
+    "DataCenterName": "Materia",
+    "Region": 4,
+    "IsPublic": true
+  },
+  {
+    "WorldId": 33,
+    "Name": "Twintania",
+    "DataCenterId": 6,
+    "DataCenterName": "Chaos",
+    "Region": 3,
+    "IsPublic": true
+  },
+  {
+    "WorldId": 161,
+    "Name": "陆行鸟",
+    "DataCenterId": 101,
+    "DataCenterName": "陆行鸟",
+    "Region": 5,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1050,
+    "Name": "银泪湖",
+    "DataCenterId": 0,
+    "DataCenterName": "Unknown",
+    "Region": 0,
+    "IsPublic": false
+  },
+  {
+    "WorldId": 1056,
+    "Name": "红茶川",
+    "DataCenterId": 0,
+    "DataCenterName": "Unknown",
+    "Region": 0,
+    "IsPublic": false
+  }
+]

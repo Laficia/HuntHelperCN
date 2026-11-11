@@ -10,10 +10,11 @@ using HuntHelper.Utilities;
 // Never loads the game, player data, or a graphics device.
 internal static unsafe class RosterPreviewRenderer
 {
-    private const int Width = 800, Height = 820;
+    private static int Width = 800, Height = 820;
 
     internal static void Render(bool showMissing)
     {
+        Width = 800; Height = 820;
         var io = ImGui.GetIO();
         io.DisplaySize = new(Width, Height);
         io.AddMousePosEvent(-100, -100);
@@ -23,6 +24,26 @@ internal static unsafe class RosterPreviewRenderer
             io.Fonts.GetGlyphRangesChineseFull());
         io.Fonts.Build();
         for (var frame = 0; frame < 2; frame++) Draw(showMissing);
+        var path = Path.GetFullPath($"obj/release-staging/v1.0.0.9/roster-preview-{(showMissing ? "enabled" : "default")}.png");
+        SaveDraw(path);
+    }
+
+    internal static void RenderWidget(string path, int width, int height, Action draw)
+    {
+        Width = width; Height = height;
+        var io = ImGui.GetIO(); io.DisplaySize = new(width,height);
+        io.AddMousePosEvent(-100,-100); io.AddMouseButtonEvent(0,false);
+        io.Fonts.Clear(); ImGui.GetStyle().AntiAliasedLinesUseTex = false;
+        ushort* ranges = stackalloc ushort[] { 0x0020,0x00ff,0x2000,0x206f,0x2190,0x21ff,0x3000,0x30ff,0x31f0,0x31ff,0x4e00,0x9fff,0xff00,0xffef,0 };
+        io.Fonts.AddFontFromFileTTF("C:/Windows/Fonts/msyh.ttc",18,default,ranges);
+        io.Fonts.Build();
+        for(var frame=0;frame<6;frame++)draw();
+        SaveDraw(Path.GetFullPath(path));
+    }
+
+    private static void SaveDraw(string path)
+    {
+        var io = ImGui.GetIO();
         byte* atlas;
         int tw, th;
         io.Fonts.GetTexDataAsRGBA32(0, &atlas, &tw, &th);
@@ -46,10 +67,9 @@ internal static unsafe class RosterPreviewRenderer
                 }
             }
         }
-        var path = Path.GetFullPath($"obj/release-staging/v1.0.0.9/roster-preview-{(showMissing ? "enabled" : "default")}.png");
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         SavePng(path, pixels);
-        Console.WriteLine($"PREVIEW (simulated records): {path}");
+        Console.WriteLine($"PREVIEW native UI: {path}");
     }
 
     private static void Draw(bool showMissing)

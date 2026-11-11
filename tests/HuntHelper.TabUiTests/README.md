@@ -13,3 +13,5 @@ Roster presentation checks exercise the production summary and status badges and
 Version and server bars share TabDragGesture. Checks drag versions both ways, reload the order, verify no native payload, click Start and Stop at the same position, and verify a scaled window can shrink below a host minimum of 420 pixels.
 
 Record-row checks link the production HuntRowDragGesture and inject real ImGui mouse/key events. They verify plain click selection, insertion both directions, no click activation while dragging, no-op/outside drops, Escape cancellation, cancellation after world/version/list changes, long-table edge scrolling, and absence of native yellow drag/drop payloads.
+
+WorldPickerChecks runs the production HuntWorldPicker with the CN catalog fixture and real native input: four DC dropdown entries plus All, current-DC server list, checkbox click order, and selection preservation across filters. Pass --render-world-picker for the reviewed native previews in obj/previews/server-picker; displayed checkmarks are demonstration data and never saved to player config.
