@@ -1,6 +1,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
+using Dalamud.Plugin;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
@@ -11,7 +12,6 @@ using HuntHelper.Utilities;
 using Lumina.Excel.Sheets;
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Numerics;
 
@@ -29,18 +29,19 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private readonly HuntManager _hunts;
     private readonly NavigationManager _navigation;
     private readonly Configuration _config;
+    private readonly LifestreamWorldTravel _worldTravel;
+    public string WorldTravelError => _worldTravel.Error;
+    public bool WorldTravelBusy => _worldTravel.Busy;
+    public string WorldVisitProblem(HuntTrainWorld world) => _worldTravel.VisitProblem(world);
+    public bool ChangeWorld(HuntTrainWorld world, out string error) => _worldTravel.Change(world, out error);
+    public void AbortWorldTravel() => _worldTravel.AbortOwnedRequest();
     private readonly HuntDeathMonitor _deaths = new();
     private readonly HuntDeathMonitor _sDeaths = new();
     private readonly TrainManager? _sTrains;
     private long _nextTick, _nextAction, _nextDeath, _takeoffUntil;
-    private uint _recordWorld, _recordTerritory;
     private bool _disposed;
     public PatrolSession Session { get; }
-    public PatrolRouteStore Store { get; }
     public List<PatrolRoute> Maps { get; } = new();
-    public bool Recording { get; private set; }
-    public string RecorderMessage { get; private set; } = "每张地图可录制一条三维路线";
-    public bool AutomaticRecording { get; set; }
     public bool Navigating => _navigation.OwnsMovement;
     public string NavigationMessage => _navigation.LastMessage;
     public PatrolContext Context => new(_player.CurrentWorld.RowId, _client.TerritoryType, _client.MapId,
@@ -52,13 +53,13 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     public HuntAutomationManager(IClientState client, IPlayerState player, IObjectTable objects, ICondition condition,
         IAetheryteList aetherytes, IDataManager data, TrainManager trains, HuntManager hunts, NavigationManager navigation,
-        MapDataManager maps, Configuration config, string folder, TrainManager? sTrains = null)
+        MapDataManager maps, Configuration config, IDalamudPluginInterface pluginInterface, TrainManager? sTrains = null)
     {
         _client = client; _player = player; _objects = objects; _condition = condition; _aetherytes = aetherytes;
         _data = data; _trains = trains; _hunts = hunts; _navigation = navigation; _config = config;
+        _worldTravel = new(pluginInterface);
         _sTrains = sTrains;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged += _sDeaths.ManualChange;
-        Store = new(Path.Combine(folder, "ScanRoutes.json"));
         Session = new(this);
         _trains.ManualDeadStateChanged += _deaths.ManualChange;
         _trains.WorldDeleted += OnWorldDeleted;
@@ -69,14 +70,10 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
             Maps.Add(new PatrolRoute { TerritoryId = map.MapID, MapId = zone.Value.Map.RowId,
                 Name = zone.Value.PlaceName.ValueNullable?.Name.ToString() ?? map.MapName,
                 Expansion = (int)zone.Value.ExVersion.RowId,
-                Points = map.Positions.Where(p => p.A || p.B).Select(p => new PatrolPoint { MapPosition = p.Position })
-                    .DistinctBy(p => p.MapPosition).ToList() });
+                Points = map.Positions.Where(p => p.A || p.B).GroupBy(p => p.Position)
+                    .Select(g => new PatrolPoint { MapPosition = g.Key, ForA = g.Any(p => p.A), ForB = g.Any(p => p.B) }).ToList() });
         }
     }
-
-    public PatrolRoute GetRoute(uint territory, bool custom) =>
-        (custom ? Store.Routes.FirstOrDefault(r => r.TerritoryId == territory && r.Points.Count > 0) : null)
-        ?? Maps.First(r => r.TerritoryId == territory);
 
     private void OnWorldDeleted(uint id) { if (id == Context.World && Session.Active) Session.Stop("已删除当前服记录，停止找怪"); }
 
@@ -86,13 +83,6 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         var now = Environment.TickCount64; _nextTick = now + 250;
         try
         {
-            if (Recording)
-            {
-                var c = Context;
-                if (!c.LoggedIn || c.World != _recordWorld || c.Territory != _recordTerritory)
-                { Recording = false; RecorderMessage = "区域或服务器改变，已停止录制"; }
-                else if (AutomaticRecording && c.Ready && !c.Dead) AddPoint(30);
-            }
             Session.Tick(now);
             if ((_config.HuntDeathMonitoring || _config.HuntSDeathMonitoring) && now >= _nextDeath)
             {
@@ -110,50 +100,53 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         catch (Exception ex)
         {
             Session.Stop($"找怪暂停：{ex.Message}");
-            Recording = false;
             PluginLog.Warning(ex, "Hunt automation stopped");
         }
     }
 
-    public void ToggleRecording()
+    private IReadOnlyList<PatrolCrystal> AvailableCrystals(uint territory)
     {
-        if (Recording) { Recording = false; RecorderMessage = "路线已保存"; return; }
-        var c = Context;
-        if (Session.Active || !c.Ready || !c.LoggedIn || c.World == 0 || !Maps.Any(m => m.TerritoryId == c.Territory))
-        { RecorderMessage = "请先停止找怪并进入可狩猎地图"; return; }
-        _recordWorld = c.World; _recordTerritory = c.Territory;
-        if (!Store.Routes.Any(r => r.TerritoryId == c.Territory))
-        {
-            var map = Maps.First(m => m.TerritoryId == c.Territory);
-            Store.Put(new PatrolRoute { TerritoryId = map.TerritoryId, MapId = map.MapId, Name = map.Name, Expansion = map.Expansion });
-        }
-        Recording = true; AddPoint(10);
+        var unlocked = _aetherytes.Select(a => a.AetheryteId).ToHashSet();
+        var positions = TeleportManager.GetPatrolCrystals(territory).ToDictionary(a => a.AetheryteID, a => a.Position);
+        return _data.GetExcelSheet<Aetheryte>().Where(a => a.Territory.RowId == territory && a.IsAetheryte && unlocked.Contains(a.RowId))
+            .Select(a => new PatrolCrystal(a.RowId, a.PlaceName.ValueNullable?.Name.ToString() ?? $"水晶 {a.RowId}",
+                positions.TryGetValue(a.RowId, out var position) && position.X > 1 && position.Y > 1 ? position : null)).ToList();
     }
 
-    public bool AddPoint(float minimumDistance = 10)
+    private float MapScale(PatrolRoute route) => _data.GetExcelSheet<Lumina.Excel.Sheets.Map>().GetRowOrDefault(route.MapId)?.SizeFactor ?? 0;
+    private float TravelSpeed(PatrolOptions options) => options.Mount || _condition[ConditionFlag.Mounted]
+        ? (options.Takeoff && Control.GetFlightAllowedStatus() == Control.FlightAllowedStatus.CanFly || _condition[ConditionFlag.InFlight] ? 20 : 9) : 6;
+
+    public PatrolTeleport? PlanTeleport(PatrolRoute route, PatrolPoint point, PatrolOptions options) =>
+        PatrolTravelPlanner.Select(Context, route, point, options, AvailableCrystals(route.TerritoryId), MapScale(route), TravelSpeed(options));
+
+    public bool ResolvePoint(PatrolRoute route, PatrolPoint point, out Vector3 destination)
     {
-        var c = Context;
-        if (!Recording || !c.LoggedIn || !c.Ready || c.World != _recordWorld || c.Territory != _recordTerritory) return false;
-        var route = Store.Routes.First(r => r.TerritoryId == c.Territory);
-        if (route.Points.Count >= 2000) { Recording = false; RecorderMessage = "点位达到上限 2000"; return false; }
-        if (route.Points.LastOrDefault()?.Position is { } last && Vector3.Distance(last, c.Position) < minimumDistance)
-        { if (minimumDistance < 30) RecorderMessage = "与上一点距离不足 10 米"; return false; }
-        route.Points.Add(new PatrolPoint { Position = c.Position,
-            MapPosition = MapHelpers.ConvertToMapCoordinate(c.Position, _hunts.GetMapZoneScale(c.Territory)) });
-        RecorderMessage = Store.Save() ? $"已保存 {route.Points.Count} 个三维点" : $"保存失败：{Store.Error}";
+        destination = point.Position ?? default;
+        if (!point.Position.HasValue && !_navigation.TryResolvePatrolPoint(route.MapId, point.MapPosition, out destination, out _)) return false;
+        destination = PatrolTravelPlanner.FlightTarget(route.TerritoryId, destination, _condition[ConditionFlag.InFlight]);
         return true;
     }
 
-    public unsafe bool Teleport(PatrolRoute route, out string error)
+    public IReadOnlyList<PatrolDetection> KnownDetections(bool rankA, bool rankB)
+    {
+        var c = Context; var now = DateTime.UtcNow;
+        return _trains.GetTrainRecords(c.World).Where(m => PatrolTravelPlanner.RecentLivingScan(m, c, now) && _hunts.IsHunt(m.MobID))
+            .Where(m => rankA && _hunts.GetHuntRank(m.MobID) == HuntRank.A || rankB && _hunts.GetHuntRank(m.MobID) == HuntRank.B)
+            .Select(m => new PatrolDetection(m.MobID, _hunts.GetHuntRank(m.MobID) == HuntRank.A, m.WorldPosition)).ToList();
+    }
+
+    public bool Teleport(PatrolRoute route, out string error) => Teleport(route,
+        PlanTeleport(route, route.Points[0], new PatrolOptions()), out error);
+
+    public unsafe bool Teleport(PatrolRoute route, PatrolTeleport? plan, out string error)
     {
         error = string.Empty;
         if (!Context.Ready || Context.InCombat || Context.Dead) { error = "角色暂时无法传送"; return false; }
-        var unlocked = _aetherytes.Select(a => a.AetheryteId).ToHashSet();
-        var crystal = _data.GetExcelSheet<Aetheryte>().FirstOrDefault(a => a.Territory.RowId == route.TerritoryId &&
-            a.IsAetheryte && unlocked.Contains(a.RowId));
-        if (crystal.RowId == 0) { error = $"{route.Name} 没有已解锁的可用水晶，请手动进入该地图后开始"; return false; }
+        if (plan == null || !AvailableCrystals(route.TerritoryId).Any(c => c.Id == plan.Crystal.Id))
+        { error = $"{route.Name} 没有已解锁的可用水晶，请手动进入该地图后开始"; return false; }
         // Standard game teleport to an unlocked crystal. No arbitrary-coordinate teleport exists here.
-        if (Telepo.Instance() == null || !Telepo.Instance()->Teleport(crystal.RowId, 0))
+        if (Telepo.Instance() == null || !Telepo.Instance()->Teleport(plan.Crystal.Id, 0))
         { error = "水晶传送未成功，可能正在移动或不可传送"; return false; }
         return true;
     }
@@ -191,6 +184,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         destination = point.Position ?? default; error = string.Empty;
         if (!point.Position.HasValue && !_navigation.TryResolvePatrolPoint(route.MapId, point.MapPosition, out destination, out error)) return false;
+        destination = PatrolTravelPlanner.FlightTarget(route.TerritoryId, destination, _condition[ConditionFlag.InFlight]);
         var world = _trains.GetCurrentWorld();
         var target = new HuntTrainMob("找怪扫描点", 0, route.TerritoryId, route.MapId, Context.Instance, route.Name,
             point.MapPosition, DateTime.UtcNow, false, world.WorldID, world.WorldName, world.DataCenterName, destination);
@@ -211,14 +205,14 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
             var rank = _hunts.GetHuntRank(npc.NameId);
             if (!(rankA && rank == HuntRank.A) && !(rankB && rank == HuntRank.B)) continue;
             _trains.AddMob(npc, c.Territory, c.Map, c.Instance, MapHelpers.GetMapName(c.Territory), _hunts.GetMapZoneScale(c.Territory));
-            result.Add(new PatrolDetection(npc.NameId, rank == HuntRank.A));
+            result.Add(new PatrolDetection(npc.NameId, rank == HuntRank.A, npc.Position));
         }
         return result;
     }
 
     public void Dispose()
     {
-        _disposed = true; Recording = false;
+        _disposed = true;
         Session.Stop("插件已卸载");
         _trains.ManualDeadStateChanged -= _deaths.ManualChange;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged -= _sDeaths.ManualChange;

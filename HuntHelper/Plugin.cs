@@ -126,7 +126,7 @@ namespace HuntHelper
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
                 () => condition[ConditionFlag.InFlight]);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
-                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface.ConfigDirectory.FullName, SRankManager);
+                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
                 () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,

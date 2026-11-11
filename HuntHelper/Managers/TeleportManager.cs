@@ -17,7 +17,7 @@ public struct AetheryteData
 
 public unsafe class TeleportManager
 {
-    private List<AetheryteData> Aetherytes = new List<AetheryteData>()
+    private static readonly List<AetheryteData> Aetherytes = new List<AetheryteData>()
     {
         #region ARR aetherytes
         //ARR
@@ -231,6 +231,9 @@ public unsafe class TeleportManager
     };
 
     public bool TeleportPluginNotFound = false;
+
+    internal static IReadOnlyList<AetheryteData> GetPatrolCrystals(uint territory) =>
+        Aetherytes.Where(a => a.TerritoryID == territory).ToList();
 
     public void TeleportToHunt(HuntTrainMob mob)
     {

@@ -13,6 +13,12 @@ namespace HuntHelper
     {
         public int Version { get; set; } = 0;
         public bool HuntDeathMonitoring { get; set; } = true;
+        public bool HuntFinderSmartTeleport { get; set; } = true;
+        public bool HuntFinderMultiWorld { get; set; }
+        public List<uint> HuntFinderWorlds { get; set; } = new();
+        public float HuntFinderTeleportSeconds { get; set; } = 25;
+        public bool HuntFinderAdaptiveDetection { get; set; } = true;
+        public bool HuntFinderUseRecordedHunts { get; set; } = true;
 
         #region Main Map Window
 

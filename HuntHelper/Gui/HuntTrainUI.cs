@@ -200,7 +200,7 @@ public class HuntTrainUI : IDisposable
 
             if (!_isS)
             {
-                if (ImGui.Button("找怪 / 路线录制")) _openFinder();
+                if (ImGui.Button("找怪")) _openFinder();
                 if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
             }
             if (_openOther != null)

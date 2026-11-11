@@ -29,6 +29,7 @@ internal sealed class FakePlugin : IDalamudPluginInterface
     }
 
     public ICallGateSubscriber<TRet> GetIpcSubscriber<TRet>(string name) => new Gate0<TRet>(this, At(name));
+    public ICallGateSubscriber<T1, TRet> GetIpcSubscriber<T1, TRet>(string name) => new Gate1<T1, TRet>(this, At(name));
     public ICallGateSubscriber<T1, T2, TRet> GetIpcSubscriber<T1, T2, TRet>(string name) => new Gate2<T1, T2, TRet>(this, At(name));
     public ICallGateSubscriber<T1, T2, T3, TRet> GetIpcSubscriber<T1, T2, T3, TRet>(string name) => new Gate3<T1, T2, T3, TRet>(this, At(name));
     public ICallGateSubscriber<T1, T2, T3, T4, TRet> GetIpcSubscriber<T1, T2, T3, T4, TRet>(string name) => new Gate4<T1, T2, T3, T4, TRet>(this, At(name));
@@ -57,6 +58,11 @@ internal sealed class FakePlugin : IDalamudPluginInterface
     {
         public TRet InvokeFunc() => (TRet)InvokeFunction()!;
         public void InvokeAction() => base.InvokeAction([]);
+    }
+
+    private sealed class Gate1<T1, TRet>(FakePlugin plugin, Endpoint endpoint) : GateBase(plugin, endpoint), ICallGateSubscriber<T1, TRet>
+    {
+        public TRet InvokeFunc(T1 first) => (TRet)InvokeFunction(first)!;
     }
 
     private sealed class Gate2<T1, T2, TRet>(FakePlugin plugin, Endpoint endpoint) : GateBase(plugin, endpoint), ICallGateSubscriber<T1, T2, TRet>

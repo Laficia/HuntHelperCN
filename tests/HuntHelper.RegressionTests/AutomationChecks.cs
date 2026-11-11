@@ -18,7 +18,7 @@ internal static class AutomationChecks
         ("interrupted movement cannot silently advance a route", Interrupted),
         ("patrol stops on mount or teleport timeout", Timeout),
         ("enough discovered A ranks advance to the next map", EnoughHunts),
-        ("patrol snapshots routes against edits and imports", Snapshot),
+        ("patrol snapshots presets against external mutation", Snapshot),
         ("idle Stop does not stop somebody else's navigation", Ownership),
         ("dead, busy and unknown-world characters cannot start", Preconditions),
         ("death observation stays world map and instance scoped", DeathScope),
@@ -30,10 +30,6 @@ internal static class AutomationChecks
         ("unseen healthy distant or unloaded monsters cannot be inferred dead", MissingGuards),
         ("changing maps or instances clears disappearance evidence", MissingTravel),
         ("delete and re-record do not reuse stale death evidence", NewRecord),
-        ("recorded routes preserve coordinates and point order on disk", RoutePersistence),
-        ("invalid route import preserves the old route and original file", InvalidImport),
-        ("corrupt route files cannot be overwritten", CorruptRoutes),
-        ("route geometry sharing and nearest-neighbor order remain independent of server records", RouteSharing)
     ];
     private static PatrolRoute Route(uint zone = 10) => new() { TerritoryId = zone, MapId = zone + 10, Expansion = 1,
         Name = "测试图", Points = new() { new() { Position = new Vector3(100, 0, 100) }, new() { Position = new Vector3(200, 0, 200) } } };
@@ -144,25 +140,6 @@ internal static class AutomationChecks
     }
     private static void NewRecord()
     { var m=Mob();var d=new HuntDeathMonitor();d.Update(C,new[]{m},new[]{Seen(50)},0);m=Mob();d.Update(C,new[]{m},Array.Empty<HuntObservation>(),1);d.Update(C,new[]{m},Array.Empty<HuntObservation>(),5000);Check(!m.Dead); }
-    private static void RoutePersistence()
-    {
-        using var temp=new TemporaryDirectory();var path=Path.Combine(temp.Path,"ScanRoutes.json");var store=new PatrolRouteStore(path);store.Put(Route());Check(store.Save());
-        var reloaded=new PatrolRouteStore(path);Check(reloaded.Routes.Single().Points[1].Position==new Vector3(200,0,200));Check(!Directory.GetFiles(temp.Path,"*.tmp").Any());
-    }
-    private static void InvalidImport()
-    {
-        using var temp=new TemporaryDirectory();var path=Path.Combine(temp.Path,"ScanRoutes.json");var store=new PatrolRouteStore(path);store.Put(Route());store.Save();var saved=File.ReadAllText(path);
-        var bad=Route();bad.Points[0].Position=new Vector3(float.NaN,0,0);Check(!store.Import(ExportImport.Export(new[]{bad})));Check(File.ReadAllText(path)==saved);
-        Check(!store.Import(ExportImport.Export(new[]{Mob()})));Check(File.ReadAllText(path)==saved);
-    }
-    private static void CorruptRoutes()
-    { using var temp=new TemporaryDirectory();var path=Path.Combine(temp.Path,"ScanRoutes.json");File.WriteAllText(path,"bad json");var store=new PatrolRouteStore(path);store.Put(Route());Check(!store.Save());Check(File.ReadAllText(path)=="bad json"); }
-    private static void RouteSharing()
-    {
-        using var temp=new TemporaryDirectory();var route=Route();route.Points.Add(new(){Position=new Vector3(110,0,110)});PatrolRouteStore.Sort(route);
-        Check(route.Points[1].Position==new Vector3(110,0,110));var store=new PatrolRouteStore(Path.Combine(temp.Path,"routes.json"));Check(store.Import(ExportImport.Export(new[]{route})));
-        Check(store.Routes.Single().Points.Count==3);
-    }
     private static void Check(bool value) { if(!value) throw new InvalidOperationException("Automation assertion failed"); }
     private sealed class Host : IPatrolHost
     {

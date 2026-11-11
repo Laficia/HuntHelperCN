@@ -11,6 +11,7 @@ internal static class Program
 
     private static int Main()
     {
+        LifestreamChecks.Run(Run);
         Run("Flying players use the CN flight query and flight executor", () =>
         {
             using var f = new Fixture();

@@ -2,6 +2,7 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Utility;
 using HuntHelper.Managers.Automation;
 using HuntHelper.Utilities;
+using HuntHelper.Managers.Hunts.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,12 +16,21 @@ public sealed class HuntFinderUI
     private readonly Configuration _config;
     private readonly HashSet<uint> _selectedMaps = new();
     private readonly PatrolOptions _options = new();
-    private bool _open, _custom = true;
+    private bool _open;
     private int _expansion = -1;
     private string _feedback = string.Empty;
+    private IReadOnlyList<HuntTrainWorld> _worldCatalog = Array.Empty<HuntTrainWorld>();
+    private uint _catalogWorld;
+    private string? _dataCenter;
 
     public HuntFinderUI(HuntAutomationManager automation, Configuration config)
-    { _automation = automation; _config = config; }
+    {
+        _automation = automation; _config = config;
+        _options.SmartTeleport = config.HuntFinderSmartTeleport;
+        _options.TeleportSeconds = config.HuntFinderTeleportSeconds;
+        _options.AdaptiveDetection = config.HuntFinderAdaptiveDetection;
+        _options.UseRecordedHunts = config.HuntFinderUseRecordedHunts;
+    }
     public void Open()
     {
         _open = true;
@@ -34,45 +44,66 @@ public sealed class HuntFinderUI
         var scale = ImGuiHelpers.GlobalScale;
         ImGui.SetNextWindowSize(new Vector2(610, 620) * scale, ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSizeConstraints(new Vector2(360, 300) * scale, new Vector2(float.MaxValue));
-        if (ImGui.Begin("找怪 / 路线录制##HuntFinder", ref _open))
+        if (ImGui.Begin("A 怪找怪##HuntFinder", ref _open, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
         {
+            var action = HuntFinderActionButton.Draw(_automation.Session.Active, false);
+            if (action == HuntFinderAction.Stop) _automation.Session.Stop();
             ImGui.TextWrapped(_automation.Session.Message);
             if (_automation.Session.Active)
             {
+                if (_automation.Session.TargetWorld is { } destination)
+                    ImGui.TextUnformatted($"服务器：{destination.WorldName}（{_automation.Session.WorldProgress}/{_automation.Session.WorldCount}）");
                 ImGui.TextUnformatted($"本图已发现：A {_automation.Session.FoundA} / B {_automation.Session.FoundB}");
+                if (_automation.Session.ObservedARange > 0)
+                    ImGui.TextDisabled($"本图 A 怪最远实测 {_automation.Session.ObservedARange:0} 米 · 扫描停靠 {_automation.Session.ApproachRadius:0} 米");
             }
             var monitor = _config.HuntDeathMonitoring;
             if (ImGui.Checkbox("自动监测怪物死亡", ref monitor)) { _config.HuntDeathMonitoring = monitor; _config.Save(); }
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("仅监测当前所在服务器、地图、分线；离开加载范围不会直接判死。手动恢复存活优先。");
             ImGui.Separator();
-            if (ImGui.BeginTabBar("FinderTabs"))
+            if (ImGui.BeginChild("FinderSettings", Vector2.Zero, false))
             {
-                if (ImGui.BeginTabItem("找怪")) { DrawFinder(); ImGui.EndTabItem(); }
-                if (ImGui.BeginTabItem("路线录制")) { DrawRecorder(); ImGui.EndTabItem(); }
-                ImGui.EndTabBar();
+                DrawFinder(action);
+                if (_feedback.Length > 0) ImGui.TextWrapped(_feedback);
             }
-            if (_automation.Store.Error != null) ImGui.TextWrapped($"路线文件：{_automation.Store.Error}");
-            if (_feedback.Length > 0) ImGui.TextWrapped(_feedback);
+            ImGui.EndChild();
         }
         ImGui.End();
     }
 
-    private void DrawFinder()
+    private void DrawFinder(HuntFinderAction action)
     {
-        ImGui.BeginDisabled(_automation.Session.Active || _automation.Recording);
+        ImGui.BeginDisabled(_automation.Session.Active);
         var rankA = _options.RankA; var rankB = _options.RankB;
         ImGui.Checkbox("A 怪", ref rankA); ImGui.SameLine(); ImGui.Checkbox("B 怪", ref rankB);
         _options.RankA = rankA; _options.RankB = rankB;
         var mount = _options.Mount; var fly = _options.Takeoff;
         ImGui.Checkbox("自动上坐骑", ref mount); ImGui.SameLine(); ImGui.Checkbox("可飞行时自动起飞", ref fly);
         _options.Mount = mount; _options.Takeoff = fly;
-        ImGui.Checkbox("优先使用已录制路线（没有时使用内置点位）", ref _custom);
+        var smart = _options.SmartTeleport;
+        if (ImGui.Checkbox("智能水晶传送", ref smart))
+        { _options.SmartTeleport = _config.HuntFinderSmartTeleport = smart; _config.Save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("比较直达与传送后移动的估计耗时；同图预计至少节省10秒且20%才传送，60秒内不重复同图传送。传送若改变分线将停止找怪。");
+        ImGui.SameLine(); var overhead = _options.TeleportSeconds;
+        ImGui.SetNextItemWidth(65 * ImGuiHelpers.GlobalScale);
+        if (ImGui.InputFloat("读条/加载（秒）", ref overhead, 0, 0, "%.0f"))
+        { _options.TeleportSeconds = _config.HuntFinderTeleportSeconds = float.IsFinite(overhead) ? Math.Clamp(overhead,10,120) : 25; _config.Save(); }
+        var adaptive = _options.AdaptiveDetection;
+        if (ImGui.Checkbox("自适应探测距离", ref adaptive))
+        { _options.AdaptiveDetection = _config.HuntFinderAdaptiveDetection = adaptive; _config.Save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("本图本线按实际加载的A怪距离保守估计停靠距离，上限150米。已确认点位无需飞到脸上；远距未确认会等待后抵近补扫，不把空对象列表当作未刷新。");
+        ImGui.SameLine(); var recorded = _options.UseRecordedHunts;
+        if (ImGui.Checkbox("利用已有现场记录", ref recorded))
+        { _options.UseRecordedHunts = _config.HuntFinderUseRecordedHunts = recorded; _config.Save(); }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("仅采用本服、本地图、本分线最近60分钟的现场存活记录；齐全则跳过该图，只有一只继续找另一只。Sonar、导入、未知时间和死亡记录不作为已扫依据。");
+
         var radius = _options.Radius; var wait = _options.WaitMs / 1000;
         ImGui.SetNextItemWidth(100 * ImGuiHelpers.GlobalScale);
-        ImGui.SliderFloat("扫描距离（米）", ref radius, 10, 150, "%.0f");
+        ImGui.SliderFloat("基础停靠距离（米）", ref radius, 10, 150, "%.0f");
         ImGui.SetNextItemWidth(100 * ImGuiHelpers.GlobalScale);
         ImGui.SliderInt("点位等待（秒）", ref wait, 1, 30);
         _options.Radius = radius; _options.WaitMs = wait * 1000;
+        DrawWorldSelection();
         ImGui.Spacing();
         if (ImGui.BeginCombo("版本", _expansion < 0 ? "全部版本" : $"{_expansion + 2}.0"))
         {
@@ -90,113 +121,66 @@ public sealed class HuntFinderUI
             foreach (var map in visible)
             {
                 var selected = _selectedMaps.Contains(map.TerritoryId);
-                var custom = _custom && _automation.Store.Routes.Any(r => r.TerritoryId == map.TerritoryId && r.Points.Count > 0);
-                var route = _automation.GetRoute(map.TerritoryId, _custom);
-                if (ImGui.Checkbox($"{map.Expansion + 2}.0 · {map.Name}（{(custom ? "录制" : "内置")} {route.Points.Count} 点）##Find{map.TerritoryId}", ref selected))
+                if (ImGui.Checkbox($"{map.Expansion + 2}.0 · {map.Name}（预设 {map.Points.Count} 点）##Find{map.TerritoryId}", ref selected))
                 { if (selected) _selectedMaps.Add(map.TerritoryId); else _selectedMaps.Remove(map.TerritoryId); }
             }
         }
         ImGui.EndChild();
         ImGui.EndDisabled();
-        var action = HuntFinderActionButton.Draw(_automation.Session.Active, _automation.Recording);
-        if (action == HuntFinderAction.Stop) _automation.Session.Stop();
-        else if (action == HuntFinderAction.Start)
+        if (action == HuntFinderAction.Start)
         {
             var current = _automation.Context.Territory;
             var routes = _automation.Maps.Where(m => _selectedMaps.Contains(m.TerritoryId))
                 .OrderByDescending(m => m.TerritoryId == current).ThenBy(m => m.Expansion).ThenBy(m => m.TerritoryId)
-                .Select(m => _automation.GetRoute(m.TerritoryId, _custom));
-            _automation.Session.Start(routes, _options, Environment.TickCount64);
+                ;
+            _options.Worlds = _config.HuntFinderMultiWorld
+                ? (_config.HuntFinderWorlds ??= new()).Select(id => _worldCatalog.FirstOrDefault(w => w.WorldID == id)).OfType<HuntTrainWorld>().ToList()
+                : new();
+            if (_config.HuntFinderMultiWorld && _options.Worlds.Count != _config.HuntFinderWorlds.Distinct().Count())
+                _feedback = "部分已选服务器已不可用，请清空后重新勾选";
+            else if (_config.HuntFinderMultiWorld && (!_options.RankA || _options.Worlds.Count == 0))
+                _feedback = "多服务器找怪请勾选 A 怪，并按执行顺序勾选至少一个服务器";
+            else { _feedback = string.Empty; _automation.Session.Start(routes, _options, Environment.TickCount64); }
         }
-        ImGui.TextWrapped("扫描当前分线。跨地图使用已解锁水晶正常传送；找不到可用水晶时会停止提示。巡点只用 vnavmesh，不会直接 TP 到坐标。多层地图建议录制三维路线。");
+        ImGui.TextWrapped("按内置预设点位顺序巡查；已确认怪物无需继续抵近，远距未确认会补扫。水晶仅正常传送，移动使用 vnavmesh。");
+        if (_automation.Session.CurrentRoute?.TerritoryId == 1190 && _automation.Session.Active)
+            ImGui.TextDisabled("夏劳尼荒野：实际飞行时巡点目标上抬20米，减少贴地遭遇野怪");
     }
 
-    private void DrawRecorder()
+    private void DrawWorldSelection()
     {
-        var current = _automation.Context;
-        var map = _automation.Maps.FirstOrDefault(m => m.TerritoryId == current.Territory);
-        ImGui.TextUnformatted(map == null ? "请进入可狩猎地图录制路线" : $"当前地图：{map.Name}");
-        if (_automation.Session.Active && HuntFinderActionButton.Draw(true, false) == HuntFinderAction.Stop)
-            _automation.Session.Stop();
-        ImGui.BeginDisabled(_automation.Session.Active);
-        ImGui.BeginDisabled(map == null);
-        if (ImGui.Button(_automation.Recording ? "停止录制" : "开始录制")) _automation.ToggleRecording();
-        ImGui.EndDisabled();
-        ImGui.SameLine();
-        var automatic = _automation.AutomaticRecording;
-        ImGui.Checkbox("每移动 30 米自动录点", ref automatic); _automation.AutomaticRecording = automatic;
-        ImGui.BeginDisabled(!_automation.Recording);
-        if (ImGui.Button("录入当前点位")) _automation.AddPoint();
-        ImGui.EndDisabled();
-        ImGui.TextWrapped(_automation.RecorderMessage);
-        var route = _automation.Store.Routes.FirstOrDefault(r => r.TerritoryId == current.Territory);
-        if (route != null)
+        var enabled = _config.HuntFinderMultiWorld;
+        if (ImGui.Checkbox("多服务器找怪（按勾选顺序）", ref enabled))
+        { _config.HuntFinderMultiWorld = enabled; _config.Save(); }
+        if (!enabled) return;
+        ImGui.TextWrapped("需要下载并启用 Lifestream（国服 API 15 版）。请在卫月第三方库搜索安装；跨服能力以 Lifestream 和游戏限制为准。");
+        if (ImGui.SmallButton("Lifestream 项目说明"))
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/NightmareXIV/Lifestream") { UseShellExecute = true });
+        if (_automation.WorldTravelError.Length != 0) ImGui.TextWrapped(_automation.WorldTravelError);
+        var current = _automation.Context.World;
+        if (current != 0 && (_catalogWorld != current || _worldCatalog.Count == 0))
+        { _worldCatalog = MapHelpers.GetImportableWorlds(current); _catalogWorld = current; }
+        _dataCenter ??= _worldCatalog.FirstOrDefault(w => w.WorldID == current)?.DataCenterName;
+        if (ImGui.BeginCombo("服务器分组", _dataCenter ?? "全部"))
         {
-            ImGui.BeginDisabled(_automation.Recording);
-            if (ImGui.Button("按距离排序")) { PatrolRouteStore.Sort(route); _automation.Store.Save(); }
-            ImGui.SameLine(); if (ImGui.Button("倒序")) { route.Points.Reverse(); _automation.Store.Save(); }
-            ImGui.SameLine(); if (ImGui.Button("清空本图路线")) ImGui.OpenPopup("ClearPatrolRoute");
-            if (ImGui.BeginPopup("ClearPatrolRoute"))
+            if (ImGui.Selectable("全部", _dataCenter == "")) _dataCenter = "";
+            foreach (var dc in _worldCatalog.Select(w => w.DataCenterName).Distinct().Order())
+                if (ImGui.Selectable(dc, dc == _dataCenter)) _dataCenter = dc;
+            ImGui.EndCombo();
+        }
+        var order = _config.HuntFinderWorlds ??= new();
+        if (ImGui.BeginChild("FinderWorlds", new Vector2(0,100 * ImGuiHelpers.GlobalScale),true))
+        {
+            foreach (var world in _worldCatalog.Where(w => string.IsNullOrEmpty(_dataCenter) || w.DataCenterName == _dataCenter))
             {
-                ImGui.TextUnformatted("清空这张地图的自定义点位？");
-                if (ImGui.Button("确认清空")) { route.Points.Clear(); _automation.Store.Save(); ImGui.CloseCurrentPopup(); }
-                ImGui.SameLine(); if (ImGui.Button("取消")) ImGui.CloseCurrentPopup();
-                ImGui.EndPopup();
+                var index = order.IndexOf(world.WorldID); var chosen = index >= 0;
+                if (ImGui.Checkbox($"{(chosen ? (index + 1) + ". " : "")}{world.WorldName}###FinderWorld{world.WorldID}",ref chosen))
+                { if (chosen) order.Add(world.WorldID); else order.Remove(world.WorldID); _config.Save(); }
             }
-            ImGui.EndDisabled();
-            if (ImGui.BeginChild("RecordedPoints", new Vector2(0, 180 * ImGuiHelpers.GlobalScale), true))
-            {
-                for (var i = 0; i < route.Points.Count; i++)
-                {
-                    var p = route.Points[i];
-                    ImGui.PushID(i);
-                    ImGui.TextUnformatted($"{i + 1}：{p.Position?.ToString() ?? p.MapPosition.ToString()}");
-                    ImGui.SameLine();
-                    ImGui.BeginDisabled(_automation.Recording);
-                    var changed = false;
-                    if (i > 0 && ImGui.SmallButton("上移")) { (route.Points[i - 1], route.Points[i]) = (route.Points[i], route.Points[i - 1]); changed = true; }
-                    ImGui.SameLine();
-                    if (i + 1 < route.Points.Count && ImGui.SmallButton("下移")) { (route.Points[i + 1], route.Points[i]) = (route.Points[i], route.Points[i + 1]); changed = true; }
-                    ImGui.SameLine(); if (ImGui.SmallButton("删除")) { route.Points.RemoveAt(i); changed = true; }
-                    ImGui.EndDisabled(); ImGui.PopID();
-                    if (changed) { _automation.Store.Save(); break; }
-                }
-            }
-            ImGui.EndChild();
-            DrawPreview(route);
         }
-        ImGui.BeginDisabled(_automation.Recording);
-        if (ImGui.Button("导出全部路线")) { ImGui.SetClipboardText(ExportImport.Export(_automation.Store.Routes)); _feedback = "HHT 巡点路线代码已复制"; }
-        ImGui.SameLine(); if (ImGui.Button("覆盖导入路线")) ImGui.OpenPopup("ImportPatrolRoutes");
-        if (ImGui.BeginPopup("ImportPatrolRoutes"))
-        {
-            ImGui.TextWrapped("将用剪贴板中的 HHT 巡点路线覆盖全部自定义路线。狩猎车记录不会被修改。");
-            if (ImGui.Button("确认覆盖导入"))
-            { _feedback = _automation.Store.Import(ImGui.GetClipboardText()) ? "路线导入成功" : "路线导入失败，已保留原路线"; ImGui.CloseCurrentPopup(); }
-            ImGui.SameLine(); if (ImGui.Button("取消")) ImGui.CloseCurrentPopup();
-            ImGui.EndPopup();
-        }
-        ImGui.EndDisabled();
-        ImGui.EndDisabled();
-        ImGui.TextWrapped("路线几何按地图共享，找怪结果仍按服务器隔离。手动录点最少间隔 10 米，换图或换服会停止录制。");
-    }
-
-    private static void DrawPreview(PatrolRoute route)
-    {
-        var points = route.Points.Where(p => p.Position.HasValue).Select(p => new Vector2(p.Position!.Value.X, p.Position.Value.Z)).ToList();
-        if (points.Count == 0) return;
-        var size = new Vector2(Math.Min(300 * ImGuiHelpers.GlobalScale, ImGui.GetContentRegionAvail().X), 150 * ImGuiHelpers.GlobalScale);
-        ImGui.InvisibleButton("RecordedRoutePreview", size);
-        var start = ImGui.GetItemRectMin(); var draw = ImGui.GetWindowDrawList();
-        draw.AddRectFilled(start, start + size, 0xFF242424);
-        var min = new Vector2(points.Min(p => p.X), points.Min(p => p.Y));
-        var max = new Vector2(points.Max(p => p.X), points.Max(p => p.Y));
-        var ratio = Math.Min((size.X - 20) / Math.Max(1, max.X - min.X), (size.Y - 20) / Math.Max(1, max.Y - min.Y));
-        Vector2 Screen(Vector2 p) => start + new Vector2(10) + (p - min) * ratio;
-        for (var i = 0; i < points.Count; i++)
-        {
-            if (i > 0) draw.AddLine(Screen(points[i - 1]), Screen(points[i]), 0xFF55BBDD, 2);
-            draw.AddCircleFilled(Screen(points[i]), 3, i == 0 ? 0xFF55DD55 : 0xFF55BBDD);
-        }
+        ImGui.EndChild();
+        var names = order.Select(id => _worldCatalog.FirstOrDefault(w => w.WorldID == id)?.WorldName ?? $"区服{id}");
+        ImGui.TextWrapped(order.Count == 0 ? "请按执行先后顺序勾选服务器" : "执行顺序：" + string.Join(" → ",names));
+        if (ImGui.SmallButton("清空服务器选择")) { order.Clear(); _config.Save(); }
     }
 }
