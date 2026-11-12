@@ -75,6 +75,8 @@ public class HuntTrainUI : IDisposable
     private List<HuntTrainMob> _mobList => _trainManager.HuntTrain;
     private List<int> VisibleIndices => _versions.VisibleIndices(_trainManager.SelectedWorldId, _mobList);
     private List<HuntTrainMob> VisibleMobs => VisibleIndices.Select(i => _mobList[i]).ToList();
+    public HuntTrainMob? SelectedMacroMob => _selectedIndex >= 0 && _selectedIndex < _mobList.Count && VisibleIndices.Contains(_selectedIndex)
+        ? _mobList[_selectedIndex] : null;
     private string VersionLabel => _versions.Groups(_mobList).FirstOrDefault(g => g.Version == _versions.Selected(_trainManager.SelectedWorldId, _mobList)).Label ?? "全部";
     private readonly List<HuntTrainMob> _importedTrain;
 

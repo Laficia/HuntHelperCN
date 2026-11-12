@@ -124,7 +124,7 @@
     "Border": "边界",
     "LastSeen": "上次发现",
     "LastSeenToolTip": "显示距离上次发现过了多久",
-    "ShowFlagInChat": "在聊天栏中发送 <mob> <flag> 消息",
+    "ShowFlagInChat": "在本地聊天栏显示 <mob> <flag>（仅自己可见）",
     "OpenMap": "开启地图",
     "OpenMapToolTip": "当/hhn启用或单击名称时开启相关地图",
     "TeleButtons": "传送键",

@@ -7,6 +7,9 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="Newtonsoft.Json"><HintPath>$(DALAMUD_HOME)\Newtonsoft.Json.dll</HintPath></Reference>
+    <Compile Include="..\..\HuntHelper\Gui\MacroCollectionDrag.cs" Link="Production\MacroCollectionDrag.cs" />
+    <Compile Include="..\..\HuntHelper\Utilities\HuntMacroLibrary.cs" Link="Production\HuntMacroLibrary.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntPointMacroSettings.cs" Link="Production\HuntPointMacroSettings.cs" />
     <Compile Include="..\..\HuntHelper\Gui\HuntPointMacroUI.cs" Link="Production\HuntPointMacroUI.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntWorldCatalog.cs" Link="Production\HuntWorldCatalog.cs" />

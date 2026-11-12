@@ -61,6 +61,7 @@ namespace Dalamud.Game.Text.SeStringHandling.Payloads
     {
         public TestRow Map => new(MapId); public TestRow TerritoryType => new(Territory);
         public float XCoord => X; public float YCoord => Y;
+        public int RawX => (int)(X * 1000); public int RawY => (int)(Y * 1000);
     }
     public sealed record TestRow(uint RowId);
     public sealed record TextPayload(string Text);
@@ -71,7 +72,7 @@ namespace Dalamud.Plugin.Services
 {
     public interface IChatGui { void Print(SeString message); event Action<Dalamud.Game.Chat.IHandleableChatMessage> ChatMessage { add {} remove {} } }
     public interface IGameGui { void OpenMapWithMapLink(MapLinkPayload payload); }
-    public interface IPlayerState { TestWorldReference CurrentWorld { get; } }
+    public interface IPlayerState { TestWorldReference CurrentWorld { get; } bool IsLoaded => true; }
     public sealed record TestWorldReference(uint RowId, TestWorldRow? ValueNullable);
     public sealed record TestWorldRow(string Name, TestDataCenterReference DataCenter);
     public sealed record TestDataCenterReference(TestDataCenterRow? ValueNullable);

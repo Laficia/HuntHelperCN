@@ -40,7 +40,7 @@ internal static class PointAndImportChecks
     private static void ServerMacro()
     {
         var settings = new HuntPointMacroSettings();
-        Check(Expand(settings.S, Mob(world: 102)) == "/sh 下一站【水晶塔】S怪[MAP]，请等待触发倒计时/定，不要抢开！");
+        Check(Expand(settings.S, Mob(world: 102)) == "/sh 下一站【水晶塔】女王蜂[MAP]");
         Check(Expand(settings.S).Contains("【本地】"));
         Check(Expand(settings.S, Mob(world: 102), world: 102).Contains("【本地】"));
         Check(Expand(settings.S, Mob(), world: 102).Contains("【银泪湖】"));
@@ -54,9 +54,9 @@ internal static class PointAndImportChecks
     private static void FlagParts()
     {
         var m = Mob(world: 102, line: 2); m.Name = "名字<服务器>";
-        var lines = HuntPointMacro.Expand("/p <名字><flag><服务器><分线><x>,<y>", m, "A", 101);
+        var lines = HuntPointMacro.Expand("/p <名字><flag><服务器><分线>", m, "A", 101);
         Check(lines[0].Count(p => p.IsFlag) == 1 && Expand("/p <名字>", m) == "/p 名字<服务器>");
-        Check(Expand("/p <服务器><分线><x>,<y>", m) == "/p 水晶塔2线20.0,20.0");
+        Check(Expand("/p <服务器><分线>", m) == "/p 水晶塔2线");
     }
     private static void InvalidMacros()
     {

@@ -20,6 +20,10 @@ internal static class Program
     {
         (string Name, Func<Task> Run)[] tests =
         [
+            .. MacroQueueChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. MacroLibraryChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. MacroAliasChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. PointChatDeliveryChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. SonarEventChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. PointAndImportChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. WorldCatalogChecks.Tests.Select(t => (t.Name, Sync(t.Run))),

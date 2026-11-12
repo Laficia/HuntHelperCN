@@ -2,7 +2,7 @@
   "Author": "img02 / Laficia",
   "Name": "狩猎助手Hunt Helper",
   "Punchline": "独立 A/S 怪记录、Sonar 联动、区服版本分类与巡点",
-  "Changelog": "1.0.0.15：移动改为国服vnavmesh原生任务，遵循/vnav stop及手动操控设置；HHT/HHS增加坐标按钮与独立A/S宏预设，<服务器>同服显示本地；导入A怪按同图同线距离优化车序；Sonar明确A怪击杀播报同步死亡标记。旧版1.0.0.14已备份，原订阅不变。",
+  "Changelog": "1.0.0.16：修正喊话坐标宏的原生发送流程；加入紧凑宏集合、自定义标签、拖入固定与拖动排序。A/S默认统一/sh模板，新增name/map/lv/sever/ins别名，取消x/y；明确区分本地显示与对外发送。旧版1.0.0.15已备份，原订阅不变。尚待游戏内双端接收测试。",
   "Description": "基于 img02/HuntHelper 的国服定制版。/hht 为 A 怪狩猎车，/hhs 为独立 S 怪记录，按区服、版本和分线隔离；支持录制 Sonar 定位聊天、自动地图底图、同区服同地图同分线 vnavmesh 移动和正常水晶传送。首次使用请禁用原版，避免命令冲突。保留原 MIT 许可。",
   "Tags": [
     "hunt",

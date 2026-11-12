@@ -146,8 +146,13 @@ namespace HuntHelper
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             Configuration.PointMacros ??= new();
+            if (Configuration.PointMacros.UpgradeLegacyDefaults()) Configuration.Save();
             PointMacros = new HuntPointMacroManager(Configuration, playerState, clientState, framework);
-            PointMacroUI = new HuntPointMacroUI(Configuration.PointMacros, Configuration.Save, () => PointMacros.Busy, () => PointMacros.Status, PointMacros.Cancel);
+            PointMacroUI = new HuntPointMacroUI(Configuration.PointMacros, Configuration.Save, () => PointMacros.Busy, () => PointMacros.Status, PointMacros.Cancel,
+                (text, rank) => PointMacros.SendTemplate(text, (rank == "S" ? SRankUI : HuntTrainUI)?.SelectedMacroMob, rank),
+                rank => (rank == "S" ? SRankUI : HuntTrainUI)?.SelectedMacroMob is { } mob
+                    ? $"使用当前选中怪物：{mob.WorldName} · {mob.Name}（{(rank == "S" ? "HHS" : "HHT")}）"
+                    : $"来源 {(rank == "S" ? "HHS" : "HHT")} 暂无选中怪物；可发送不含怪物变量的文字宏");
             HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
                 () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,
                 () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); },
