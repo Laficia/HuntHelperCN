@@ -12,6 +12,9 @@ namespace HuntHelper
     public class Configuration : HuntTrainSettings, IPluginConfiguration
     {
         public int Version { get; set; } = 0;
+        public bool UseNativeHuntWindows { get; set; } = true;
+        public Vector2 NativeFinderWindowSize { get; set; } = new(600, 540);
+        public Vector2 NativeMacroWindowSize { get; set; } = new(640, 560);
         public Utilities.HuntPointMacroSettings PointMacros { get; set; } = new();
         public bool SonarSyncAKills { get; set; } = true;
         public bool HuntDeathMonitoring { get; set; } = true;

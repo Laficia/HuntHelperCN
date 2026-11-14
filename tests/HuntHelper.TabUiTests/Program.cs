@@ -54,6 +54,7 @@ internal static unsafe class Program
             SnapshotPopupChecks.Run();
             RowDragChecks.Run();
             PointMacroUiChecks.Run();
+            NativeMacroChecks.Run();
             if (args.Contains("--render-point-macros")) PointMacroUiChecks.RenderPreview();
             WorldPickerChecks.Run();
             FinderPreviewChecks.Run();

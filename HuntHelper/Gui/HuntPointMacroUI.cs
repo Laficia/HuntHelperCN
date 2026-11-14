@@ -7,8 +7,10 @@ using System.Numerics;
 
 namespace HuntHelper.Gui;
 
-public sealed class HuntPointMacroUI
+public sealed partial class HuntPointMacroUI
 {
+    internal bool NativePresentation { get; set; }
+    internal Action? OpenNativeUi { get; set; }
     private readonly HuntMacroLibrary _library;
     private readonly Action _save, _cancel;
     private readonly Func<bool> _busy;
@@ -18,6 +20,7 @@ public sealed class HuntPointMacroUI
     private readonly MacroCollectionDrag _drag = new();
     private readonly Dictionary<string, (string Name, string Text)> _drafts = new();
     private bool _open;
+    private bool _showVariables;
     private string _selected = "a", _sourceRank = "A", _status = "";
     private string? _delete;
     internal Dictionary<string, (Vector2 Min, Vector2 Max)> ItemBounds { get; } = new();
@@ -37,11 +40,21 @@ public sealed class HuntPointMacroUI
     public void Draw()
     {
         if (!_open) { _drag.Cancel(); return; }
+        if (NativePresentation) { _drag.Cancel(); return; }
         var scale = ImGui.GetFontSize() / 14f;
-        ImGui.SetNextWindowSize(new Vector2(700, 620), ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowSize(new Vector2(640, 540) * scale, ImGuiCond.FirstUseEver);
         ImGui.SetNextWindowSizeConstraints(new Vector2(300, 330), new Vector2(float.MaxValue));
+        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(14, 12) * scale);
+        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 6) * scale);
+        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .075f, .105f, .98f));
+        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.10f, .15f, .21f, 1));
+        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.10f, .15f, .21f, 1));
         if (ImGui.Begin("预设宏##HuntPointMacros", ref _open))
         {
+            if (ImGui.Button("变量说明", new Vector2(88, 28) * scale)) _showVariables = !_showVariables;
+            if (OpenNativeUi != null) { ImGui.SameLine(); if (ImGui.Button("原生窗口", new Vector2(88, 28) * scale)) OpenNativeUi(); }
+            if (_busy()) { if (ImGui.GetWindowContentRegionMax().X - ImGui.GetCursorPosX() - ImGui.GetItemRectSize().X >= 96 * scale) ImGui.SameLine(); if (ImGui.Button("取消发送", new Vector2(88, 28) * scale)) _cancel(); }
+            ImGui.Separator();
             ItemBounds.Clear();
             var entries = _library.Entries;
             if (_library.Find(_selected) == null) _selected = "a";
@@ -60,6 +73,7 @@ public sealed class HuntPointMacroUI
         }
         else _drag.Cancel();
         ImGui.End();
+        ImGui.PopStyleColor(3); ImGui.PopStyleVar(2);
     }
 
     private void DrawCollection(float scale)
@@ -79,15 +93,14 @@ public sealed class HuntPointMacroUI
             ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.13f, .18f, .25f, 1));
             ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.19f, .3f, .43f, 1));
             ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.23f, .41f, .62f, 1));
-            var clicked = ImGui.Button($"##MacroCollection-{id}", new Vector2(width, 55 * scale));
+            var clicked = ImGui.Button($"##MacroCollection-{id}", new Vector2(width, 28 * scale));
             ImGui.PopStyleColor(3);
             Remember("collection:" + id); _drag.Register(id, true);
             var min = ImGui.GetItemRectMin(); var max = ImGui.GetItemRectMax();
             var draw = ImGui.GetWindowDrawList();
             draw.AddText(min + new Vector2(9, 6) * scale, ImGui.GetColorU32(ImGuiCol.TextDisabled), "::");
-            draw.AddText(min + new Vector2(24, 6) * scale, ImGui.GetColorU32(ImGuiCol.Text), Fit(entry.Name, width - 50 * scale));
+            draw.AddText(min + new Vector2(24, 6) * scale, ImGui.GetColorU32(ImGuiCol.Text), Fit(entry.Name, width - 46 * scale));
             draw.AddText(new(max.X - 17 * scale, min.Y + 6 * scale), ImGui.GetColorU32(ImGuiCol.TextDisabled), ">");
-            draw.AddText(min + new Vector2(9, 30) * scale, ImGui.GetColorU32(new Vector4(.72f, .78f, .86f, 1)), Fit(FirstLine(entry.Text), width - 18 * scale));
             if (clicked && !_drag.SuppressClick)
             {
                 if (_busy()) _status = "坐标宏正在发送，请稍候或取消剩余发送。";
@@ -102,7 +115,7 @@ public sealed class HuntPointMacroUI
                 ImGui.EndPopup();
             }
         }
-        ImGui.Dummy(new Vector2(available, 28 * scale));
+        ImGui.Dummy(new Vector2(available, 22 * scale));
         Remember("drop");
         var lo = ImGui.GetItemRectMin(); var hi = ImGui.GetItemRectMax();
         _drag.AppendZone(lo, hi);
@@ -127,7 +140,7 @@ public sealed class HuntPointMacroUI
             var selected = entry.Id == _selected;
             ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(selected ? ImGuiCol.ButtonActive : ImGuiCol.Button));
             var clicked = ImGui.Button(Fit(entry.Tab, width - ImGui.GetStyle().FramePadding.X * 2) + "###MacroPage-" + entry.Id,
-                new Vector2(width, ImGui.GetFrameHeight() + 4 * scale));
+                new Vector2(width, 28 * scale));
             ImGui.PopStyleColor();
             Remember("tab:" + entry.Id); _drag.Register(entry.Id, false);
             if (clicked && !_drag.SuppressClick) _selected = entry.Id;
@@ -142,7 +155,7 @@ public sealed class HuntPointMacroUI
         }
         var addWidth = ImGui.CalcTextSize("+").X + ImGui.GetStyle().FramePadding.X * 2;
         if (ImGui.GetCursorPosX() + ImGui.GetItemRectSize().X + addWidth + ImGui.GetStyle().ItemSpacing.X <= right) ImGui.SameLine();
-        if (ImGui.Button("+##AddMacroPage", new Vector2(0, ImGui.GetFrameHeight() + 4 * scale))) { _selected = _library.Add().Id; _save(); _drag.Cancel(); _status = "已新增自定义宏；可修改缩略名称和正文。"; }
+        if (ImGui.Button("+##AddMacroPage", new Vector2(28, 28) * scale)) { _selected = _library.Add().Id; _save(); _drag.Cancel(); _status = "已新增自定义宏"; }
         Remember("add");
     }
 
@@ -162,19 +175,17 @@ public sealed class HuntPointMacroUI
         var text = draft.Item2;
         ImGui.InputTextMultiline("##MacroTemplate", ref text, 6000, new Vector2(-1, 112 * scale)); Remember("text");
         _drafts[entry.Id] = (name, text);
-        ImGui.TextWrapped("<服务器> / <sever>   <名字> / <name>   <地图> / <map>   <等级> / <lv>   <分线> / <ins>   <flag>   <wait.数字>（本地等待）");
-        if (ImGui.Button("保存宏"))
+        if (_showVariables) ImGui.TextWrapped("<服务器>/<sever>  <名字>/<name>  <地图>/<map>\n<等级>/<lv>  <分线>/<ins>  <flag>  <wait.数字>（本地等待）");
+        if (ImGui.Button("保存宏", new Vector2(88, 28) * scale))
         {
             if (_library.Save(entry.Id, name, text)) _save();
-            _drafts.Remove(entry.Id); _status = "已保存「" + _library.Find(entry.Id)!.Name + "」；编辑不会自动发送。";
+            _drafts.Remove(entry.Id); _status = "已保存「" + _library.Find(entry.Id)!.Name + "」";
         }
         Remember("save");
         if (ImGui.GetContentRegionAvail().X > 260 * scale) ImGui.SameLine();
-        MutedWrapped("拖动标签到上方，可加入宏集合");
-        if (_busy() && ImGui.Button("取消剩余发送")) _cancel();
+        MutedWrapped("快捷按钮发送已保存内容");
         if (_status.Length > 0) ImGui.TextWrapped(_status);
         var sendStatus = _sendStatus(); if (sendStatus.Length > 0) ImGui.TextWrapped(sendStatus);
-        MutedWrapped("/echo 仅自己可见；快捷发送使用已保存的宏。");
     }
 
     private void DrawDeleteModal()
@@ -201,7 +212,6 @@ public sealed class HuntPointMacroUI
         ImGui.PushStyleColor(ImGuiCol.Text, ImGui.GetColorU32(ImGuiCol.TextDisabled));
         ImGui.TextWrapped(text); ImGui.PopStyleColor();
     }
-    private static string FirstLine(string text) => text.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "（空宏）";
     private static string Fit(string text, float width)
     {
         if (ImGui.CalcTextSize(text).X <= width) return text;

@@ -24,6 +24,9 @@ internal static class PointMacroUiChecks
     {
         Reset(); Check(_saves == 0 && _cancels == 0 && Sent.Count == 0);
         Console.WriteLine("PASS Native compact macro editor opens without saving or sending");
+        Check(Editor.ItemBounds.Where(p => p.Key.StartsWith("tab:") || p.Key.StartsWith("collection:") || p.Key == "add")
+            .All(p => Math.Abs(p.Value.Max.Y - p.Value.Min.Y - 28 * ImGui.GetFontSize() / 14f) < .1f));
+        Console.WriteLine("PASS Compact macro collection pages and add button share one 28-pixel height");
         Click("collection:a"); Check(Sent.Single() == (Settings.A,"A") && _saves == 0);
         Console.WriteLine("PASS Native macro collection click sends the saved template in its source module context");
         Editor.Open("S"); Frame(); Frame(); Click("collection:a"); Check(Sent.Last().Rank == "S");

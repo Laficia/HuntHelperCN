@@ -181,7 +181,7 @@ public partial class HuntTrainUI : IDisposable
     private float trainItemY => 23f * ImGuiHelpers.GlobalScale;
     private ImGuiWindowFlags defaultTrainFlags = ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
 
-    public void DrawHuntTrainWindow()
+    private void DrawClassicHuntTrainWindow()
     {
         if (!HuntTrainWindowVisible) return;
         if (_trainManager.ImportFromIPC) ImGui.SetNextWindowCollapsed(false);
@@ -214,6 +214,8 @@ public partial class HuntTrainUI : IDisposable
                 if (ImGui.Button(_isS ? "A怪狩猎车 /hht" : "S怪记录 /hhs")) _openOther();
             }
             if (_openMacros != null) { ImGui.SameLine(); if (ImGui.Button("预设宏")) _openMacros(); }
+            ImGui.SameLine();
+            if (ImGui.Button("原生窗口")) { if (_nativeLegacy) _huntTrainWindowVisible = false; _nativeLegacy = false; _config.UseNativeHuntWindows = true; _config.Save(); }
             DrawWorldTabs();
             DrawVersionTabs();
             DrawTrainRows();
@@ -428,14 +430,17 @@ public partial class HuntTrainUI : IDisposable
         }
     }
 
-    private void DrawWorldTabs()
+    private void DrawWorldTabs(bool showCurrent = true)
     {
         var current = _trainManager.GetCurrentWorld();
-        ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
-        ImGuiUtil.ImGui_HoveredToolTip("扫描保存到角色当前所在服务器。左键拖拽调整顺序；右键可选择、左右移动或删除该服记录及标签。");
+        if (showCurrent)
+        {
+            ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
+            ImGuiUtil.ImGui_HoveredToolTip("扫描保存到角色当前所在服务器。左键拖拽调整顺序；右键可选择、左右移动或删除该服记录及标签。");
+        }
         if (_trainManager.SelectedWorldId != current.WorldID && current.WorldID != 0)
         {
-            ImGui.SameLine();
+            if (showCurrent) ImGui.SameLine();
             if (ImGui.SmallButton("查看当前服")) SelectDisplayedWorld(current.WorldID);
         }
         var worlds = _trainManager.GetWorlds();
@@ -502,7 +507,7 @@ public partial class HuntTrainUI : IDisposable
         _selectedIndex = TrainVersionFilter.Clamp(_selectedIndex, VisibleIndices);
     }
 
-    private void DrawVersionTabs()
+    private void DrawVersionTabs(bool showSummary = true)
     {
         var world = _trainManager.SelectedWorldId;
         if (!_settings.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
@@ -518,9 +523,9 @@ public partial class HuntTrainUI : IDisposable
                 territory => _instances.Instances(world, territory, _mobList));
             var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
             var recorded = VisibleMobs.Count;
-            HuntRosterPresentation.Summary(name, version.Value, recorded, _rankLabel);
-            ImGuiUtil.ImGui_HoveredToolTip("已录入数仅统计当前服务器、当前版本的真实记录，包含死亡记录；不同分线分别计数，占位不计入。");
-            if (recorded == 0 && !_trainManager.RecordTrain && !_patrolActive())
+            if (showSummary) HuntRosterPresentation.Summary(name, version.Value, recorded, _rankLabel);
+            if (showSummary) ImGuiUtil.ImGui_HoveredToolTip("已录入数仅统计当前服务器、当前版本的真实记录，包含死亡记录；不同分线分别计数，占位不计入。");
+            if (showSummary && recorded == 0 && !_trainManager.RecordTrain && !_patrolActive())
                 ImGui.TextWrapped(_isS ? "开启下方录制后，附近 S 怪和 Sonar 定位消息会录入此模块。" : "开启下方记录或使用找怪扫描，发现后会自动标出。");
         }
         ClampSelection();

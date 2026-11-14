@@ -21,7 +21,7 @@ internal sealed record NativeTrainSnapshot(bool Visible, string Rank, uint World
 
 internal enum NativeTrainAction
 {
-    Close, Finder, Recording, Macros, OtherRank, World, CurrentWorld, Version,
+    Close, Finder, Recording, Macros, OtherRank, World, CurrentWorld, Version, Legacy,
     Select, Map, Teleport, Move, Coordinates, Dead, Import, Export, Backups, Settings,
     ClearDead, Revive, Clear, ReorderRow, ReorderWorld, ReorderVersion,
     SelectOnly, RowUp, RowDown, RemoveRow, ShiftWorld, DeleteWorld, ShiftVersion, ClearVersion,

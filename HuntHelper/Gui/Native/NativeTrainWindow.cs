@@ -36,7 +36,7 @@ internal sealed class NativeTrainWindow : NativeAddon
     private ResNode? body;
     private ScrollingNode<ResNode>? scroll;
     private TextNode? worldLabel, footer, empty;
-    private TextButtonNode? finder, recording, macros, more, current;
+    private TextButtonNode? finder, recording, macros, more, current, legacy;
     private TextureButtonNode? resize;
     private bool showTools, setup, suppressClose, dragDone, dragged;
     private ViewportEventListener? pointer;
@@ -79,6 +79,7 @@ internal sealed class NativeTrainWindow : NativeAddon
         recording = Button(body, "开始录制", () => Send(NativeTrainAction.Recording));
         macros = Button(body, "预设宏", () => Send(NativeTrainAction.Macros));
         more = Button(body, "更多", () => { showTools = !showTools; Layout(); });
+        legacy = Button(body, "原版窗口", () => Send(NativeTrainAction.Legacy));
         worldLabel = Label(body, "");
         current = Button(body, "当前服", () => Send(NativeTrainAction.CurrentWorld));
         foreach (var (label, action) in new[] {
@@ -210,8 +211,10 @@ internal sealed class NativeTrainWindow : NativeAddon
         recording!.String = snapshot.Recording ? "停止录制" : "开始录制";
         recording.IsChecked = snapshot.Recording;
         Place(recording, x, 0, 88); Place(macros!, x + 92, 0, 74); Place(more!, x + 170, 0, 60);
+        var legacyX = x + 234;
+        Place(legacy!, legacyX + 104 <= width ? legacyX : 0, legacyX + 104 <= width ? 0 : 34, 104);
         more!.IsChecked = showTools;
-        float y = 34;
+        float y = legacyX + 104 <= width ? 34 : 68;
         foreach (var tool in tools) tool.IsVisible = showTools;
         if (showTools)
         {

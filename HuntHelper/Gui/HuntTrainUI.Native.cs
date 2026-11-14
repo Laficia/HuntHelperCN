@@ -69,7 +69,7 @@ public partial class HuntTrainUI
         }
         var status = new[] { _trainActionMessage, _trainManager.ActionError, _relayStatus?.Invoke(), _macros?.Status, _navigation.LastMessage }
             .LastOrDefault(message => !string.IsNullOrWhiteSpace(message)) ?? "";
-        return new(_huntTrainWindowVisible && !_nativeLegacy, _rankLabel, world, current.WorldName, _trainManager.RecordTrain,
+        return new(_huntTrainWindowVisible && NativePresentation && !_nativeLegacy, _rankLabel, world, current.WorldName, _trainManager.RecordTrain,
             _patrolActive(), _navigation.OwnsMovement, _settings.NativeTrainGroupByMap, status,
             worldOrder.Select(id => worlds.First(w => w.WorldID == id)).Select(w => new NativeTrainTab(w.WorldID, $"{w.WorldName} ({w.Count})", w.WorldID == world)).ToArray(),
             versionOrder.Select(id => groups.First(g => VersionKey(g.Version) == id)).Select(g => new NativeTrainTab(VersionKey(g.Version), g.DisplayLabel, g.Version == version)).ToArray(), rows);
@@ -86,6 +86,8 @@ public partial class HuntTrainUI
         var mob = index >= 0 ? _mobList[index] : null;
         switch (request.Action)
         {
+            case NativeTrainAction.Legacy:
+                _nativeLegacy = false; _config.UseNativeHuntWindows = false; _config.Save(); break;
             case NativeTrainAction.Finder:
                 if (_patrolActive()) _stopPatrol(); else if (_navigation.OwnsMovement) _navigation.Stop(); else _openFinder();
                 break;
@@ -216,7 +218,7 @@ public partial class HuntTrainUI
         {
             var desired = _huntTrainWindowVisible;
             _huntTrainWindowVisible = true;
-            DrawHuntTrainWindow();
+            DrawClassicHuntTrainWindow();
             _nativeLegacy = _huntTrainWindowVisible;
             _huntTrainWindowVisible = desired;
         }

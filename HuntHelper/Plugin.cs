@@ -150,6 +150,7 @@ namespace HuntHelper
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
+            HuntFinderUI.OpenNativeUi = () => { Configuration.UseNativeHuntWindows = true; Configuration.Save(); };
             Configuration.PointMacros ??= new();
             if (Configuration.PointMacros.UpgradeLegacyDefaults()) Configuration.Save();
             PointMacros = new HuntPointMacroManager(Configuration, playerState, clientState, framework);
@@ -167,8 +168,11 @@ namespace HuntHelper
                 ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
                 ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true, PointMacros, () => PointMacroUI.Open("S"));
             HuntTrainUI.NativePresentation = SRankUI.NativePresentation = true;
+            PointMacroUI.OpenNativeUi = () => { Configuration.UseNativeHuntWindows = true; Configuration.Save(); };
+            PointMacroUI.OpenLegacyUi = () => { Configuration.UseNativeHuntWindows = false; Configuration.Save(); };
             NativeTrains = new NativeTrainRuntime(pluginInterface, framework, pluginLog,
-                Configuration.NativeTrainWindowSize, Configuration.SRankTrain.NativeTrainWindowSize);
+                Configuration.NativeTrainWindowSize, Configuration.SRankTrain.NativeTrainWindowSize,
+                Configuration.NativeFinderWindowSize, Configuration.NativeMacroWindowSize);
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
@@ -296,7 +300,17 @@ namespace HuntHelper
         private void ApplyPresetTwoCommand(string _, string __) => MapUi.ApplyPreset(2);
         private void SavePresetOneCommand(string _, string __) => MapUi.SavePresetByCommand(1);
         private void SavePresetTwoCommand(string _, string __) => MapUi.SavePresetByCommand(2);
-        private void HuntTrainCommand(string _, string __) => HuntTrainUI.HuntTrainWindowVisible = !HuntTrainUI.HuntTrainWindowVisible;
+        private void HuntTrainCommand(string _, string args)
+        {
+            switch (args.Trim().ToLowerInvariant())
+            {
+                case "native": Configuration.UseNativeHuntWindows = true; Configuration.Save(); HuntTrainUI.HuntTrainWindowVisible = true; break;
+                case "legacy": case "original": Configuration.UseNativeHuntWindows = false; Configuration.Save(); HuntTrainUI.HuntTrainWindowVisible = true; break;
+                case "finder": HuntFinderUI.Open(); break;
+                case "macro": PointMacroUI.Open("A"); break;
+                default: HuntTrainUI.HuntTrainWindowVisible = !HuntTrainUI.HuntTrainWindowVisible; break;
+            }
+        }
         //gets next available hunt in the recorded train
         private void GetNextMobCommand(string _, string __) => HuntTrainUI.GetNextMobCommand();
         private void GetNextMobAetheryteCommand(string _, string __) => HuntTrainUI.GetNextMobNearestAetheryte();
@@ -305,13 +319,16 @@ namespace HuntHelper
 
         private void DrawUI()
         {
-            NativeTrains.Drain(HuntTrainUI, SRankUI, (rank, size) =>
+            NativeTrains.Drain(HuntTrainUI, SRankUI, HuntFinderUI, PointMacroUI, (rank, size) =>
             {
+                if (rank == "Finder") { if (Configuration.NativeFinderWindowSize != size) { Configuration.NativeFinderWindowSize = size; Configuration.Save(); } return; }
+                if (rank == "Macro") { if (Configuration.NativeMacroWindowSize != size) { Configuration.NativeMacroWindowSize = size; Configuration.Save(); } return; }
                 var settings = rank == "S" ? Configuration.SRankTrain : Configuration;
                 if (settings.NativeTrainWindowSize == size) return;
                 settings.NativeTrainWindowSize = size; Configuration.Save();
             });
-            if (NativeTrains.Failed) HuntTrainUI.NativePresentation = SRankUI.NativePresentation = false;
+            var native = Configuration.UseNativeHuntWindows && !NativeTrains.Failed;
+            HuntTrainUI.NativePresentation = SRankUI.NativePresentation = HuntFinderUI.NativePresentation = PointMacroUI.NativePresentation = native;
             // Recording runs even when the map is closed, collapsed, or fails to draw.
             // Keep train mutations on the same UI tick as row/menu operations.
             ScanHuntTrain();
@@ -324,7 +341,7 @@ namespace HuntHelper
                 if (!NativeTrains.Failed && Environment.TickCount64 >= _nextNativeSnapshot)
                 {
                     _nextNativeSnapshot = Environment.TickCount64 + 160;
-                    NativeTrains.Publish(HuntTrainUI.NativeSnapshot(), SRankUI.NativeSnapshot());
+                    NativeTrains.Publish(HuntTrainUI.NativeSnapshot(), SRankUI.NativeSnapshot(), HuntFinderUI.NativeSnapshot(), PointMacroUI.NativeSnapshot());
                 }
                 HuntFinderUI.Draw();
                 var preview = Automation.Preview;

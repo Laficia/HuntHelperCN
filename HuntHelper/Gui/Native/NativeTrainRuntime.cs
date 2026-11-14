@@ -23,29 +23,43 @@ internal sealed class NativeTrainRuntime : IDisposable
     private readonly IPluginLog log;
     private readonly Task init;
     private readonly Slot a = new(), s = new();
+    private sealed class FormSlot
+    {
+        internal NativeFormSnapshot Snapshot = NativeFormSnapshot.Hidden;
+        internal NativeFormWindow? Window;
+        internal bool UserClosed;
+    }
+    private readonly FormSlot finder = new(), macro = new();
+    private readonly ConcurrentQueue<(string Kind, NativeFormRequest Request)> forms = new();
     private readonly ConcurrentQueue<(string Rank, NativeTrainRequest Request)> requests = new();
     private readonly ConcurrentQueue<(string Rank, Vector2 Size)> sizes = new();
-    private readonly Vector2 aSize, sSize;
+    private readonly Vector2 aSize, sSize, finderSize, macroSize;
     private long nextUpdate;
     private bool disposed;
     private int theme = -1;
     private Vector4 textColor, buttonColor;
     internal bool Failed { get; private set; }
 
-    internal NativeTrainRuntime(IDalamudPluginInterface pi, IFramework framework, IPluginLog log, Vector2 aSize, Vector2 sSize)
+    internal NativeTrainRuntime(IDalamudPluginInterface pi, IFramework framework, IPluginLog log, Vector2 aSize, Vector2 sSize, Vector2 finderSize, Vector2 macroSize)
     {
         this.framework = framework; this.log = log; this.aSize = aSize; this.sSize = sSize;
+        this.finderSize = finderSize; this.macroSize = macroSize;
         init = KamiToolKitLibrary.InitializeAsync(pi);
         framework.Update += OnUpdate;
     }
 
-    internal void Publish(NativeTrainSnapshot aSnapshot, NativeTrainSnapshot sSnapshot)
-    { Volatile.Write(ref a.Snapshot, aSnapshot); Volatile.Write(ref s.Snapshot, sSnapshot); }
+    internal void Publish(NativeTrainSnapshot aSnapshot, NativeTrainSnapshot sSnapshot, NativeFormSnapshot finderSnapshot, NativeFormSnapshot macroSnapshot)
+    {
+        Volatile.Write(ref a.Snapshot, aSnapshot); Volatile.Write(ref s.Snapshot, sSnapshot);
+        Volatile.Write(ref finder.Snapshot, finderSnapshot); Volatile.Write(ref macro.Snapshot, macroSnapshot);
+    }
 
-    internal void Drain(HuntTrainUI aUi, HuntTrainUI sUi, Action<string, Vector2> saveSize)
+    internal void Drain(HuntTrainUI aUi, HuntTrainUI sUi, HuntFinderUI finderUi, HuntPointMacroUI macroUi, Action<string, Vector2> saveSize)
     {
         for (int i = 0; i < 64 && requests.TryDequeue(out var next); i++)
             (next.Rank == "S" ? sUi : aUi).NativeDispatch(next.Request);
+        for (int i = 0; i < 128 && forms.TryDequeue(out var next); i++)
+            if (next.Kind == "Finder") finderUi.NativeDispatch(next.Request); else macroUi.NativeDispatch(next.Request);
         while (sizes.TryDequeue(out var next)) saveSize(next.Rank, next.Size);
     }
 
@@ -55,8 +69,25 @@ internal sealed class NativeTrainRuntime : IDisposable
         nextUpdate = Environment.TickCount64 + 160;
         if (!init.IsCompletedSuccessfully)
         { Failed = true; log.Error(init.Exception!, "[HHT Native] KamiToolKit 初始化失败，恢复原窗口"); return; }
-        try { RefreshTheme(); Tick(a, "A", aSize); Tick(s, "S", sSize); }
-        catch (Exception ex) { Failed = true; log.Error(ex, "[HHT Native] 原生窗口异常，恢复原窗口"); a.Window?.CloseFromModel(); s.Window?.CloseFromModel(); }
+        try { RefreshTheme(); Tick(a, "A", aSize); Tick(s, "S", sSize); TickForm(finder, "Finder", finderSize); TickForm(macro, "Macro", macroSize); }
+        catch (Exception ex) { Failed = true; log.Error(ex, "[HHT Native] 原生窗口异常，恢复原窗口"); a.Window?.CloseFromModel(); s.Window?.CloseFromModel(); finder.Window?.CloseFromModel(); macro.Window?.CloseFromModel(); }
+    }
+
+    private void TickForm(FormSlot slot, string kind, Vector2 size)
+    {
+        var snapshot = Volatile.Read(ref slot.Snapshot);
+        if (!snapshot.Visible) slot.UserClosed = false;
+        if (slot.Window == null && snapshot.Visible)
+            slot.Window = new NativeFormWindow(request => {
+                if (request.Key == "close") slot.UserClosed = true;
+                forms.Enqueue((kind, request));
+            }, changed => sizes.Enqueue((kind, changed))) {
+                InternalName = "HHTNative" + kind, Title = kind == "Finder" ? "A 怪找怪" : "预设宏",
+                Size = Vector2.Clamp(size, new(380, 380), new(1600, 1600)) };
+        if (slot.Window == null) return;
+        slot.Window.Apply(snapshot);
+        if (snapshot.Visible && !slot.UserClosed && !slot.Window.IsOpen) slot.Window.Open();
+        else if (!snapshot.Visible && slot.Window.IsOpen) slot.Window.CloseFromModel();
     }
 
     private unsafe void RefreshTheme()
@@ -96,7 +127,7 @@ internal sealed class NativeTrainRuntime : IDisposable
         disposed = true; framework.Update -= OnUpdate;
         void Cleanup()
         {
-            a.Window?.Dispose(); s.Window?.Dispose(); KamiToolKitLibrary.Dispose();
+            a.Window?.Dispose(); s.Window?.Dispose(); finder.Window?.Dispose(); macro.Window?.Dispose(); KamiToolKitLibrary.Dispose();
         }
         // The library's synchronous disposal restores native vtables before nodes are freed.
         // Do not block the framework on its own scheduler.
