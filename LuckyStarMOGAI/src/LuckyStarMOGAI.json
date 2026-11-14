@@ -1,0 +1,16 @@
+{
+  "Author": "NiGuangOwO / Laficia",
+  "Name": "LuckyStarMOGAI",
+  "InternalName": "LuckyStarMOGAI",
+  "Punchline": "骑乘飞行农怪，潜水也骑乘；分类数量达标自动跳过并通知",
+  "Description": "基于 NiGuangOwO/LuckyStar 的独立定制版。保留原有农怪项目，新增红玉海巨大鳐三洞循环：洞内骑乘飞行、洞间骑乘潜水，接近目标落地后下坐骑击杀。分类观测计数，达到目标后跳过该种类，全部勾选种类完成后停止并通过聊天与屏幕提示通知。数量完成不代表确认S怪刷新。/luckystarmogai 打开；需要国服 vnavmesh 和配置好的 AE、RSR、Wrath 或 Prome。AGPL-3.0-or-later，保留原作者署名。",
+  "ApplicableVersion": "any",
+  "DalamudApiLevel": 15,
+  "Tags": [
+    "hunt",
+    "RankS",
+    "farm"
+  ],
+  "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
+  "AcceptsFeedback": true
+}
