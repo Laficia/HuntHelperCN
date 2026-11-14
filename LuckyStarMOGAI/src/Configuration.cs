@@ -10,6 +10,7 @@ public class Configuration : IPluginConfiguration
     public int SelectedFarm = 0;
     public bool[][] Selections = [[true,true],[true,true,true],[true,true,true],[true,true,true],[true,true],[true,true,true],[true]];
     public bool DelayEnable;
+    public bool DevMode;
     public bool[] RubyCaves = [true,true,true];
     public int DelayTime = 10;
     public RotationProvider Rotation = RotationProvider.AE;

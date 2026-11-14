@@ -1,8 +1,8 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 <PropertyGroup>
 <AssemblyName>LuckyStarMOGAI</AssemblyName><RootNamespace>LuckyStar</RootNamespace>
-<Authors>NiGuangOwO / Laficia</Authors><Version>0.0.0.9</Version>
-<Description>自动农怪，新增红玉海巨大鳐洞穴农怪。</Description>
+<Authors>NiGuangOwO / Laficia</Authors><Version>0.0.0.10</Version>
+<Description>基于NiGuangOwO/LuckyStar新增红玉海农怪循环。</Description>
 <PackageProjectUrl>https://github.com/Laficia/HuntHelperCN</PackageProjectUrl>
 <PackageLicenseExpression>AGPL-3.0-or-later</PackageLicenseExpression><IsPackable>false</IsPackable>
 <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>

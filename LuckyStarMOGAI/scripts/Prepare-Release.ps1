@@ -1,4 +1,4 @@
-param([string]$Version='0.0.0.9')
+param([string]$Version='0.0.0.10')
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $stage=Join-Path $root "obj/release-v$Version"
@@ -23,7 +23,7 @@ $rollbackName=if($previous){"rollback-luckystarmogai-$($previous.AssemblyVersion
 $entry=Get-Content (Join-Path $buildOutput 'LuckyStarMOGAI/LuckyStarMOGAI.json') -Raw | ConvertFrom-Json
 if($entry.AssemblyVersion -ne $Version){throw 'Manifest version mismatch'}
 $link="https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v$Version/latest.zip"
-$entry | Add-Member -NotePropertyMembers @{DownloadLinkInstall=$link;DownloadLinkUpdate=$link;DownloadLinkTesting=$link;LastUpdate=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds();IsHide=$false;IsTestingExclusive=$false;Changelog="$Version：修复到达落地点后下坐骑动画下降导致的误停，原生路线在已查询地面正上方1.5米内结束时接续正常下坐骑，保留真实状态确认与15秒动作超时。非AE循环按职业攻击距离和目标碰撞半径判断追近，能攻击时停止多余移动，远程不再强制贴到怪物中心2.5米。保留三洞骑乘飞行／潜水和快速进出洞衔接，133项回归检查通过。"} -Force
+$entry | Add-Member -NotePropertyMembers @{DownloadLinkInstall=$link;DownloadLinkUpdate=$link;DownloadLinkTesting=$link;LastUpdate=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds();IsHide=$false;IsTestingExclusive=$false;Changelog="$Version：恢复原版紧凑UI与各项目独立Go按钮，在伊休妲下方增加红玉海；循环插件下拉框位于首怪延迟右侧。骑乘、洞穴与循环托管设置保留在开发者模式，自动农怪逻辑与已有配置保持不变。打开指令改为原版的/luckystar，插件描述简化为用户指定文案。133项回归检查通过。"} -Force
 @($index | Where-Object InternalName -NE 'LuckyStarMOGAI') + @($entry) | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $stage 'pluginmaster.json') -Encoding utf8
 Copy-Item (Join-Path $root 'README.md') (Join-Path $stage 'LuckyStarMOGAI-README.md') -Force
 Copy-Item (Join-Path $root 'LICENSE.md') (Join-Path $stage 'LICENSE-AGPL-3.0.md') -Force

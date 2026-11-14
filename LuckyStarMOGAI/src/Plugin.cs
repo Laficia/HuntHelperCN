@@ -9,7 +9,9 @@ namespace LuckyStar;
 
 public sealed class Plugin : IDalamudPlugin
 {
-    private const string CommandName = "/luckystarmogai";
+    private const string CommandName = "/luckystar";
+    private const string LegacyCommandName = "/luckystarmogai";
+    private readonly System.Collections.Generic.List<string> registeredCommands = [];
     public static Configuration Configuration = null!;
     public readonly WindowSystem WindowSystem = new("LuckyStarMOGAI");
     private MainWindow MainWindow { get; init; }
@@ -30,10 +32,8 @@ public sealed class Plugin : IDalamudPlugin
         resume.RegisterFunc(MainWindow.ResumeFromCheckpoint);
         WindowSystem.AddWindow(MainWindow);
 
-        Svc.Commands.AddHandler(CommandName, new CommandInfo(OnCommand)
-        {
-            HelpMessage = "打开窗口；start 开始农怪；stop 停止；status 查看运行状态"
-        });
+        RegisterCommand(CommandName);
+        RegisterCommand(LegacyCommandName);
 
         Svc.PluginInterface.UiBuilder.Draw += DrawUI;
         Svc.PluginInterface.UiBuilder.OpenConfigUi += ToggleMainUI;
@@ -49,8 +49,17 @@ public sealed class Plugin : IDalamudPlugin
         status.UnregisterFunc();
         resume.UnregisterFunc();
         MainWindow.Dispose();
-        Svc.Commands.RemoveHandler(CommandName);
+        foreach(var command in registeredCommands)Svc.Commands.RemoveHandler(command);
+        registeredCommands.Clear();
         ECommonsMain.Dispose();
+    }
+
+    private void RegisterCommand(string command)
+    {
+        if(Svc.Commands.AddHandler(command,new CommandInfo(OnCommand)
+        {HelpMessage="打开设置；start 开始农怪；stop 停止；status 查看运行状态"}))
+            registeredCommands.Add(command);
+        else Svc.Log.Warning($"LuckyStarMOGAI：{command} 已被其他插件占用；请停用原版 LuckyStar 后重载本插件。");
     }
 
     private void OnCommand(string command, string args)
