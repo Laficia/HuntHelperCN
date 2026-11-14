@@ -65,5 +65,37 @@
     "LastUpdate": 1794660319,
     "IsTestingExclusive": false,
     "Changelog": "0.0.0.8：清完当前洞穴并脱战后立即衔接下一洞，不再重走旧小怪点位；出洞全程保持骑乘。进洞加载后等待改为身份、网格、潜水标志和位置全部就绪并稳定350ms，取消两段各2秒的重复等待。保留单洞刷新等待与加载保护，124项回归检查通过。"
+  },
+  {
+    "Author": "hunhuan",
+    "Name": "魔法水桶",
+    "InternalName": "SrankFlag",
+    "AssemblyVersion": "1.2.14.0",
+    "Description": "四大区 S 怪开闸监控、条件时间订阅、服务器筛选与原生窗口。主窗详情显示条件倒计时和北京时间起止；窗口宽高独立调整，文字和状态颜色随游戏主题适配。基于 hunhuan 的魔法水桶 v1.2.13 发布包恢复。",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Laficia/MagicBucket",
+    "Tags": [
+      "srank",
+      "hunt",
+      "flag"
+    ],
+    "CategoryTags": [
+      "utility"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "Punchline": "S 怪开闸监控与条件倒计时，原生窗口随主题自适应。",
+    "AcceptsFeedback": true,
+    "Changelog": "1.2.14.0：修正开闸/未进闸互斥筛选；移除服名前菱形；六窗自由调整宽高并保存；条件倒计时与起止时间加入主窗详情，避免挤压；精简条件悬浮窗与47只S订阅目录；红黄绿条件状态、服务器独立配色及游戏主题适配。",
+    "DownloadLinkInstall": "https://github.com/Laficia/MagicBucket/releases/download/v1.2.14.0/SrankFlag.zip",
+    "DownloadLinkUpdate": "https://github.com/Laficia/MagicBucket/releases/download/v1.2.14.0/SrankFlag.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/MagicBucket/releases/download/v1.2.14.0/SrankFlag.zip",
+    "IconUrl": "https://raw.githubusercontent.com/Laficia/MagicBucket/main/assets/icon.png",
+    "LastUpdate": 1794663765,
+    "IsHide": false,
+    "IsTestingExclusive": false
   }
 ]
