@@ -99,7 +99,7 @@ public partial class HuntTrainUI
             var rowY = ImGui.GetCursorPosY();
             ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? new Vector4(.42f, .48f, .53f, 1) : new Vector4(.91f, .94f, .97f, 1));
             if (_rowDrag.Selectable(mob, mob.Name + " " + mob.Instance.GetInstanceGlyph(), _selectedIndex == index))
-            { _selectedIndex = index; _trainManager.SendTrainFlag(index, _openMap, _showInChat); if (!mob.Dead && _teleportMe && CanTeleport(mob)) _teleportManager.TeleportToHunt(mob); }
+                _selectedIndex = index;
             ImGui.PopStyleColor();
             if (!_rowDrag.Dragging && ImGui.IsItemHovered()) ImGui.SetTooltip(HuntRecordInfo.Describe(mob) + "\n拖动排序；右键选择、移动或删除");
             if (ImGui.BeginPopupContextItem("CompactRowMenu"))

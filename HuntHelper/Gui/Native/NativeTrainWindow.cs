@@ -38,7 +38,10 @@ internal sealed class NativeTrainWindow : NativeAddon
     private TextNode? worldLabel, footer, empty;
     private TextButtonNode? finder, recording, macros, more, current, legacy;
     private TextureButtonNode? resize;
-    private bool showTools, setup, suppressClose, dragDone, dragged;
+    private bool showTools, setup, suppressClose, dragDone;
+    private readonly NativePressGesture press = new();
+    private NodeBase? pressNode;
+    private static readonly string BuildVersion = typeof(NativeTrainWindow).Assembly.GetName().Version?.ToString() ?? "";
     private ViewportEventListener? pointer;
     private Vector2 startMouse, startSize, lastSize;
     private string dragKind = "", dragKey = "";
@@ -86,7 +89,8 @@ internal sealed class NativeTrainWindow : NativeAddon
             ("导入", NativeTrainAction.Import), ("导出", NativeTrainAction.Export),
             ("备份撤销", NativeTrainAction.Backups), ("设置", NativeTrainAction.Settings),
             ("清理死亡", NativeTrainAction.ClearDead), ("恢复存活", NativeTrainAction.Revive),
-            ("清空标签", NativeTrainAction.Clear), (snapshot?.Rank == "S" ? "A怪记录" : "S怪记录", NativeTrainAction.OtherRank) })
+            ("清空标签", NativeTrainAction.Clear), (snapshot?.Rank == "S" ? "A怪记录" : "S怪记录", NativeTrainAction.OtherRank),
+            ("原版窗口", NativeTrainAction.Legacy) })
             tools.Add(Button(body, label, () => Send(action)));
         scroll = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 34 };
         scroll.AttachNode(body);
@@ -155,8 +159,8 @@ internal sealed class NativeTrainWindow : NativeAddon
             // Keep IDs in a separate managed lookup; tooltips contain only user-facing text.
             tabKeys[button] = tab.Id.ToString();
             button.TextTooltip = "左键选择；按住拖动排序；右键选择、调整顺序或删除";
-            button.OnClick = () => { if (worlds) { if (Environment.TickCount64 >= suppressClickUntil) dispatch(new(NativeTrainAction.World, tab.Id)); }
-                else Send(NativeTrainAction.Version, tab.Id.ToString()); };
+            // Selection is dispatched once on a matching left release by OnPointer.
+            button.OnClick = () => { };
             x += w + 4;
         }
         return y + (tabs.Count == 0 ? 0 : 32);
@@ -176,7 +180,7 @@ internal sealed class NativeTrainWindow : NativeAddon
         item.Name.OnClick = () => {
             if (Environment.TickCount64 < suppressClickUntil) return;
             if (item.Header && item.GroupKey != null) { if (!collapsed.Add(item.GroupKey)) collapsed.Remove(item.GroupKey); Layout(); }
-            else if (item.Row is { Missing: false } row) Send(NativeTrainAction.Select, row.Key);
+            // Real rows are selected by the release gesture; headers only expand/collapse.
         };
         item.Teleport.OnClick = () => { if (item.Row != null) Send(NativeTrainAction.Teleport, item.Row.Key); };
         item.Move.OnClick = () => { if (item.Row != null) Send(NativeTrainAction.Move, item.Row.Key); };
@@ -206,15 +210,17 @@ internal sealed class NativeTrainWindow : NativeAddon
         body.Size = new(width, MathF.Max(180, Size.Y - ContentStartPosition.Y - 12));
         finder!.String = snapshot.Patrol ? "停止找怪" : snapshot.Moving ? "停止移动" : "找怪";
         finder.IsVisible = snapshot.Rank == "A" || snapshot.Moving;
-        float x = 0;
-        if (finder.IsVisible) { Place(finder, x, 0, 78); x += 82; }
         recording!.String = snapshot.Recording ? "停止录制" : "开始录制";
         recording.IsChecked = snapshot.Recording;
-        Place(recording, x, 0, 88); Place(macros!, x + 92, 0, 74); Place(more!, x + 170, 0, 60);
-        var legacyX = x + 234;
-        Place(legacy!, legacyX + 104 <= width ? legacyX : 0, legacyX + 104 <= width ? 0 : 34, 104);
+        var toolbar = NativeTrainToolbar.Arrange(width, finder.IsVisible);
+        foreach (var slot in toolbar)
+        {
+            var node = slot.Key switch { "finder" => finder, "recording" => recording, "macros" => macros, "more" => more, _ => legacy };
+            Place(node!, slot.Position.X, slot.Position.Y, slot.Width);
+        }
+        legacy!.TextTooltip = "切换为紧凑原版界面；也可使用 /hht legacy";
         more!.IsChecked = showTools;
-        float y = legacyX + 104 <= width ? 34 : 68;
+        float x = 0, y = toolbar.Max(slot => slot.Position.Y) + 34;
         foreach (var tool in tools) tool.IsVisible = showTools;
         if (showTools)
         {
@@ -298,10 +304,10 @@ internal sealed class NativeTrainWindow : NativeAddon
         content.Size = new(listWidth, MathF.Max(rowY, height)); scroll.RecalculateSizes();
         Place(footer!, 2, y + height + 5, width - 10, 32);
         var state = snapshot.Patrol ? "找怪中" : snapshot.Recording ? "录制中" : "录制关闭";
-        footer!.String = $"{state} · 已录入 {snapshot.Rows.Count(r => !r.Missing)}";
+        footer!.String = $"{state} · 已录入 {snapshot.Rows.Count(r => !r.Missing)} · v{BuildVersion}";
         footer.TextTooltip = snapshot.Status.Length == 0 ? "扫描和 Sonar 录制保存到记录对应的服务器" : snapshot.Status;
         if (snapshot.Status.Contains("无法") || snapshot.Status.Contains("失败") || snapshot.Status.Contains("错误"))
-            footer.String = $"{state} · 已录入 {snapshot.Rows.Count(r => !r.Missing)}\n{snapshot.Status}";
+            footer.String = $"{state} · 已录入 {snapshot.Rows.Count(r => !r.Missing)} · v{BuildVersion}\n{snapshot.Status}";
         resize!.Position = Size - new Vector2(23, 23);
         lastSize = Size;
         if (contextBackground != null) contextBackground.Color = DarkText() ? new(.9f, .89f, .86f, 1) : new(.07f, .10f, .16f, 1);
@@ -363,6 +369,7 @@ internal sealed class NativeTrainWindow : NativeAddon
         EndPointer();
         dragKind = kind; dragKey = source is TextButtonNode tab && kind != "row" && tabKeys.TryGetValue(tab, out var tabId) ? tabId : key;
         dragWorld = snapshot.World; startMouse = new(data->MouseData.PosX, data->MouseData.PosY); startSize = Size;
+        pressNode = source; press.Begin(startMouse);
         pointerPosition = startMouse; lastAutoScroll = Environment.TickCount64; autoScrollRemainder = 0;
         pointer = new ViewportEventListener(OnPointer);
         pointer.AddEvent(AtkEventType.MouseMove, source); pointer.AddEvent(AtkEventType.MouseUp, source);
@@ -372,11 +379,12 @@ internal sealed class NativeTrainWindow : NativeAddon
     private unsafe void OnPointer(AtkEventListener* listener, AtkEventType type, int param, AtkEvent* evt, AtkEventData* data)
     {
         if (data == null || dragDone || snapshot == null) return;
+        if (type == AtkEventType.MouseUp && data->MouseData.ButtonId != 0) return;
         var mouse = new Vector2(data->MouseData.PosX, data->MouseData.PosY);
         pointerPosition = mouse;
         var delta = mouse - startMouse;
-        dragged |= delta.LengthSquared() >= 36;
-        if (dragged) suppressClickUntil = Environment.TickCount64 + 250;
+        press.Move(mouse);
+        if (press.Dragging) suppressClickUntil = Environment.TickCount64 + 250;
         if (dragKind == "resize" && type == AtkEventType.MouseMove)
         {
             var scale = InternalAddon == null ? 1 : MathF.Max(.1f, InternalAddon->Scale);
@@ -386,9 +394,17 @@ internal sealed class NativeTrainWindow : NativeAddon
         if (type == AtkEventType.MouseUp) dragDone = true;
         if (dragKind == "resize") { if (type == AtkEventType.MouseUp) saveSize(Size); return; }
         if (type != AtkEventType.MouseMove && type != AtkEventType.MouseUp) return;
-        if (!dragged || dragWorld != snapshot.World) return;
-        suppressClickUntil = Environment.TickCount64 + 250;
+        if (dragWorld != snapshot.World) { press.Cancel(); return; }
         var nativeScale = InternalAddon == null ? 1 : MathF.Max(.1f, InternalAddon->Scale);
+        if (type == AtkEventType.MouseUp && press.Release(mouse, pressNode != null &&
+            NativeDragGeometry.Contains(mouse, pressNode.ScreenPosition, pressNode.Size, nativeScale)))
+        {
+            if (dragKind == "world" && uint.TryParse(dragKey, out var world)) dispatch(new(NativeTrainAction.World, world));
+            else dispatch(new(dragKind == "row" ? NativeTrainAction.SelectOnly : NativeTrainAction.Version, dragWorld, dragKey));
+            return;
+        }
+        if (!press.Dragging) return;
+        suppressClickUntil = Environment.TickCount64 + 250;
         if (dropCue != null) dropCue.IsVisible = false;
         if (dragKind == "row" && scroll != null && !NativeDragGeometry.Contains(mouse, scroll.ScreenPosition, scroll.Size, nativeScale)) return;
         IEnumerable<(NodeBase Node, string Key)> targets = dragKind == "row"
@@ -414,13 +430,13 @@ internal sealed class NativeTrainWindow : NativeAddon
         }
     }
 
-    private void EndPointer() { pointer?.Dispose(); pointer = null; dragDone = dragged = false; if (dropCue != null) dropCue.IsVisible = false; }
+    private void EndPointer() { pointer?.Dispose(); pointer = null; pressNode = null; press.Cancel(); dragDone = false; if (dropCue != null) dropCue.IsVisible = false; }
     protected override unsafe void OnUpdate(AtkUnitBase* addon)
     {
         base.OnUpdate(addon); if (dragDone) EndPointer(); if (setup && Size != lastSize) Layout();
         if (contextClosePending) { if (contextPanel != null) contextPanel.IsVisible = false; contextPointer?.Dispose(); contextPointer = null; contextClosePending = false; }
         if (setup) foreach (var item in items) { item.Name.Animate(); item.Map.Animate(); }
-        if (pointer != null && dragged && dragKind == "row" && scroll != null && InternalAddon != null)
+        if (pointer != null && press.Dragging && dragKind == "row" && scroll != null && InternalAddon != null)
         {
             var now = Environment.TickCount64;
             var direction = NativeDragGeometry.ScrollDirection(pointerPosition, scroll.ScreenPosition, scroll.Size, MathF.Max(.1f, InternalAddon->Scale));

@@ -4,6 +4,41 @@ using System.Numerics;
 
 namespace HuntHelper.Gui.Native;
 
+internal readonly record struct NativeToolbarSlot(string Key, Vector2 Position, float Width);
+
+internal static class NativeTrainToolbar
+{
+    internal static IReadOnlyList<NativeToolbarSlot> Arrange(float width, bool finder)
+    {
+        var result = new List<NativeToolbarSlot>();
+        float x = 0, y = 0;
+        foreach (var (key, size) in new[] { ("finder", 78f), ("recording", 88f), ("macros", 88f), ("more", 60f), ("legacy", 104f) })
+        {
+            if (key == "finder" && !finder) continue;
+            if (x > 0 && x + size > width) { x = 0; y += 34; }
+            result.Add(new(key, new(x, y), size)); x += size + 4;
+        }
+        return result;
+    }
+}
+
+/// <summary>One left press becomes either a release click or a drag, never both.</summary>
+internal sealed class NativePressGesture
+{
+    private Vector2 origin;
+    private bool pressed;
+    internal bool Dragging { get; private set; }
+    internal void Begin(Vector2 pointer) { origin = pointer; pressed = true; Dragging = false; }
+    internal void Move(Vector2 pointer) { if (pressed && Vector2.DistanceSquared(pointer, origin) >= 36) Dragging = true; }
+    internal bool Release(Vector2 pointer, bool inside)
+    {
+        if (!pressed) return false;
+        Move(pointer); pressed = false;
+        return inside && !Dragging;
+    }
+    internal void Cancel() { pressed = Dragging = false; }
+}
+
 internal readonly record struct NativeMenuChoice(string Label, NativeTrainRequest Request);
 
 internal static class NativeTrainMenus

@@ -13,12 +13,50 @@ internal static class NativeTrainChecks
         ("native row menus retain exact world and record identity", RowMenu),
         ("native server deletion targets the right-clicked server", WorldMenu),
         ("native version clear retains the clicked version and server", VersionMenu),
+        ("native toolbar always lays out legacy switch without overlap", ToolbarSwitch),
+        ("native left press selects exactly once on inside release", PressClick),
+        ("native held movement becomes a drag and never clicks on release", PressDrag),
+        ("native outside releases and cancelled gestures cannot select", PressCancel),
     ];
     private static NativeTrainRow Row(string key, uint map, uint instance = 0, bool missing = false, bool dead = false) =>
         new(key, map, instance, $"地图{map}", key, missing, dead, false, !missing, !missing, "", "");
     private static NativeTrainSnapshot Snapshot(params NativeTrainRow[] rows) =>
         new(true, "A", 101, "测试服", false, false, false, false, "", [], [], rows);
     private static void Require(bool condition) { if (!condition) throw new Exception("Native train presentation contract failed"); }
+    private static void ToolbarSwitch()
+    {
+        foreach (var finder in new[] { false, true }) foreach (var width in new[] { 310f, 350f, 420f, 560f, 900f })
+        {
+            var slots = NativeTrainToolbar.Arrange(width, finder);
+            Require(slots.Last().Key == "legacy" && slots[^2].Key == "more");
+            Require(slots.Count == (finder ? 5 : 4));
+            Require(slots.All(s => s.Position.X >= 0 && s.Position.X + s.Width <= width));
+            for (int i = 0; i < slots.Count; i++) for (int j = i + 1; j < slots.Count; j++)
+                Require(slots[i].Position.Y != slots[j].Position.Y || slots[i].Position.X + slots[i].Width <= slots[j].Position.X);
+        }
+    }
+    private static void PressClick()
+    {
+        var gesture = new NativePressGesture(); gesture.Begin(new(100, 100));
+        gesture.Move(new(102, 101)); Require(!gesture.Dragging);
+        Require(gesture.Release(new(102, 101), true));
+        Require(!gesture.Release(new(102, 101), true));
+    }
+    private static void PressDrag()
+    {
+        var gesture = new NativePressGesture(); gesture.Begin(new(100, 100));
+        gesture.Move(new(110, 100)); Require(gesture.Dragging);
+        gesture.Move(new(100, 100)); Require(gesture.Dragging);
+        Require(!gesture.Release(new(100, 100), true));
+    }
+    private static void PressCancel()
+    {
+        var gesture = new NativePressGesture(); gesture.Begin(new(100, 100));
+        Require(!gesture.Release(new(101, 100), false));
+        gesture.Begin(new(100, 100)); gesture.Move(new(110, 100)); gesture.Cancel();
+        Require(!gesture.Dragging && !gesture.Release(new(100, 100), true));
+        gesture.Begin(new(200, 200)); Require(gesture.Release(new(200, 200), true));
+    }
     private static void GroupOrder()
     {
         var groups = Snapshot(Row("B1", 2), Row("A1", 1), Row("B2", 2)).Groups;
