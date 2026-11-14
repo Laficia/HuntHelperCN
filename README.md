@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.16）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.20）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -10,6 +10,20 @@
 - 使用 `Dalamud.NET.Sdk/15.0.0`、`DalamudPackager/15.0.0` 和 `net10.0-windows`，平台为 x64。
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
+
+## DR 覆盖巡航
+
+- 找怪窗口增加可保存的「预设点位／DR 覆盖巡航」模式，默认使用 DR 巡航；运行中不能切换。DR 模式仅找 A 怪，强制正常骑乘与飞行，需要地图已解锁飞行。
+- DR 点位使用指定固定提交的原始 JSON，47 张地图、924 个三维点位；严格校验数量、地图、Zone、有限坐标和重复。数据无效时显示原因，不静默使用其它路线；原文件与来源校验值随插件包保留，CancelAnimation 不执行。
+- 覆盖寻点参考官方 `DailyRoutines.ModulesPublic` 的 `d074edb8` 实现：固定400米检测假设、300米规划半径与1.5秒观察，按覆盖耗时选择观察点及正常水晶传送；评分固定12米/秒飞速、10秒传送估计，不受隐藏的预设参数影响，保留同图60秒传送冷却。400米不是实测距离；运行时临时使用最远对象加载范围，结束恢复原值。保留实际所在服／当前分线隔离、多服队列和原生导航取消，不自动切线。
+- DR 扫描时自动显示独立路线预览窗，支持拖动、缩放和折叠，停止即隐藏；方形底图上显示真实导航路径、角色、目标、清晰青蓝扫描圈和已发现 A 怪。圈内及实际经过范围的刷新点即时显示青绿，未巡查点保持红色；「已巡查」只表示视觉经过，不改变怪物记录或正式扫描进度。缺图时显示网格，仍可查看路线；无真实路径时不补计划直线。
+- 使用方式与固定源链接见[使用手册](USER_GUIDE.zh-CN.md#finder)。当前版本为1.0.0.20，通过原订阅更新。游戏内加载已验证，巡航效果请结合地图实测。
+
+### 本机开发加载与自动重载
+
+开发版固定输出到 `obj/dev/HuntHelperCN/HuntHelperCN.dll`，旁边包含清单、地图点位和依赖。通过 DalamudMCP 注册为开发插件，并启用「启动时加载」与「自动重载」；保留订阅安装与玩家配置，勿同时启用同名订阅版。
+
+修改后运行 `./scripts/Build-Dev.ps1`，脚本重新构建到固定位置，卫月监测 DLL 变化后自动重载。脚本不发布 GitHub、不修改订阅。切回订阅版前先停用开发版，避免命令冲突。
 
 ## 更新修正（1.0.0.16）
 
