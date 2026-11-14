@@ -37,5 +37,33 @@
     "LastUpdate": 1794461944,
     "IsHide": false,
     "IsTestingExclusive": false
+  },
+  {
+    "Author": "NiGuangOwO / Laficia",
+    "Name": "LuckyStarMOGAI",
+    "InternalName": "LuckyStarMOGAI",
+    "AssemblyVersion": "0.0.0.1",
+    "Description": "基于 NiGuangOwO/LuckyStar 的独立定制版。保留原有农怪项目，新增红玉海巨大鳐：洞穴内读取附近观梦螺与无壳观梦螺的真实位置，洞内地面巡怪、洞间潜水寻路，自动等待进出洞穴加载，显示 ET 日期、满月条件提示及本机观测计数。/luckystarmogai 打开；需要 vnavmesh 和支持 aeTargetSelector/aepull 的 AE。AGPL-3.0-or-later，保留原作者署名。",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
+    "Tags": [
+      "hunt",
+      "RankS",
+      "farm"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "Punchline": "自动农怪，新增红玉海巨大鳐洞穴模式（需要 vnavmesh 和 AE）",
+    "AcceptsFeedback": true,
+    "Changelog": "0.0.0.1：独立 LuckyStarMOGAI，新增红玉海三洞农怪、原生进出加载等待、死亡观测和停止处理。洞口动画与AE效果待游戏内测试。",
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.1/latest.zip",
+    "LastUpdate": 1794575392,
+    "IsTestingExclusive": false,
+    "IsHide": false,
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.1/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.1/latest.zip"
   }
 ]

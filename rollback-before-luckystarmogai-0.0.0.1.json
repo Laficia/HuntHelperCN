@@ -1,0 +1,41 @@
+[
+  {
+    "Author": "img02 / Laficia",
+    "Name": "狩猎助手Hunt Helper",
+    "InternalName": "HuntHelperCN",
+    "AssemblyVersion": "1.0.0.16",
+    "Description": "基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。\nA 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。\n/hht 顶部「找怪」可按版本、地图和服务器选择，使用固定预设路线与 vnavmesh 巡点扫描。/hhs 提供独立S怪记录；A/S坐标宏分别保存，Sonar明确A怪击杀可同步死亡标记。跨图仅使用已解锁水晶正常传送，无坐标 TP；扫描结果保存到角色当前所在服务器。\n原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
+    "Tags": [
+      "hunt",
+      "radar",
+      "the hunt",
+      "train",
+      "s rank",
+      "map",
+      "mob"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "ImageUrls": [
+      "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image1.png",
+      "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image2.png",
+      "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image3.png",
+      "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/image4.png"
+    ],
+    "IconUrl": "https://raw.githubusercontent.com/img02/HuntHelper/main/Images/icon.png",
+    "Punchline": "国服狩猎助手：独立A/S记录、坐标宏、Sonar击杀同步与巡点找怪。",
+    "Changelog": "1.0.0.16：修正喊话坐标宏的原生发送流程；加入紧凑宏集合、自定义标签、拖入固定与拖动排序。A/S默认统一/sh模板，新增name/map/lv/sever/ins别名，取消x/y；明确区分本地显示与对外发送。旧版1.0.0.15已备份，原订阅不变。尚待游戏内双端接收测试。",
+    "AcceptsFeedback": true,
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.16/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.16/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/v1.0.0.16/latest.zip",
+    "LastUpdate": 1794461944,
+    "IsHide": false,
+    "IsTestingExclusive": false
+  }
+]
