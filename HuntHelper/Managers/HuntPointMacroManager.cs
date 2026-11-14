@@ -18,9 +18,11 @@ public sealed class HuntPointMacroManager : IDisposable
     private readonly IHuntPointChatHost _chatHost;
     private readonly Func<long> _now;
     private long _nextSend;
+    private long? _waitUntil;
+    private string _completionStatus = "宏等待已完成（未发送聊天）";
     private uint _senderWorld;
     public string Status { get; private set; } = string.Empty;
-    public bool Busy => _queue.Count != 0;
+    public bool Busy => _queue.Count != 0 || _waitUntil.HasValue;
 
     public HuntPointMacroManager(Configuration config, IPlayerState player, IClientState client, IFramework framework,
         IHuntPointChatHost? chatHost = null, Func<long>? now = null)
@@ -52,30 +54,58 @@ public sealed class HuntPointMacroManager : IDisposable
             foreach (var line in pending) _queue.Enqueue((line, flag));
             _senderWorld = _player.CurrentWorld.RowId;
             _nextSend = 0;
+            _waitUntil = null;
+            _completionStatus = "宏等待已完成（未发送聊天）";
             Status = mob == null ? "已准备发送聊天宏" : $"已准备发送 {rank} 坐标宏：{mob.WorldName} · {mob.Name}";
         }
         catch (Exception ex) { Status = "坐标宏未发送：" + ex.Message; }
     }
 
-    public void Cancel() { _queue.Clear(); Status = "已取消剩余坐标宏"; }
+    public void Cancel() { _queue.Clear(); _waitUntil = null; Status = "已取消剩余坐标宏"; }
 
     private void Tick(IFramework _)
     {
         if (!Busy) return;
         if (!_client.IsLoggedIn || !_player.IsLoaded || _player.CurrentWorld.RowId != _senderWorld) { Cancel(); return; }
-        if (_now() < _nextSend) return;
         try
         {
-            var next = _queue.Peek();
-            HuntPointChatDelivery.Send(next.Line, next.Flag, _chatHost);
-            _queue.Dequeue();
-            _nextSend = _now() + 1200;
-            Status = Busy ? $"坐标宏发送中，剩余 {_queue.Count} 行" : next.Line.LocalOnly
-                ? "本地回显已执行（/echo，仅自己可见）"
-                : $"已提交 {next.Line.Channel} 频道；是否送达以游戏反馈为准";
+            var now = _now();
+            if (_waitUntil is { } until)
+            {
+                if (now < until)
+                {
+                    Status = $"坐标宏等待中，剩余 {(until - now + 999) / 1000} 秒 · 后续 {_queue.Count} 行";
+                    return;
+                }
+                _waitUntil = null;
+                if (_queue.Count == 0) { Status = _completionStatus; return; }
+            }
+            while (_queue.Count > 0)
+            {
+                var next = _queue.Peek();
+                if (!next.Line.IsWaitOnly)
+                {
+                    if (now < _nextSend) return;
+                    HuntPointChatDelivery.Send(next.Line, next.Flag, _chatHost);
+                    _nextSend = _now() + 1200;
+                    _completionStatus = next.Line.LocalOnly
+                        ? "本地回显已执行（/echo，仅自己可见）"
+                        : $"已提交 {next.Line.Channel} 频道；是否送达以游戏反馈为准";
+                }
+                _queue.Dequeue();
+                if (next.Line.WaitSeconds > 0)
+                {
+                    _waitUntil = _now() + next.Line.WaitSeconds * 1000L;
+                    Status = $"坐标宏等待中，剩余 {next.Line.WaitSeconds} 秒 · 后续 {_queue.Count} 行";
+                    return;
+                }
+                Status = Busy ? $"坐标宏发送中，剩余 {_queue.Count} 行" : _completionStatus;
+                // A pure wait starts immediately after this line, without adding a chat interval.
+                now = _now();
+            }
         }
-        catch (Exception ex) { _queue.Clear(); Status = "坐标宏发送失败：" + ex.Message; }
+        catch (Exception ex) { _queue.Clear(); _waitUntil = null; Status = "坐标宏发送失败：" + ex.Message; }
     }
 
-    public void Dispose() { _framework.Update -= Tick; _queue.Clear(); }
+    public void Dispose() { _framework.Update -= Tick; _queue.Clear(); _waitUntil = null; }
 }

@@ -8,6 +8,7 @@ internal static class Program
     {
         LifestreamChecks.Run(Run);
         PendingStopChecks.Run(Run);
+        OwnedPathChecks.Run(Run);
         Run("Native SimpleMove owns pending calculation and execution",()=>
         {using var f=new Fixture(); Check(f.Manager.TryMoveTo(f.Mob)); f.Framework.Tick(); Check(f.Manager.OwnsMovement&&f.Busy&&f.MoveRequests==1); f.NativeStart(); f.Framework.Tick(); Check(f.Manager.OwnsMovement); Check(f.Plugin.At("vnavmesh.Path.MoveTo").Calls==0&&f.Plugin.At("vnavmesh.Nav.PathfindCancelable").Calls==0);});
         Run("vnav stop while pathfinding never causes a late HHT restart",()=>

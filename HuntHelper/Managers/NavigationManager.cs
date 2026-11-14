@@ -5,6 +5,7 @@ using HuntHelper.Managers.Hunts.Models;
 using HuntHelper.Utilities;
 using Lumina.Excel.Sheets;
 using System;
+using System.Collections.Generic;
 using Action = System.Action;
 using System.Numerics;
 
@@ -22,10 +23,12 @@ public sealed class NavigationManager : IDisposable
     private readonly ICallGateSubscriber<bool> _ready;
     private readonly ICallGateSubscriber<bool> _pathfinding;
     private readonly ICallGateSubscriber<bool> _running;
+    private readonly ICallGateSubscriber<List<Vector3>> _remainingPath;
     private readonly ICallGateSubscriber<bool> _movementAllowed;
     private readonly ICallGateSubscriber<Vector3, bool, bool> _move;
     private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> _pointOnFloor;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestReachable;
+    private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestFlightPoint;
     private readonly Func<bool> _isFlying;
     private readonly Func<Action?>? _pendingStopResolver;
     private Action? _pendingStop;
@@ -56,9 +59,11 @@ public sealed class NavigationManager : IDisposable
         _isFlying = isFlying ?? (() => false);
         _pendingStopResolver = pendingStopResolver;
         _nearestReachable = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
+        _nearestFlightPoint = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Voxel.NearestPoint");
         _ready = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
         _pathfinding = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         _running = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
+        _remainingPath = pluginInterface.GetIpcSubscriber<List<Vector3>>("vnavmesh.Path.ListWaypoints");
         _movementAllowed = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.GetMovementAllowed");
         _move = pluginInterface.GetIpcSubscriber<Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo");
         _pointOnFloor = pluginInterface.GetIpcSubscriber<Vector3, bool, float, Vector3?>("vnavmesh.Query.Mesh.PointOnFloor");
@@ -74,6 +79,57 @@ public sealed class NavigationManager : IDisposable
             if (contextReason.Length != 0) return contextReason;
             RefreshAvailability(false);
             return _availability;
+        }
+    }
+
+    /// <summary>Reads the native executor's remaining nodes without calculating or changing a route.</summary>
+    public IReadOnlyList<Vector3> GetOwnedPath(out string status)
+    {
+        lock (_requestLock)
+        {
+            status = "当前没有本插件正在执行的路线";
+            if (_disposed || _movingTo == null || Interrupted) return Array.Empty<Vector3>();
+            var request = _movingTo;
+            try
+            {
+                var mismatch = GetContextReason(_movingTo);
+                if (mismatch.Length != 0)
+                { status = $"暂不显示路线：{mismatch}"; return Array.Empty<Vector3>(); }
+                if (!_pathfinding.HasFunction || !_running.HasFunction)
+                { status = "vnavmesh 当前不可用，暂不显示路线"; return Array.Empty<Vector3>(); }
+                // Check pending work first: the global executor can still contain
+                // another request's old nodes while native SimpleMove is calculating.
+                if (_pathfinding.InvokeFunc())
+                { status = "vnavmesh 正在寻路，等待执行路径"; return Array.Empty<Vector3>(); }
+                if (!_running.InvokeFunc())
+                { status = "当前没有正在执行的 vnavmesh 路线"; return Array.Empty<Vector3>(); }
+                if (!_remainingPath.HasFunction)
+                { status = "当前 vnavmesh 不支持读取执行路径"; return Array.Empty<Vector3>(); }
+                var nodes = _remainingPath.InvokeFunc();
+                if (nodes == null || nodes.Count == 0)
+                { status = "vnavmesh 执行路径为空"; return Array.Empty<Vector3>(); }
+                if (nodes.Count > 4096)
+                { status = "vnavmesh 路径节点过多，暂不显示路线"; return Array.Empty<Vector3>(); }
+                var snapshot = nodes.ToArray();
+                foreach (var node in snapshot)
+                    if (!NavigationRules.IsFinite(node))
+                    { status = "vnavmesh 返回无效路径节点，暂不显示路线"; return Array.Empty<Vector3>(); }
+                // Native partial paths and safe/landing-point projection can end
+                // away from the requested goal. Display their actual nodes rather
+                // than hiding the path or inventing a final segment to that goal.
+                var endpointDistance = Vector3.Distance(snapshot[^1], _destination);
+                if (_disposed || !ReferenceEquals(_movingTo, request) || Interrupted || GetContextReason(request).Length != 0)
+                { status = "当前路线或所在地区已改变，暂不显示路线"; return Array.Empty<Vector3>(); }
+                status = endpointDistance > 10
+                    ? $"vnav 当前路径（终点距本次目标 {endpointDistance:0.0} 米）"
+                    : "vnav 当前执行路径";
+                return snapshot;
+            }
+            catch (Exception)
+            {
+                status = "暂时无法读取 vnavmesh 执行路径";
+                return Array.Empty<Vector3>();
+            }
         }
     }
 
@@ -189,6 +245,41 @@ public sealed class NavigationManager : IDisposable
             return true;
         }
         catch (Exception ex) { error = ex.Message; return false; }
+    }
+
+    public string GetCoverageDisabledReason()
+    {
+        lock (_requestLock)
+        {
+            if (_disposed || !_nearestFlightPoint.HasFunction)
+                return "DR 覆盖模式需要支持飞行体素查询接口的国服 vnavmesh，请安装并启用最新版";
+            return string.Empty;
+        }
+    }
+
+    /// <summary>Only queries a legal flight point. Execution remains owned by native SimpleMove.</summary>
+    public bool TryResolveCoveragePoint(Vector3 candidate, out Vector3 destination)
+    {
+        lock (_requestLock)
+        {
+            destination = default;
+            try
+            {
+                if (GetCoverageDisabledReason().Length != 0 || !_ready.HasFunction || !_ready.InvokeFunc() ||
+                    !_isFlying() || !NavigationRules.IsFinite(candidate)) return false;
+                // The CN IPC has separate horizontal and vertical half extents.
+                // This matches DR's 80m candidate retry range and 2048m height range.
+                var point = _nearestFlightPoint.InvokeFunc(candidate, 80f, 2048f);
+                if (point is not { } resolved || !NavigationRules.IsFinite(resolved)) return false;
+                destination = resolved;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                LastMessage = $"无法查询飞行扫描点：{ex.Message}";
+                return false;
+            }
+        }
     }
 
     public void NotifyStopCommand()

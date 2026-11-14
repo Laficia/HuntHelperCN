@@ -1,10 +1,13 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
+using Dalamud.Game.Config;
 using Dalamud.Plugin.Services;
 using Dalamud.Plugin;
+using Dalamud.Interface.Textures.TextureWraps;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Control;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using HuntHelper.Managers.Hunts;
 using HuntHelper.Managers.Hunts.Models;
 using HuntHelper.Managers.MapData;
@@ -13,6 +16,7 @@ using Lumina.Excel.Sheets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Numerics;
 
 namespace HuntHelper.Managers.Automation;
@@ -29,6 +33,16 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private readonly HuntManager _hunts;
     private readonly NavigationManager _navigation;
     private readonly Configuration _config;
+    private readonly MapDataManager _mapData;
+    private readonly Dictionary<uint, string> _previewImageNames;
+    private DRPatrolPreview? _preview;
+    private readonly IGameConfig _gameConfig;
+    private readonly IFramework _framework;
+    private readonly CoverageRangeLease _coverageRange;
+    private System.Threading.Tasks.Task? _rangeRestoreTask;
+    private readonly string _coverageDataPath;
+    private IReadOnlyList<PatrolRoute>? _coverageMaps;
+    public string CoverageDataError { get; private set; } = string.Empty;
     private readonly LifestreamWorldTravel _worldTravel;
     public string WorldTravelError => _worldTravel.Error;
     public bool WorldTravelBusy => _worldTravel.Busy;
@@ -41,6 +55,21 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private long _nextTick, _nextAction, _nextDeath, _takeoffUntil;
     private bool _disposed;
     public PatrolSession Session { get; }
+    public DRPatrolPreview? Preview
+    {
+        get
+        {
+            if (_disposed || _preview is not { } preview || !Session.Active || Session.RouteMode != PatrolRouteMode.DRCoverage ||
+                Session.State is not (PatrolState.Scanning or PatrolState.PreparingMove or PatrolState.Moving) ||
+                Session.CurrentRoute is not { } route || route.TerritoryId != preview.Territory || route.MapId != preview.Map)
+                return null;
+            if (Session.State == PatrolState.Moving && _navigation.Interrupted) return null;
+            var context = Context;
+            return context.LoggedIn && context.Ready && !context.Dead && !context.InCombat && context.World != 0 && context.World == preview.World &&
+                context.Territory == preview.Territory && context.Map == preview.Map && context.Instance == preview.Instance
+                ? preview : null;
+        }
+    }
     public List<PatrolRoute> Maps { get; } = new();
     public bool Navigating => _navigation.OwnsMovement;
     public bool NavigationInterrupted => _navigation.Interrupted;
@@ -54,10 +83,18 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     public HuntAutomationManager(IClientState client, IPlayerState player, IObjectTable objects, ICondition condition,
         IAetheryteList aetherytes, IDataManager data, TrainManager trains, HuntManager hunts, NavigationManager navigation,
-        MapDataManager maps, Configuration config, IDalamudPluginInterface pluginInterface, TrainManager? sTrains = null)
+        MapDataManager maps, Configuration config, IDalamudPluginInterface pluginInterface, IGameConfig gameConfig, IFramework framework, TrainManager? sTrains = null)
     {
         _client = client; _player = player; _objects = objects; _condition = condition; _aetherytes = aetherytes;
         _data = data; _trains = trains; _hunts = hunts; _navigation = navigation; _config = config;
+        _mapData = maps;
+        _previewImageNames = maps.SpawnPointsList.GroupBy(map => (uint)map.MapID)
+            .ToDictionary(group => group.Key, group => group.First().MapName);
+        _gameConfig = gameConfig;
+        _framework = framework;
+        _coverageRange = new(ReadCoverageRange, ApplyCoverageRange);
+        _gameConfig.SystemChanged += OnSystemConfigChanged;
+        _coverageDataPath = Path.Combine(pluginInterface.AssemblyLocation.Directory!.FullName, "Data", "DRSpawnPoints.json");
         _worldTravel = new(pluginInterface);
         _sTrains = sTrains;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged += _sDeaths.ManualChange;
@@ -78,13 +115,134 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     private void OnWorldDeleted(uint id) { if (id == Context.World && Session.Active) Session.Stop("已删除当前服记录，停止找怪"); }
 
+    public IReadOnlyList<PatrolRoute> GetMaps(PatrolRouteMode mode)
+    {
+        if (mode != PatrolRouteMode.DRCoverage) return Maps;
+        if (_coverageMaps != null) return _coverageMaps;
+        if (DRPatrolRoutes.TryLoad(_coverageDataPath, Maps, out var routes, out var error))
+        {
+            CoverageDataError = string.Empty;
+            return _coverageMaps = routes;
+        }
+        CoverageDataError = error;
+        return _coverageMaps = Array.Empty<PatrolRoute>();
+    }
+
+    public bool BeginCoverage(out string error)
+    {
+        if (_rangeRestoreTask is { IsCompleted: false })
+        { error = "正在恢复上次找怪的显示范围，请稍后重试"; return false; }
+        error = _navigation.GetCoverageDisabledReason();
+        return error.Length == 0 && _coverageRange.TryAcquire(out error);
+    }
+
+    public void EndCoverage()
+    {
+        if (!_framework.IsInFrameworkUpdateThread)
+        {
+            // Unload can arrive outside the game thread. Keep the lease alive in
+            // the queued action so restoring the runtime setting remains safe.
+            if (_rangeRestoreTask == null || _rangeRestoreTask.IsCompleted)
+                _rangeRestoreTask = _framework.RunOnFrameworkThread(RestoreCoverageRange);
+            return;
+        }
+        RestoreCoverageRange();
+    }
+
+    private void RestoreCoverageRange()
+    {
+        try { _coverageRange.Release(); }
+        catch (Exception ex) { PluginLog.Warning(ex, "Could not restore object display range; will retry while idle"); }
+    }
+
+    private uint? ReadCoverageRange() => _gameConfig.System.TryGetUInt(nameof(SystemConfigOption.DynamicAroundRangeMode), out var mode) ? mode : null;
+
+    private static unsafe void ApplyCoverageRange(uint mode)
+    {
+        // The normal ConfigModule application path updates runtime state as well
+        // as the stored option. IGameConfig.System.Set alone can defer its effect.
+        var module = ConfigModule.Instance();
+        if (module == null) throw new InvalidOperationException("游戏系统设置尚未就绪");
+        for (var index = 0; index < module->Options.Length; index++)
+        {
+            if (module->Options[index].GetName() != nameof(SystemConfigOption.DynamicAroundRangeMode)) continue;
+            if (!module->SetValueByIndex(index, checked((int)mode), 0, true, true))
+                throw new InvalidOperationException("游戏无法应用角色与物体显示范围设置");
+            return;
+        }
+        throw new InvalidOperationException("当前国服客户端未找到角色与物体显示范围设置");
+    }
+
+    private void OnSystemConfigChanged(object? sender, ConfigChangeEvent change)
+    {
+        if (change.Option is SystemConfigOption.DynamicAroundRangeMode ||
+            change.Name == nameof(SystemConfigOption.DynamicAroundRangeMode))
+            _coverageRange.NotifyExternalChange();
+    }
+
+    public bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
+    {
+        destination = default;
+        if (!_condition[ConditionFlag.InFlight]) return false;
+        candidate = PatrolTravelPlanner.FlightTarget(Context.Territory, candidate, true);
+        return _navigation.TryResolveCoveragePoint(candidate, out destination);
+    }
+
+    public IReadOnlyList<PatrolCoverageCrystal> CoverageCrystals(PatrolRoute route)
+    {
+        var scale = MapScale(route);
+        if (scale <= 0) return Array.Empty<PatrolCoverageCrystal>();
+        return AvailableCrystals(route.TerritoryId).Where(c => c.Position.HasValue)
+            .Select(c => new PatrolCoverageCrystal(c, PatrolTravelPlanner.Horizontal(NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
+            .Where(c => float.IsFinite(c.Position.X) && float.IsFinite(c.Position.Y)).ToList();
+    }
+
+    public float CoverageSpeed(PatrolOptions options) => TravelSpeed(options);
+
+    public IDalamudTextureWrap? GetPreviewMapImage(uint territory)
+    {
+        if (Preview?.Territory != territory || !_previewImageNames.TryGetValue(territory, out var mapName)) return null;
+        _hunts.EnsureMapImages(_mapData.SpawnPointsList);
+        return _hunts.GetMapImage(mapName);
+    }
+
+    private void UpdatePreview()
+    {
+        var preview = Session.GetDRPreview(Context);
+        if (preview == null) { _preview = null; return; }
+        IReadOnlyList<Vector3> path = Array.Empty<Vector3>();
+        var pathStatus = string.Empty;
+        if (preview.State == PatrolState.Moving)
+        {
+            var remaining = _navigation.GetOwnedPath(out pathStatus);
+            if (remaining.Count > 0)
+            {
+                var connected = new Vector3[remaining.Count + 1];
+                connected[0] = preview.Player;
+                for (var index = 0; index < remaining.Count; index++) connected[index + 1] = remaining[index];
+                path = connected;
+            }
+        }
+        _preview = preview with
+        {
+            WorldName = _trains.GetCurrentWorld().WorldName,
+            MapScale = _hunts.GetMapZoneScale(preview.Territory),
+            Path = path,
+            PathStatus = pathStatus
+        };
+    }
+
     public void Tick()
     {
         if (_disposed || Environment.TickCount64 < _nextTick) return;
         var now = Environment.TickCount64; _nextTick = now + 250;
         try
         {
+            if (Session.Active && _coverageRange.Active && (_coverageRange.ChangedExternally || ReadCoverageRange() != 2))
+                Session.Stop("角色与物体显示范围已改变，DR 覆盖扫描已停止");
+            if (!Session.Active && _coverageRange.Active) EndCoverage();
             Session.Tick(now);
+            UpdatePreview();
             if ((_config.HuntDeathMonitoring || _config.HuntSDeathMonitoring) && now >= _nextDeath)
             {
                 _nextDeath = now + 500;
@@ -100,6 +258,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         }
         catch (Exception ex)
         {
+            _preview = null;
             Session.Stop($"找怪暂停：{ex.Message}");
             PluginLog.Warning(ex, "Hunt automation stopped");
         }
@@ -166,7 +325,11 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         {
             if (!takeoff || _condition[ConditionFlag.InFlight]) return true;
             if (Environment.TickCount64 < _takeoffUntil) { message = "等待起飞状态确认"; return false; }
-            if (Control.GetFlightAllowedStatus() != Control.FlightAllowedStatus.CanFly) return true;
+            if (Control.GetFlightAllowedStatus() != Control.FlightAllowedStatus.CanFly)
+            {
+                if (_coverageRange.Active) { message = "DR 覆盖模式需要当前地图已解锁飞行，请解锁后重试"; return false; }
+                return true;
+            }
             message = "正在起飞";
             if (Environment.TickCount64 >= _nextAction)
             {
@@ -185,7 +348,8 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         destination = point.Position ?? default; error = string.Empty;
         if (!point.Position.HasValue && !_navigation.TryResolvePatrolPoint(route.MapId, point.MapPosition, out destination, out error)) return false;
-        destination = PatrolTravelPlanner.FlightTarget(route.TerritoryId, destination, _condition[ConditionFlag.InFlight]);
+        if (!point.IsObservationPoint)
+            destination = PatrolTravelPlanner.FlightTarget(route.TerritoryId, destination, _condition[ConditionFlag.InFlight]);
         var world = _trains.GetCurrentWorld();
         var target = new HuntTrainMob("找怪扫描点", 0, route.TerritoryId, route.MapId, Context.Instance, route.Name,
             point.MapPosition, DateTime.UtcNow, false, world.WorldID, world.WorldName, world.DataCenterName, destination);
@@ -214,7 +378,10 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     public void Dispose()
     {
         _disposed = true;
+        _preview = null;
         Session.Stop("插件已卸载");
+        EndCoverage();
+        _gameConfig.SystemChanged -= OnSystemConfigChanged;
         _trains.ManualDeadStateChanged -= _deaths.ManualChange;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged -= _sDeaths.ManualChange;
         _trains.WorldDeleted -= OnWorldDeleted;

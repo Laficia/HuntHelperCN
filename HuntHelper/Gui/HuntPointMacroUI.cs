@@ -162,7 +162,7 @@ public sealed class HuntPointMacroUI
         var text = draft.Item2;
         ImGui.InputTextMultiline("##MacroTemplate", ref text, 6000, new Vector2(-1, 112 * scale)); Remember("text");
         _drafts[entry.Id] = (name, text);
-        ImGui.TextWrapped("<服务器> / <sever>   <名字> / <name>   <地图> / <map>   <等级> / <lv>   <分线> / <ins>   <flag>");
+        ImGui.TextWrapped("<服务器> / <sever>   <名字> / <name>   <地图> / <map>   <等级> / <lv>   <分线> / <ins>   <flag>   <wait.数字>（本地等待）");
         if (ImGui.Button("保存宏"))
         {
             if (_library.Save(entry.Id, name, text)) _save();

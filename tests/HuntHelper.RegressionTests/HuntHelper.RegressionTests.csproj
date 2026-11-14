@@ -17,6 +17,11 @@
     <Compile Include="..\..\HuntHelper\Utilities\HuntWorldCatalog.cs" Link="Production\HuntWorldCatalog.cs" />
     <None Include="..\Fixtures\CnWorldCatalog.json" Link="CnWorldCatalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolTravelPlanner.cs" Link="Production\PatrolTravelPlanner.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\DRPatrolRoutes.cs" Link="Production\DRPatrolRoutes.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\DRCoveragePlanner.cs" Link="Production\DRCoveragePlanner.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\DRCoveragePatrol.cs" Link="Production\DRCoveragePatrol.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\DRPatrolPreview.cs" Link="Production\DRPatrolPreview.cs" />
+    <None Include="..\..\HuntHelper\Data\DRSpawnPoints.json" Link="DRSpawnPoints.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Utilities\ARankMapOrder.cs" Link="Production\ARankMapOrder.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRecordInfo.cs" Link="Production\HuntRecordInfo.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\TrainSnapshotStore.cs" Link="Production\TrainSnapshotStore.cs" />
@@ -27,6 +32,7 @@
     <Compile Include="..\..\HuntHelper\Utilities\HuntRoster.cs" Link="Production\HuntRoster.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntInstanceLayout.cs" Link="Production\HuntInstanceLayout.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolModels.cs" Link="Production\PatrolModels.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\CoverageRangeLease.cs" Link="Production\CoverageRangeLease.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolSession.cs" Link="Production\PatrolSession.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\HuntDeathMonitor.cs" Link="Production\HuntDeathMonitor.cs" />
     <Reference Include="Newtonsoft.Json">

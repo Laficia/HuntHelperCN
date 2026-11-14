@@ -151,8 +151,12 @@ $releaseManifest['IsTestingExclusive'] = $false
 $stagingDirectory = Join-Path $repositoryRoot "obj/release-staging/$tag"
 $null = New-Item -ItemType Directory -Path $stagingDirectory -Force
 $utf8NoBom = [Text.UTF8Encoding]::new($false)
-$indexJson = (ConvertTo-Json -InputObject @($releaseManifest) -Depth 30) + "`n"
 $indexPath = Join-Path $repositoryRoot 'pluginmaster.json'
+$otherPlugins = @()
+if (Test-Path -LiteralPath $indexPath) {
+    $otherPlugins = @(([IO.File]::ReadAllText($indexPath) | ConvertFrom-Json) | Where-Object { $_.InternalName -ne $InternalName })
+}
+$indexJson = (ConvertTo-Json -InputObject @(@($releaseManifest) + $otherPlugins) -Depth 30) + "`n"
 $stagedArchivePath = Join-Path $stagingDirectory 'latest.zip'
 Copy-Item -LiteralPath $archivePath -Destination $stagedArchivePath -Force
 Copy-Item -LiteralPath $manifestPath -Destination (Join-Path $stagingDirectory "$InternalName.json") -Force
@@ -190,6 +194,8 @@ MIT License，Copyright (c) 2022 imaginary-png；完整许可随安装包提供�
 
 latest.zip SHA-256：$archiveHash
 "@
+$reviewedNotes = Join-Path $repositoryRoot 'release-notes.zh-CN.md'
+if (Test-Path -LiteralPath $reviewedNotes) { $releaseNotes = [IO.File]::ReadAllText($reviewedNotes) }
 [IO.File]::WriteAllText((Join-Path $stagingDirectory 'release-notes.zh-CN.md'), $releaseNotes + "`n", $utf8NoBom)
 # Write the root index only after all package validation and staging succeed.
 [IO.File]::WriteAllText($indexPath, $indexJson, $utf8NoBom)

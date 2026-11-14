@@ -56,6 +56,8 @@ internal static unsafe class Program
             PointMacroUiChecks.Run();
             if (args.Contains("--render-point-macros")) PointMacroUiChecks.RenderPreview();
             WorldPickerChecks.Run();
+            FinderPreviewChecks.Run();
+            if (args.Contains("--render-dr-preview")) FinderPreviewChecks.RenderPreview();
             if (args.Contains("--render-world-picker")) WorldPickerPreview.Render();
             if (args.Contains("--render-roster")) RosterPreviewRenderer.Render(args.Contains("--show-missing"));
             return 0;

@@ -8,12 +8,15 @@ using System.Numerics;
 
 namespace HuntHelper.Managers.Automation;
 
+public enum PatrolRouteMode { Preset, DRCoverage }
+
 public sealed class PatrolPoint
 {
     public bool ForA { get; set; } = true;
     public bool ForB { get; set; } = true;
     public Vector3? Position { get; set; }
     public Vector2 MapPosition { get; set; }
+    public bool IsObservationPoint { get; set; }
 }
 
 public sealed class PatrolRoute
@@ -44,9 +47,16 @@ public readonly record struct PatrolContext(uint World, uint Territory, uint Map
 public readonly record struct PatrolDetection(uint Id, bool IsA, Vector3? Position = null);
 public sealed record PatrolCrystal(uint Id, string Name, Vector2? Position);
 public sealed record PatrolTeleport(PatrolCrystal Crystal, Vector2? WorldPosition, float DirectSeconds, float ViaSeconds);
+public sealed record PatrolCoverageCrystal(PatrolCrystal Crystal, Vector2 Position);
 
 public interface IPatrolHost
 {
+    bool BeginCoverage(out string error) { error = string.Empty; return true; }
+    void EndCoverage() { }
+    bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
+    { destination = candidate; return Utilities.NavigationRules.IsFinite(candidate); }
+    IReadOnlyList<PatrolCoverageCrystal> CoverageCrystals(PatrolRoute route) => Array.Empty<PatrolCoverageCrystal>();
+    float CoverageSpeed(PatrolOptions options) => 12;
     string WorldTravelError => "请先安装并启用 Lifestream";
     bool WorldTravelBusy => false;
     string WorldVisitProblem(HuntTrainWorld world) => WorldTravelError;
@@ -70,6 +80,7 @@ public interface IPatrolHost
 
 public sealed class PatrolOptions
 {
+    public PatrolRouteMode RouteMode { get; set; }
     public List<HuntTrainWorld> Worlds { get; set; } = new();
     public bool SmartTeleport { get; set; } = true;
     public float TeleportSeconds { get; set; } = 25;

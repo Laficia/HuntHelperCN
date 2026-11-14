@@ -16,6 +16,7 @@ namespace HuntHelper
         public bool SonarSyncAKills { get; set; } = true;
         public bool HuntDeathMonitoring { get; set; } = true;
         public bool HuntFinderSmartTeleport { get; set; } = true;
+        public Managers.Automation.PatrolRouteMode HuntFinderRouteMode { get; set; } = Managers.Automation.PatrolRouteMode.DRCoverage;
         public bool HuntFinderMultiWorld { get; set; }
         public List<uint> HuntFinderWorlds { get; set; } = new();
         public float HuntFinderTeleportSeconds { get; set; } = 25;

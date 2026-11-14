@@ -4,7 +4,7 @@
     <AssemblyName>HuntHelperCN</AssemblyName>
     <Authors>https://github.com/img02</Authors>
     <Company></Company>
-    <Version>1.0.0.16</Version>
+    <Version>1.0.0.20</Version>
     <Description>国服狩猎地图、独立 A/S 怪记录、Sonar 聊天录制、区服版本分类、路线巡点和死亡监测</Description>
     <Copyright></Copyright>
     <PackageProjectUrl>https://github.com/Laficia/HuntHelperCN</PackageProjectUrl>
@@ -36,6 +36,8 @@
     <None Remove="Data\ShB-B.json" />
     <None Remove="Data\ShB-S.json" />
     <None Remove="Data\SpawnPointData.json" />
+    <None Remove="Data\DRSpawnPoints.json" />
+    <None Remove="Data\DRSpawnPoints.SOURCE.md" />
   </ItemGroup>
 
   <ItemGroup>
@@ -112,6 +114,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="Data\SpawnPointData.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\DRSpawnPoints.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Data\DRSpawnPoints.SOURCE.md">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

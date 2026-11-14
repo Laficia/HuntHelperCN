@@ -52,6 +52,7 @@ namespace HuntHelper
         private SonarChatRecorder SonarRecorder { get; init; }
         private HuntAutomationManager Automation { get; init; }
         private HuntFinderUI HuntFinderUI { get; init; }
+        private HuntFinderPreviewUI HuntFinderPreviewUI { get; } = new();
         private CounterUI CounterUI { get; init; }
         private PointerUI PointerUI { get; init; }
         private SpawnPointFinderUI SpawnPointFinderUI { get; init; }
@@ -85,6 +86,7 @@ namespace HuntHelper
             IFateTable fateTable,
             IPluginLog pluginLog,
             IAetheryteList aeth,
+            IGameConfig gameConfig,
             IGameInteropProvider gameInterop)
         {
             this.CommandManager = commandManager;
@@ -143,7 +145,7 @@ namespace HuntHelper
                 () => condition[ConditionFlag.InFlight], stopCompatibility.Resolve);
             StopCommandObserver = new NavigationStopCommandObserver(gameInterop, NavigationManager);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
-                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, SRankManager);
+                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             Configuration.PointMacros ??= new();
             if (Configuration.PointMacros.UpgradeLegacyDefaults()) Configuration.Save();
@@ -306,6 +308,9 @@ namespace HuntHelper
                 HuntTrainUI.Draw();
                 SRankUI.Draw();
                 HuntFinderUI.Draw();
+                var preview = Automation.Preview;
+                HuntFinderPreviewUI.Draw(preview, preview == null ? null : Automation.GetPreviewMapImage(preview.Territory)?.Handle,
+                    Dalamud.Interface.Utility.ImGuiHelpers.GlobalScale);
                 PointMacroUI.Draw();
                 CounterUI.Draw();
                 SpawnPointFinderUI.Draw();

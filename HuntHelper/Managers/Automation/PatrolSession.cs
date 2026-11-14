@@ -27,6 +27,8 @@ public sealed class PatrolSession
     private List<HuntTrainWorld> _worlds = new();
     private int _worldIndex;
     private bool _ownsWorldTravel, _worldTravelBusySeen;
+    private bool _ownsCoverageRange;
+    private DRCoveragePatrol? _coverage;
     private long _worldTravelStarted;
     public HuntTrainWorld? TargetWorld => _worlds.Count > _worldIndex ? _worlds[_worldIndex] : null;
     public int WorldProgress => _worlds.Count == 0 ? 0 : _worldIndex + 1;
@@ -35,15 +37,35 @@ public sealed class PatrolSession
     public string Message { get; private set; } = "未开始找怪";
     public bool Active => State is not (PatrolState.Stopped or PatrolState.Completed);
     public int PointIndex { get; private set; }
-    public int CompletedPoints => _visited.Count;
+    public int CompletedPoints => _coverage?.CoveredCount ?? _visited.Count;
+    public PatrolRouteMode RouteMode => _options.RouteMode;
     public PatrolRoute? CurrentRoute => _route < _routes.Count ? _routes[_route] : null;
     public int FoundA => _foundA.Count;
     public int FoundB => _foundB.Count;
     public float ObservedARange { get; private set; }
-    public float ApproachRadius => _options.AdaptiveDetection && !_forceClose
+    public float ApproachRadius => _options.RouteMode == PatrolRouteMode.DRCoverage ? DRCoveragePlanner.PlanningRadius : _options.AdaptiveDetection && !_forceClose
         ? Math.Max(_options.Radius, Math.Min(150, ObservedARange * .7f - 10)) : _options.Radius;
 
     public PatrolSession(IPatrolHost host) => _host = host;
+
+    public DRPatrolPreview? GetDRPreview(PatrolContext context)
+    {
+        if (!Active || _options.RouteMode != PatrolRouteMode.DRCoverage || _coverage == null ||
+            State is PatrolState.Teleporting or PatrolState.PreparingWorld or PatrolState.ChangingWorld or PatrolState.PreparingMap ||
+            !context.LoggedIn || !context.Ready || context.World == 0 || context.World != _world ||
+            CurrentRoute is not { } route || context.Territory != route.TerritoryId || context.Map != route.MapId ||
+            context.Instance != _instance || !Utilities.NavigationRules.IsFinite(context.Position))
+            return null;
+
+        return new DRPatrolPreview
+        {
+            World = _world, Territory = route.TerritoryId, Map = route.MapId, Instance = _instance,
+            MapName = route.Name, Status = Message, State = State, Player = context.Position,
+            Target = _coverage.Target, Points = _coverage.GetPreviewPoints(), FoundA = _foundA.Count,
+            Monsters = _detections.Values.Where(d => d.IsA && d.Position is { } point && Utilities.NavigationRules.IsFinite(point))
+                .Select(d => d.Position!.Value).Distinct().ToArray(),
+        };
+    }
 
     public bool Start(IEnumerable<PatrolRoute> routes, PatrolOptions options, long now)
     {
@@ -63,14 +85,25 @@ public sealed class PatrolSession
         if (!context.LoggedIn || !context.Ready || context.World == 0 || context.Dead || context.InCombat ||
             _host.Navigating || copy.Count == 0 || !PatrolRouteRules.Valid(copy) || (!options.RankA && !options.RankB))
         { Message = "请等待角色就绪、选择地图和 A/B 等级，并停止已有移动"; return false; }
+        if (!Enum.IsDefined(options.RouteMode)) { Message = "请选择有效的寻路模式"; return false; }
+        if (options.RouteMode == PatrolRouteMode.DRCoverage &&
+            (!options.RankA || options.RankB || !options.Mount || !options.Takeoff ||
+             copy.Any(r => r.Points.Any(p => !p.Position.HasValue))))
+        { Message = "DR 覆盖扫描仅支持 A 怪、三维预设点和自动飞行，请检查点位及设置"; return false; }
         _routes = copy.Select(r => new PatrolRoute { TerritoryId = r.TerritoryId, MapId = r.MapId,
             Expansion = r.Expansion, Name = r.Name,
             Points = r.Points.Where(p => options.RankA && p.ForA || options.RankB && p.ForB)
                 .Select(p => new PatrolPoint { Position = p.Position, MapPosition = p.MapPosition, ForA = p.ForA, ForB = p.ForB }).ToList() }).ToList();
-        _options = new() { RankA = options.RankA, RankB = options.RankB, Mount = options.Mount, Takeoff = options.Takeoff,
+        _options = new() { RouteMode = options.RouteMode, RankA = options.RankA, RankB = options.RankB, Mount = options.Mount, Takeoff = options.Takeoff,
             SmartTeleport = options.SmartTeleport, AdaptiveDetection = options.AdaptiveDetection,
             UseRecordedHunts = options.UseRecordedHunts, TeleportSeconds = options.TeleportSeconds,
             Radius = Math.Clamp(options.Radius, 10, 150), WaitMs = Math.Clamp(options.WaitMs, 1000, 30000) };
+        if (_options.RouteMode == PatrolRouteMode.DRCoverage)
+        {
+            _options.SmartTeleport = true; _options.TeleportSeconds = 10;
+            if (!_host.BeginCoverage(out var rangeError)) { Message = rangeError; return false; }
+            _ownsCoverageRange = true;
+        }
         _world = context.World; _route = 0; PointIndex = 0; _ownsNavigation = false; _lastTeleportAt = now - 60000;
         _worlds = worlds; _worldIndex = 0; _ownsWorldTravel = false; _worldTravelBusySeen = false;
         ResetMap();
@@ -81,10 +114,12 @@ public sealed class PatrolSession
 
     public void Stop(string reason = "已停止找怪")
     {
+        _coverage?.Stop(); _coverage = null;
         if (_ownsNavigation) _host.StopNavigation();
         if (_ownsWorldTravel) _host.AbortWorldTravel();
         _ownsWorldTravel = false;
         _ownsNavigation = false; State = PatrolState.Stopped; Message = reason;
+        ReleaseCoverageRange();
     }
 
     public void Tick(long now)
@@ -96,7 +131,27 @@ public sealed class PatrolSession
         if (c.Dead || c.InCombat) { Stop("角色死亡或进入战斗，已停止找怪"); return; }
         var route = CurrentRoute!;
         if (now >= _deadline) { Stop("找怪步骤超时，请检查传送、坐骑或导航路线"); return; }
-        if (State == PatrolState.Teleporting) _teleportBusySeen |= !c.Ready;
+        if (State == PatrolState.Moving && _host.NavigationInterrupted)
+        { Stop("vnavmesh 已中止移动，找怪已停止"); return; }
+        if (_coverage != null)
+        {
+            if (c.Ready && (c.Territory != route.TerritoryId || c.Map != route.MapId || c.Instance != _instance))
+            { Stop("地图或分线改变，已停止当前覆盖扫描"); return; }
+            if (c.Ready && c.World != 0)
+            {
+                if (_options.UseRecordedHunts) Remember(_host.KnownDetections(true, false), c, false);
+                if (Enough(route)) { NextMap(now, "本图近期存活记录已齐全，跳过重复巡点"); return; }
+                Remember(_host.Scan(true, false), c, true);
+                if (Enough(route)) { NextMap(now, "本图已探测齐全，转往下一地图"); return; }
+            }
+            _coverage.Tick(c with { Ready = c.Ready && c.World != 0 }, now);
+            State = _coverage.State; Message = _coverage.Message; PointIndex = _coverage.Anchor;
+            _deadline = now + 180001;
+            if (_coverage.Failed) { Stop(Message); return; }
+            if (_coverage.Finished) NextMap(now, "DR 预设点覆盖完成，结果已按实际所在服务器保存");
+            return;
+        }
+        if (State == PatrolState.Teleporting) _teleportBusySeen |= !c.Ready || c.World == 0;
         if (!c.Ready || c.World == 0) return;
         if (State is not (PatrolState.PreparingMap or PatrolState.Teleporting) &&
             (c.Territory != route.TerritoryId || c.Map != route.MapId || c.Instance != _instance))
@@ -113,7 +168,13 @@ public sealed class PatrolSession
                     Vector2.Distance(PatrolTravelPlanner.Horizontal(c.Position), crystal) > 100) return;
                 State = PatrolState.PreparingMove; _deadline = now + 120000;
             }
-            else EnterMap(c, now);
+            else
+            {
+                if (_options.RouteMode == PatrolRouteMode.DRCoverage &&
+                    (!_teleportBusySeen || _teleportPlan?.WorldPosition is { } arrival &&
+                     Vector2.Distance(PatrolTravelPlanner.Horizontal(c.Position), arrival) > 100)) return;
+                EnterMap(c, now);
+            }
             return;
         }
 
@@ -217,11 +278,20 @@ public sealed class PatrolSession
         _travelConsidered = false; _forceClose = false; _extendedStop = false;
     }
     private void EnterMap(PatrolContext c, long now)
-    { _instance = c.Instance; State = PatrolState.PreparingMove; _deadline = now + 120000; }
+    {
+        _instance = c.Instance; _deadline = now + 120000;
+        if (_options.RouteMode == PatrolRouteMode.DRCoverage)
+        {
+            _coverage = new(_host, CurrentRoute!, _options, c, now);
+            State = _coverage.State; Message = _coverage.Message;
+        }
+        else State = PatrolState.PreparingMove;
+    }
     private void ResetMap()
     { _foundA.Clear(); _foundB.Clear(); _detections.Clear(); _visited.Clear(); ObservedARange = 0; _travelConsidered = false; _forceClose = false; _extendedStop = false; }
     private void NextMap(long now, string? reason = null)
     {
+        _coverage?.Stop(); _coverage = null;
         if (_ownsNavigation) _host.StopNavigation();
         _ownsNavigation = false; _route++; PointIndex = 0; ResetMap();
         if (_route >= _routes.Count && _worldIndex + 1 < _worlds.Count)
@@ -230,8 +300,14 @@ public sealed class PatrolSession
             State = PatrolState.PreparingWorld; _deadline = now + 120000;
             Message = $"本服所选地图已完成，准备前往 {TargetWorld!.WorldName}";
         }
-        else if (_route >= _routes.Count) { State = PatrolState.Completed; Message = reason ?? "所选地图巡点完成，结果已按实际所在服务器保存"; }
+        else if (_route >= _routes.Count) { State = PatrolState.Completed; Message = reason ?? "所选地图巡点完成，结果已按实际所在服务器保存"; ReleaseCoverageRange(); }
         else { State = PatrolState.PreparingMap; _deadline = now + 120000; Message = reason ?? "准备下一张地图"; }
+    }
+
+    private void ReleaseCoverageRange()
+    {
+        if (!_ownsCoverageRange) return;
+        _ownsCoverageRange = false; _host.EndCoverage();
     }
 
     private void TickWorld(PatrolContext c, long now)

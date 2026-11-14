@@ -16,6 +16,17 @@ internal static class MacroQueueChecks
         ("Busy repeated clicks do not create a second outgoing batch", Busy),
         ("Logout world transfer cancellation and disposal discard remaining messages", Cancellation),
         ("Only explicitly selected echo channels are reported as local output", Echo),
+        ("native inline wait markers execute locally after submitting the current chat line", InlineWait),
+        ("one second macro waits retain the existing minimum chat submission interval", WaitMinimumInterval),
+        ("standalone and consecutive waits accumulate seconds without being sent or adding chat intervals", StandaloneWait),
+        ("a wait embedded inside chat text delays after the complete marker-free line", EmbeddedWait),
+        ("native positive integer waits clamp values above sixty without overflow", NativeWaitLimits),
+        ("invalid waits anywhere reject the whole macro before any line can be submitted", InvalidWaits),
+        ("wait lines retain the fifteen-line cap and marker-free chat retains its UTF8 limit", WaitValidationLimits),
+        ("delayed coordinate lines keep the clicked record and flag snapshot", WaitSnapshots),
+        ("logout world changes cancellation and disposal abort a waiting macro immediately", WaitCancellation),
+        ("a trailing or wait-only macro remains busy until its local delay completes", TrailingWait),
+        ("record values and direct submissions cannot inject wait markers into outgoing chat", WaitInjection),
     ];
     private sealed class Framework : IFramework
     { public event Action<IFramework>? Update; public void Tick() => Update?.Invoke(this); }
@@ -89,6 +100,150 @@ internal static class MacroQueueChecks
     {
         using var f = new Fixture(); f.Sender.SendTemplate("/echo preview", null, "A"); f.Framework.Tick();
         Check(f.Sender.Status.Contains("仅自己可见") && f.Host.Submitted.Single().Text == "/echo preview");
+    }
+
+    private static void InlineWait()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate("/sh first <wait.2>\n/sh second", null, "A");
+        f.Framework.Tick();
+        Check(f.Host.Submitted.Single().Text == "/sh first" && f.Sender.Busy && f.Sender.Status.Contains("等待"));
+        f.Now = 1999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+        f.Now = 2000; f.Framework.Tick();
+        Check(f.Host.Submitted.Select(s => s.Text).SequenceEqual(new[] { "/sh first", "/sh second" }) && !f.Sender.Busy);
+    }
+
+    private static void WaitMinimumInterval()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate("/sh first<wait.1>\n/sh second", null, "A"); f.Framework.Tick();
+        f.Now = 1000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1 && f.Sender.Busy);
+        f.Now = 1199; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+        f.Now = 1200; f.Framework.Tick(); Check(f.Host.Submitted.Count == 2 && !f.Sender.Busy);
+    }
+
+    private static void StandaloneWait()
+    {
+        using (var f = new Fixture())
+        {
+            f.Sender.SendTemplate("<wait.1>\r\n\r\n<wait.2>\n/sh ready", null, "A"); f.Framework.Tick();
+            Check(f.Host.Submitted.Count == 0 && f.Sender.Busy);
+            f.Now = 999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 0);
+            f.Now = 1000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 0 && f.Sender.Busy);
+            f.Now = 2999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 0);
+            f.Now = 3000; f.Framework.Tick(); Check(f.Host.Submitted.Single().Text == "/sh ready" && !f.Sender.Busy);
+        }
+        using (var f = new Fixture())
+        {
+            f.Sender.SendTemplate("/sh first\n<wait.2>\n/sh second", null, "A"); f.Framework.Tick();
+            f.Now = 1999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+            f.Now = 2000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 2);
+        }
+    }
+
+    private static void EmbeddedWait()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate("/sh 开始<wait.2>结束\n/sh next", null, "A"); f.Framework.Tick();
+        Check(f.Host.Submitted.Single().Text == "/sh 开始结束");
+        f.Now = 1999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+        f.Now = 2000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 2);
+    }
+
+    private static void NativeWaitLimits()
+    {
+        foreach (var (marker, seconds) in new[] { ("<wait.60>", 60), ("<wait.61>", 60),
+            ("<wait.999999999999999999999999>", 60), ("<WAIT.2>", 2), ("<wait.0001>", 1) })
+        {
+            using var f = new Fixture();
+            f.Sender.SendTemplate(marker + "\n/sh ready", null, "A"); f.Framework.Tick();
+            Check(f.Sender.Busy && f.Host.Submitted.Count == 0);
+            f.Now = seconds * 1000L - 1; f.Framework.Tick(); Check(f.Host.Submitted.Count == 0);
+            f.Now++; f.Framework.Tick(); Check(f.Host.Submitted.Single().Text == "/sh ready" && !f.Sender.Busy);
+        }
+    }
+
+    private static void InvalidWaits()
+    {
+        foreach (var invalid in new[] { "<wait.0>", "<wait.000>", "<wait.-1>", "<wait.1.5>", "<wait.x>",
+            "<wait>", "<wait.>", "<wait.1", "<wait .1>", "<wait.1><wait.2>", "/sh <wait.1>" })
+        {
+            using var f = new Fixture();
+            f.Sender.SendTemplate("/sh must not send\n" + invalid, null, "A");
+            Check(!f.Sender.Busy && f.Sender.Status.Contains("未发送"));
+            f.Now = 100000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 0);
+        }
+    }
+
+    private static void WaitValidationLimits()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate(string.Join('\n', Enumerable.Repeat("<wait.1>", 16)), null, "A");
+        Check(!f.Sender.Busy && f.Sender.Status.Contains("15"));
+        f.Sender.SendTemplate(string.Join('\n', Enumerable.Repeat("<wait.1>", 15)), null, "A");
+        Check(f.Sender.Busy); f.Sender.Cancel();
+        f.Sender.SendTemplate("/sh first<wait.1>\n/sh " + new string('中', 170), null, "A");
+        f.Framework.Tick(); Check(!f.Sender.Busy && f.Host.Submitted.Count == 0 && f.Sender.Status.Contains("500"));
+        f.Sender.SendTemplate("/sh " + new string('a', 496) + "<wait.1>", null, "A");
+        f.Framework.Tick(); Check(f.Host.Submitted.Single().Text.Length == 500 && f.Sender.Busy);
+    }
+
+    private static void WaitSnapshots()
+    {
+        using var f = new Fixture(); var mob = Mob();
+        f.Sender.SendTemplate("/sh <name><flag><wait.2>\n/sh <sever><flag>", mob, "S");
+        f.Framework.Tick(); mob.Name = "changed"; mob.Position = new(99, 99);
+        f.Config.PointMacros.S = "/echo changed";
+        f.Now = 2000; f.Framework.Tick();
+        Check(f.Host.Submitted.Select(s => s.Text).SequenceEqual(new[] { "/sh 测试S怪<flag>", "/sh 水晶塔<flag>" }));
+        Check(f.Host.Submitted.All(s => s.Flag is { TerritoryId: 134, MapId: 30, X: 18, Z: 12 }) && f.Host.Flag == null);
+    }
+
+    private static void WaitCancellation()
+    {
+        foreach (var action in new[] { "logout", "world", "loading", "cancel", "dispose" })
+        {
+            using var f = new Fixture();
+            f.Sender.SendTemplate("/sh first<wait.5>\n/sh second", null, "A"); f.Framework.Tick(); f.Now = 100;
+            if (action == "logout") f.Client.IsLoggedIn = false;
+            else if (action == "world") f.Player.CurrentWorld = new(102, null);
+            else if (action == "loading") f.Player.IsLoaded = false;
+            else if (action == "cancel") f.Sender.Cancel(); else f.Sender.Dispose();
+            f.Framework.Tick(); Check(!f.Sender.Busy);
+            f.Now = 100000; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+        }
+    }
+
+    private static void TrailingWait()
+    {
+        using (var f = new Fixture())
+        {
+            f.Sender.SendTemplate("/sh first<wait.2>", null, "A"); f.Framework.Tick();
+            Check(f.Sender.Busy && f.Host.Submitted.Count == 1);
+            f.Sender.SendTemplate("/sh must not append", null, "A");
+            f.Now = 1999; f.Framework.Tick(); Check(f.Sender.Busy && f.Host.Submitted.Count == 1);
+            f.Now = 2000; f.Framework.Tick(); Check(!f.Sender.Busy && f.Host.Submitted.Count == 1);
+        }
+        using (var f = new Fixture())
+        {
+            f.Sender.SendTemplate("<wait.1>", null, "A"); f.Framework.Tick();
+            Check(f.Sender.Busy && f.Host.Submitted.Count == 0);
+            f.Now = 1000; f.Framework.Tick(); Check(!f.Sender.Busy && f.Host.Submitted.Count == 0 && f.Sender.Status.Contains("等待已完成"));
+        }
+    }
+
+    private static void WaitInjection()
+    {
+        foreach (var (name, template) in new[] { ("<wait.2>", "/sh <name>"), ("<wa", "/sh <name>it.2>") })
+        {
+            using var f = new Fixture(); var mob = Mob(); mob.Name = name;
+            f.Sender.SendTemplate(template, mob, "S"); f.Framework.Tick();
+            Check(!f.Sender.Busy && f.Host.Submitted.Count == 0 && f.Sender.Status.Contains("等待标记"));
+        }
+        var host = new Host(); var rejected = false;
+        try { HuntPointChatDelivery.Send(new("/sh unsafe<wait.2>", false, "/sh", false), default, host); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected && host.Submitted.Count == 0);
     }
 }
 

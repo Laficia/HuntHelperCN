@@ -16,4 +16,3 @@
 原作者 img02；MIT License，Copyright (c) 2022 imaginary-png。DR 点位来源及校验值随包保留。
 
 新安装或未保存过模式时默认选择 DR 巡航，已保存的选择保留。
-
