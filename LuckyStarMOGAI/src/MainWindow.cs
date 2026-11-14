@@ -11,7 +11,7 @@ namespace LuckyStar;
 public sealed class MainWindow : Window, IDisposable
 {
     private readonly FarmController controller = new();
-    public MainWindow() : base("LuckyStarMOGAI 0.0.0.8###LuckyStarMOGAI")
+    public MainWindow() : base("LuckyStarMOGAI 0.0.0.9###LuckyStarMOGAI")
     {
         Size = new Vector2(620,620); SizeCondition=ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints { MinimumSize=new(320,260), MaximumSize=new(float.MaxValue,float.MaxValue) };

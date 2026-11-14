@@ -61,6 +61,32 @@ internal static class FlowChecks
             var s=new FarmSession(h){MountBetweenTargets=false};Assert(s.Start(profile,[Vector3.Zero],0));s.Tick(0);
             h.Seen[1]=h.Seen[1] with{Position=Vector3.Zero};s.Tick(50);Assert(h.Actions.Last()=="focus:1");
         });
+        Check("a ranged fighter opens from attack range without walking to the monster center",()=>{
+            var h=new Fake{Engage=25,CombatMovement=true};h.Ctx=h.Ctx with{Position=Vector3.Zero};h.Seen=[new(1,5750,new(20,0,0),100,100,1)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);
+            Assert(h.Moves.Count==0 && !h.Actions.Contains("mount") && h.Actions.Last()=="combat:on");
+        });
+        Check("ranged target motion inside attack range holds position and returning into range stops the owned chase",()=>{
+            var h=new Fake{Engage=25,CombatMovement=true};h.Ctx=h.Ctx with{Position=Vector3.Zero};h.Seen=[new(1,5750,new(20,0,0),100,100,1)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));h.Ctx=h.Ctx with{Combat=true};s.Tick(0);
+            h.Seen[0]=h.Seen[0] with{Position=new(25.5f,0,0)};s.Tick(50);Assert(h.Moves.Count==0);
+            h.Seen[0]=h.Seen[0] with{Position=new(30,0,0)};s.Tick(100);Assert(h.Moves.Count==1 && h.NavBusy && !h.Moves[0].Fly);
+            h.Seen[0]=h.Seen[0] with{Position=new(24,0,0)};s.Tick(150);Assert(!h.NavBusy);
+            h.Seen[0]=h.Seen[0] with{Position=new(25,0,0)};s.Tick(200);Assert(h.Moves.Count==1 && s.Running);
+        });
+        Check("melee range includes the target hitbox and does not chase small target movements",()=>{
+            var h=new Fake{Engage=3};h.Ctx=h.Ctx with{Position=Vector3.Zero};h.Seen=[new(1,5750,new(4,0,0),100,100,1.5f)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(4,0,0)],0));h.Ctx=h.Ctx with{Combat=true};s.Tick(0);
+            h.Seen[0]=h.Seen[0] with{Position=new(4.4f,0,0)};s.Tick(50);Assert(h.Moves.Count==0);
+            h.Seen[0]=h.Seen[0] with{Position=new(6,0,0)};s.Tick(100);Assert(h.Moves.Count==1);
+            h.Seen[0]=h.Seen[0] with{Position=new(4.3f,0,0)};s.Tick(150);Assert(!h.NavBusy && s.Running);
+        });
+        Check("cave defense also holds ranged attack position and cancels its chase when range recovers",()=>{
+            var h=new Fake{Engage=25,CombatMovement=true};var cave=RubyCaves.All[0];h.Ctx=h.Ctx with{Position=cave.ScanPoint};
+            var r=new RubyPatrol(h);Assert(r.Start(profile,[true,true,true],0));h.Ctx=h.Ctx with{Combat=true};h.Seen=[new(1,5750,cave.ScanPoint+new Vector3(20,0,0),100,100,1)];r.Tick(0);Assert(h.Moves.Count==0);
+            h.Seen[0]=h.Seen[0] with{Position=cave.ScanPoint+new Vector3(30,0,0)};r.Tick(50);Assert(h.Moves.Count==1);
+            h.Seen[0]=h.Seen[0] with{Position=cave.ScanPoint+new Vector3(24,0,0)};r.Tick(100);Assert(!h.NavBusy && r.Running);
+        });
         Check("first-target delay does not delay each new target at the same waypoint",()=>{
             var h=new Fake();h.Ctx=h.Ctx with{Position=Vector3.Zero};h.Seen=[new(1,5750,Vector3.Zero,100,100),new(2,5751,Vector3.One,100,100)];
             var s=new FarmSession(h){MountBetweenTargets=false,DelaySeconds=2};Assert(s.Start(profile,[Vector3.Zero],0));s.Tick(0);Assert(!h.Actions.Contains("combat:on"));
@@ -103,10 +129,41 @@ internal static class FlowChecks
             s.Tick(100);s.Tick(150);Assert(h.Moves.Count==1 && !h.NavBusy);
             h.Ctx=h.Ctx with{Position=goal,Mounted=false,Flying=false};s.Tick(200);Assert(h.Actions.Last()=="combat:on");
         });
+        Check("dismount descent below the mesh floor waits for the real flight flags without restarting navigation",()=>{
+            var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);var goal=h.Moves.Single().Point;
+            h.Ctx=h.Ctx with{Position=goal};s.Tick(50);Assert(h.Actions.Last()=="dismount");
+            h.Ctx=h.Ctx with{Position=goal-new Vector3(0,0.6f,0)};s.Tick(100);s.Tick(500);
+            Assert(s.Running && h.Moves.Count==1 && !h.NavBusy && !h.Actions.Contains("combat:on"),s.State);
+            h.Ctx=h.Ctx with{Mounted=false,Flying=false};s.Tick(550);Assert(s.Running && h.Actions.Last()=="combat:on");
+        });
+        Check("dismount descent still stops at the bounded action timeout if flags never clear",()=>{
+            var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);var goal=h.Moves.Single().Point;
+            h.Ctx=h.Ctx with{Position=goal};s.Tick(50);h.Ctx=h.Ctx with{Position=goal-new Vector3(0,0.6f,0)};s.Tick(15100);
+            Assert(!s.Running && s.State.Contains("下坐骑超时") && h.Moves.Count==1 && !h.Actions.Contains("combat:on"),s.State);
+        });
         Check("a flight that ends above ground stops once instead of resetting navigation timeouts",()=>{
             var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
             var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);
             h.Ctx=h.Ctx with{Position=h.Moves[0].Point+new Vector3(0,2.3f,0)};h.NavBusy=false;s.Tick(2000);s.Tick(4000);
+            Assert(!s.Running && h.Moves.Count==1 && !h.Actions.Contains("dismount"));
+        });
+        Check("a completed flight directly above a verified floor hands off to native dismount without resubmitting",()=>{
+            var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);var goal=h.Moves.Single().Point;
+            h.Ctx=h.Ctx with{Position=goal+new Vector3(0.01f,1.34f,0.01f)};h.NavBusy=false;s.Tick(2000);
+            Assert(s.Running && h.Actions.Last()=="dismount" && h.Moves.Count==1,s.State);
+            h.Ctx=h.Ctx with{Mounted=false,Flying=false,Position=goal};s.Tick(2050);Assert(h.Actions.Last()=="combat:on");
+        });
+        Check("a still-running flight at the low handoff height is never cancelled early",()=>{
+            var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);h.Ctx=h.Ctx with{Position=h.Moves.Single().Point+new Vector3(0,1.34f,0)};s.Tick(2000);
+            Assert(s.Running && h.NavBusy && h.Moves.Count==1 && !h.Actions.Contains("dismount") && !h.Actions.Contains("stop"));
+        });
+        Check("a cancelled flight away from the landing column still stops instead of dismounting or restarting",()=>{
+            var h=new Fake{Engage=2.5f};h.Ctx=h.Ctx with{Position=Vector3.Zero,Mounted=true,Flying=true};h.Seen=[new(1,5750,new(20,0,0),100,100)];
+            var s=new FarmSession(h);Assert(s.Start(profile,[new(20,0,0)],0));s.Tick(0);h.Ctx=h.Ctx with{Position=h.Moves.Single().Point+new Vector3(2,1.34f,0)};h.NavBusy=false;s.Tick(2000);
             Assert(!s.Running && h.Moves.Count==1 && !h.Actions.Contains("dismount"));
         });
         Check("missing walkable ground refuses the approach without submitting a flight",()=>{

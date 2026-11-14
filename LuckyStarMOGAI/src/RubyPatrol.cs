@@ -144,7 +144,7 @@ public sealed class RubyPatrol(IFarmHost host)
             var engaged=mobs.Where(m=>_profile.Names.Contains(m.NameId) && !Progress.Done(m.NameId) && m.Hp>0 && FarmSession.Finite(m.Position) &&
                 Vector3.Distance(m.Position,c.Position)<=40).OrderBy(m=>Vector3.DistanceSquared(m.Position,c.Position)).FirstOrDefault();
             if(engaged.Id!=0 && !justDefending){host.Focus(engaged.Id);defenseName=engaged.NameId;}
-            if(engaged.Id!=0 && host.EngageDistance<25 && Vector3.Distance(engaged.Position,c.Position)>host.EngageDistance)
+            if(engaged.Id!=0 && host.ManagesCombatMovement && Vector3.Distance(engaged.Position,c.Position)>host.AttackDistance(engaged))
             {Navigate(engaged.Position,false,now,false,"靠近交战中的观梦螺");}
             else ReleaseMovement();
             State="巡逻途中遭遇观梦螺，等待所选循环击杀后继续";

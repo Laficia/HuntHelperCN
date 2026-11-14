@@ -39,7 +39,7 @@ public sealed unsafe class FarmController : IDisposable
             Phase=rubyMode?Ruby.Phase.ToString():"Farm",Ruby.CaveIndex,Ruby.CompletedVisits,Rotation=Plugin.Configuration.Rotation.ToString(),CombatStatus,
             Position=new{c.Position.X,c.Position.Y,c.Position.Z},c.Scope,SessionScope=rubyMode?Ruby.BoundScope:Session.BoundScope,
             FarmIndex=Plugin.Configuration.SelectedFarm,Names=ActiveProfile?.Names,
-            c.Mounted,c.Flying,c.Diving,c.Combat,c.Ready,Deaths,Navigation=rubyMode?Ruby.NavigationDiagnostics:Session.NavigationDiagnostics});
+            c.Mounted,c.Flying,c.Diving,c.Combat,c.Ready,EngageDistance=host.EngageDistance,Deaths,Navigation=rubyMode?Ruby.NavigationDiagnostics:Session.NavigationDiagnostics});
     }
     public void Stop(string reason = "已停止")
     {
@@ -128,7 +128,8 @@ internal sealed unsafe class GameFarmHost : IFarmHost, IDisposable
     public CombatRotationSession Rotation { get; }
     public GameFarmHost()=>Rotation=new(rotationApi);
     public void Dispose(){try{Rotation.Dispose();}finally{StopOwnedAttack();rotationApi.Dispose();}}
-    public float EngageDistance=>Rotation.Provider==RotationProvider.AE?25:2.5f;
+    public float EngageDistance=>Rotation.Provider==RotationProvider.AE || Svc.Objects.LocalPlayer?.ClassJob.Value.Role is 3 or 4 ? 25 : 3;
+    public bool ManagesCombatMovement=>Rotation.Provider!=RotationProvider.AE;
     public FarmContext Context
     {
         get
@@ -146,7 +147,7 @@ internal sealed unsafe class GameFarmHost : IFarmHost, IDisposable
     }
     public IReadOnlyList<FarmMob> Mobs => tickMobs ??= Svc.Objects.OfType<IBattleChara>()
         .Where(b => b.NameId is > 0 && b.EntityId != 0xE0000000)
-        .Select(b => new FarmMob(b.GameObjectId, b.NameId, b.Position, b.CurrentHp, b.MaxHp)).ToList();
+        .Select(b => new FarmMob(b.GameObjectId, b.NameId, b.Position, b.CurrentHp, b.MaxHp, b.HitboxRadius)).ToList();
     public bool NavigationReady => Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady") is { HasFunction: true } gate && gate.InvokeFunc();
     public bool NavigationBusy => Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress").InvokeFunc() ||
         Svc.PluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning").InvokeFunc();

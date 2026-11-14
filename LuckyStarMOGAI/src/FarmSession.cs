@@ -7,7 +7,7 @@ using System.Numerics;
 namespace LuckyStar;
 
 public readonly record struct FarmScope(uint World, uint Territory, uint Instance);
-public readonly record struct FarmMob(ulong Id, uint NameId, Vector3 Position, uint Hp, uint MaxHp);
+public readonly record struct FarmMob(ulong Id, uint NameId, Vector3 Position, uint Hp, uint MaxHp, float HitboxRadius = 0);
 public sealed record FarmProfile(string Name, uint Territory, uint[] Names, bool Ground, uint StopOnName = 0, bool RequireAllTargets = true)
 {
     public IReadOnlyDictionary<uint,int>? Goals { get; init; }
@@ -25,6 +25,8 @@ public interface IFarmHost
     bool NavigationBusy { get; }
     bool MovementAllowed { get; }
     float EngageDistance => 25;
+    bool ManagesCombatMovement => EngageDistance < 25;
+    float AttackDistance(FarmMob target) => EngageDistance + (float.IsFinite(target.HitboxRadius) ? Math.Max(0,target.HitboxRadius) : 0);
     bool Move(Vector3 position, bool fly);
     bool MoveDirect(Vector3 position, bool fly);
     void StopMovement();
@@ -143,7 +145,7 @@ public sealed class FarmSession(IFarmHost host, FarmProgress? sharedProgress = n
                 if(_target!=enemy.Id){_target=enemy.Id;targetName=enemy.NameId;_targetSince=now;}
                 if(!justEnabled)host.Focus(enemy.Id);
             }
-            if(enemy.Id!=0 && host.EngageDistance<25 && Vector3.Distance(enemy.Position,c.Position)>host.EngageDistance)
+            if(enemy.Id!=0 && host.ManagesCombatMovement && Vector3.Distance(enemy.Position,c.Position)>host.AttackDistance(enemy))
             {
                 if(!_moving)
                 {
@@ -180,7 +182,7 @@ public sealed class FarmSession(IFarmHost host, FarmProgress? sharedProgress = n
             var tracked=mobs.FirstOrDefault(m=>m.Id==_target && m.Hp>0 && !Progress.Done(m.NameId));
             if(_approachingTarget && tracked.Id==0){ReleaseMovement();onFootApproach=false;_approachingTarget=false;}
             var nearTarget=target.Id!=0 && Vector3.Distance(c.Position,target.Position)<=
-                (c.Mounted ? DismountDistance : host.EngageDistance) &&
+                (c.Mounted ? DismountDistance(target) : host.AttackDistance(target)) &&
                 !c.Flying;
             var atGoal=flightApproach && c.Flying ? AtLandingPoint(c.Position) :
                 Vector3.Distance(c.Position,_moveGoal)<=Math.Min(3,host.EngageDistance);
@@ -201,22 +203,23 @@ public sealed class FarmSession(IFarmHost host, FarmProgress? sharedProgress = n
             if(firstTargetDelayPending && now-_targetSince<Math.Clamp(DelaySeconds,0,120)*1000L){State="首只小怪延迟等待";return;}
             firstTargetDelayPending=false;
             var distance=Vector3.Distance(c.Position,target.Position);
-            if(distance>DismountDistance && !onFootApproach)
+            if(distance>DismountDistance(target) && !onFootApproach)
             {
                 Combat(false);
                 if(MountBetweenTargets && !PrepareTravel(now))return;
                 MoveTo(target.Position,MountBetweenTargets && FlyBetweenTargets,now,true);return;
             }
-            // The arrival and landing checks deliberately use the same point and tolerances.
-            // Never cancel a flight 2.5m above the ground and resubmit it every update.
-            if(c.Flying && !AtLandingPoint(c.Position))
+            // Arrival hands control to dismounting. The real landing animation can descend
+            // below the mesh floor while Flying remains true; keep waiting for its flags.
+            // Before that handoff, never cancel a flight high above the ground.
+            if(c.Flying && !onFootApproach && !AtLandingPoint(c.Position))
             {
                 Combat(false);
                 if(flightApproach){Stop("飞行路线已结束但尚未到达落地点，请检查地面与导航");return;}
                 MoveTo(target.Position,true,now,true);return;
             }
             if(c.Mounted || c.Flying){Combat(false);onFootApproach=true;WaitDismount(now);return;}
-            if(distance>host.EngageDistance)
+            if(distance>host.AttackDistance(target))
             {
                 Combat(false);onFootApproach=true;MoveTo(target.Position,false,now,true);return;
             }
@@ -231,9 +234,17 @@ public sealed class FarmSession(IFarmHost host, FarmProgress? sharedProgress = n
         Advance(now);State="前往下一点";
     }
 
-    private float DismountDistance=>host.EngageDistance+3;
-    private bool AtLandingPoint(Vector3 position)=>flightApproach && Vector3.Distance(position,_moveGoal)<=1 &&
-        Math.Abs(position.Y-_moveGoal.Y)<=0.35f;
+    private float DismountDistance(FarmMob target)=>host.AttackDistance(target)+3;
+    private bool AtLandingPoint(Vector3 position)
+    {
+        if(!flightApproach)return false;
+        var delta=position-_moveGoal;
+        if(delta.Length()<=1 && Math.Abs(delta.Y)<=0.35f)return true;
+        // vnavmesh can finish a flight just above its queried mesh floor. At the
+        // same horizontal point, a short native dismount can safely land there.
+        // Keep active flights and higher/sideways cancellations under the strict rule.
+        return !host.NavigationBusy && delta.X*delta.X+delta.Z*delta.Z<=0.25f && delta.Y is >=-0.5f and <=1.5f;
+    }
     private void ReleaseMovement(){if(_moving)host.StopMovement();_moving=false;}
     private bool PrepareTravel(long now)
     {

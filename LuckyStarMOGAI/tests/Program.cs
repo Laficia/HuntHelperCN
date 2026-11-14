@@ -100,6 +100,7 @@ sealed class Fake:IFarmHost
  public List<FarmMob> Seen=[];public IReadOnlyList<FarmMob> Mobs=>Seen;
  public bool NavReady=true,NavBusy,Allow=true;
  public float Engage=25;public float EngageDistance=>Engage;
+ public bool? CombatMovement;public bool ManagesCombatMovement=>CombatMovement??Engage<25;
  public bool NavigationReady=>NavReady;public bool NavigationBusy=>NavBusy;public bool MovementAllowed=>Allow;
  public List<string> Actions=[];public List<(Vector3 Point,bool Fly,bool Direct)> Moves=[];
  public List<FarmContext> MoveContexts=[];

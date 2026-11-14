@@ -6,3 +6,4 @@ ECommons 3.2.0.15: https://github.com/NightmareXIV/ECommons (MIT); see THIRD-PAR
 Source, tests and build instructions accompany this release. No warranty; see LICENSE.md.
 2026-11-14: added optional RSR, Wrath lease, and Prome public IPC adapters, selected-target approach and owned-switch lifecycle. No third-party rotation implementation is included.
 2026-11-14: added mounted flight between targets and within caves, mounted underwater travel, per-kind observed kill goals, shared cave progress, completed-kind filtering, and in-game completion notifications.
+2026-11-14: fixed dismount animation descent falsely invalidating a completed landing and added a bounded native dismount handoff when flight ends just above verified ground; combat approach now respects job attack distance and target hitbox to avoid chasing within range.
