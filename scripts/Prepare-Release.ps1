@@ -92,6 +92,14 @@ try {
             throw "Required nonempty archive entry not found: $requiredEntry"
         }
     }
+    if ($project.SelectSingleNode('/Project/ItemGroup/Reference[@Include="KamiToolKit"]')) {
+        foreach ($nativeEntry in @('KamiToolKit.dll', 'FFXIVClientStructs.Expansion.dll', 'KamiToolKit.LICENSE', 'FFXIVClientStructs.Expansion.LICENSE', 'NativeUI.SOURCE.txt')) {
+            if (-not $entries.ContainsKey($nativeEntry) -or $entries[$nativeEntry].Length -eq 0) { throw "Missing native UI dependency or provenance: $nativeEntry" }
+        }
+        foreach ($hostLibrary in @('Dalamud.dll', 'Dalamud.Common.dll', 'FFXIVClientStructs.dll', 'Lumina.dll', 'Lumina.Excel.dll')) {
+            if ($entries.ContainsKey($hostLibrary)) { throw "Do not redistribute host SDK assembly: $hostLibrary" }
+        }
+    }
 
     function Read-ArchiveText([IO.Compression.ZipArchiveEntry]$Entry) {
         $reader = [IO.StreamReader]::new($Entry.Open(), [Text.Encoding]::UTF8, $true)
@@ -133,9 +141,10 @@ foreach ($property in $manifest.PSObject.Properties) {
     $releaseManifest[$property.Name] = $property.Value
 }
 $releaseManifest['RepoUrl'] = $repositoryUrl
-$releaseManifest['Punchline'] = '国服狩猎助手：独立A/S记录、坐标宏、Sonar击杀同步与巡点找怪。'
+$releaseManifest['Punchline'] = '原生 A/S 狩猎车：紧凑列表、地图分组、Sonar 与 DR 巡航。'
 $releaseManifest['Description'] = @'
 基于 img02/HuntHelper 的国服定制版，保留上游狩猎雷达、A 车记录、通知和 S 怪工具。
+HHT/HHS 使用 KamiToolKit 原生主窗口，默认紧凑列表，可切换地图分组；文字跟随游戏主题，保留标签与记录拖动、右键排序和删除。沿用原内部名称和记录，无需另装原生版。
 A 怪记录按区服隔离并提供标签页；缺少的地图图片自动下载及缓存；传送旁的「移动」可调用 vnavmesh 前往 A 怪点位，仅在同区服、同地图、同分线且导航可用时启用。
 /hht 顶部「找怪」可按版本、地图和服务器选择，使用固定预设路线与 vnavmesh 巡点扫描。/hhs 提供独立S怪记录；A/S坐标宏分别保存，Sonar明确A怪击杀可同步死亡标记。跨图仅使用已解锁水晶正常传送，无坐标 TP；扫描结果保存到角色当前所在服务器。
 原作者 img02；上游 https://github.com/img02/HuntHelper；MIT License，Copyright (c) 2022 imaginary-png。

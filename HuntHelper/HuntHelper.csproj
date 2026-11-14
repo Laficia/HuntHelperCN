@@ -4,7 +4,7 @@
     <AssemblyName>HuntHelperCN</AssemblyName>
     <Authors>https://github.com/img02</Authors>
     <Company></Company>
-    <Version>1.0.0.20</Version>
+    <Version>1.0.0.21</Version>
     <Description>国服狩猎地图、独立 A/S 怪记录、Sonar 聊天录制、区服版本分类、路线巡点和死亡监测</Description>
     <Copyright></Copyright>
     <PackageProjectUrl>https://github.com/Laficia/HuntHelperCN</PackageProjectUrl>
@@ -130,6 +130,14 @@
 
   <ItemGroup>
     <Folder Include="Gui\Resource\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="KamiToolKit" HintPath="..\lib\native\KamiToolKit.dll" Private="true" ExternallyResolved="true" />
+    <Reference Include="FFXIVClientStructs.Expansion" HintPath="..\lib\native\FFXIVClientStructs.Expansion.dll" Private="true" ExternallyResolved="true" />
+    <Content Include="..\lib\native\KamiToolKit.LICENSE" Link="KamiToolKit.LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\lib\native\FFXIVClientStructs.Expansion.LICENSE" Link="FFXIVClientStructs.Expansion.LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\lib\native\PROVENANCE.txt" Link="NativeUI.SOURCE.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 

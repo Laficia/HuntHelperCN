@@ -6,6 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainModel.cs" Link="Production\NativeTrainModel.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainInteraction.cs" Link="Production\NativeTrainInteraction.cs" />
     <Compile Include="..\..\HuntHelper\Managers\HuntPointMacroManager.cs" Link="Production\HuntPointMacroManager.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntMacroLibrary.cs" Link="Production\HuntMacroLibrary.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntPointChatDelivery.cs" Link="Production\HuntPointChatDelivery.cs" />

@@ -1,0 +1,17 @@
+Native UI dependencies for HuntHelperCN 1.0.0.21.
+
+KamiToolKit
+Repository: https://github.com/Dalamud-DailyRoutines/KamiToolKit
+Binary informational version: 1.0.0+68bc31f2c0eb0e45d2308cd96a8bdbbb0be6e12d
+SHA256: EF1CF6B4779B3EB4CFC5DF054815E2C196C297A45D71F13979DD01C6F098C373
+License: MIT; see KamiToolKit.LICENSE.
+
+FFXIVClientStructs.Expansion
+Repository: https://github.com/AtmoOmen/FFXIVClientStructs.Expansion
+Binary informational version: 1.0.0+8de172708350e2f0ef18c397639b108b6cae5907
+SHA256: D7E7C2601F38D87480428346A0975965F56C0533CC2AE2144F9A7E9E5F189606
+License: MIT; see FFXIVClientStructs.Expansion.LICENSE.
+
+These binaries match the locally installed DailyRoutines 2.2.8.0 libraries.
+Native SDK structures and shared dependencies resolve from XIVLauncherCN/addon/Hooks/dev.
+Do not bundle SDK assemblies or assume upstream/global-client ABI compatibility.

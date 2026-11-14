@@ -16,7 +16,7 @@ using System.Threading.Tasks;
 
 namespace HuntHelper.Gui;
 
-public class HuntTrainUI : IDisposable
+public partial class HuntTrainUI : IDisposable
 {
     private readonly TrainManager _trainManager;
     private readonly Configuration _config;
@@ -123,6 +123,7 @@ public class HuntTrainUI : IDisposable
         var location = _location();
         if (location.Ready) _instances.Observe(location.World, location.Territory, location.Instance);
         if (_showTrainUIDuringIPCImport && _trainManager.ImportFromIPC) { _huntTrainWindowVisible = true; }
+        if (NativePresentation) { DrawNativeDialogs(); return; }
         DrawHuntTrainWindow();
     }
 

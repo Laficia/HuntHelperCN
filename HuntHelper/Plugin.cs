@@ -6,6 +6,7 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
 using HuntHelper.Gui;
+using HuntHelper.Gui.Native;
 using HuntHelper.Gui.Resource;
 using HuntHelper.Managers;
 using HuntHelper.Managers.Automation;
@@ -41,11 +42,13 @@ namespace HuntHelper
         private IClientState ClientState { get; init; }
         private IObjectTable ObjectTable { get; init; }
         private long _nextTrainScan;
+        private long _nextNativeSnapshot;
         private string? _lastTrainScanError;
         private Configuration Configuration { get; init; }
         private MapUI MapUi { get; init; }
         private HuntTrainUI HuntTrainUI { get; init; }
         private HuntTrainUI SRankUI { get; init; }
+        private NativeTrainRuntime NativeTrains { get; init; }
         private TrainManager SRankManager { get; init; }
         private HuntPointMacroManager PointMacros { get; init; }
         private HuntPointMacroUI PointMacroUI { get; init; }
@@ -163,6 +166,9 @@ namespace HuntHelper
                 ()=>Automation.Session.Stop(),mob=>HuntManager.GetSRankVersion(mob.MobID),HuntManager.SRankRoster,
                 ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
                 ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true, PointMacros, () => PointMacroUI.Open("S"));
+            HuntTrainUI.NativePresentation = SRankUI.NativePresentation = true;
+            NativeTrains = new NativeTrainRuntime(pluginInterface, framework, pluginLog,
+                Configuration.NativeTrainWindowSize, Configuration.SRankTrain.NativeTrainWindowSize);
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);
@@ -201,6 +207,7 @@ namespace HuntHelper
             PluginInterface.UiBuilder.Draw -= DrawUI;
             PluginInterface.UiBuilder.OpenConfigUi -= OpenMapUI;
             PluginInterface.UiBuilder.OpenMainUi -= OpenHuntTrainUI;
+            NativeTrains.Dispose();
             //save hunttrainui config first
             HuntTrainUI.SaveSettings();
             SRankUI.SaveSettings();
@@ -298,6 +305,13 @@ namespace HuntHelper
 
         private void DrawUI()
         {
+            NativeTrains.Drain(HuntTrainUI, SRankUI, (rank, size) =>
+            {
+                var settings = rank == "S" ? Configuration.SRankTrain : Configuration;
+                if (settings.NativeTrainWindowSize == size) return;
+                settings.NativeTrainWindowSize = size; Configuration.Save();
+            });
+            if (NativeTrains.Failed) HuntTrainUI.NativePresentation = SRankUI.NativePresentation = false;
             // Recording runs even when the map is closed, collapsed, or fails to draw.
             // Keep train mutations on the same UI tick as row/menu operations.
             ScanHuntTrain();
@@ -307,6 +321,11 @@ namespace HuntHelper
                 MapUi.Draw();
                 HuntTrainUI.Draw();
                 SRankUI.Draw();
+                if (!NativeTrains.Failed && Environment.TickCount64 >= _nextNativeSnapshot)
+                {
+                    _nextNativeSnapshot = Environment.TickCount64 + 160;
+                    NativeTrains.Publish(HuntTrainUI.NativeSnapshot(), SRankUI.NativeSnapshot());
+                }
                 HuntFinderUI.Draw();
                 var preview = Automation.Preview;
                 HuntFinderPreviewUI.Draw(preview, preview == null ? null : Automation.GetPreviewMapImage(preview.Territory)?.Handle,
