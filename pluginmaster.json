@@ -39,34 +39,6 @@
     "IsTestingExclusive": false
   },
   {
-    "Author": "NiGuangOwO / Laficia",
-    "Name": "LuckyStarMOGAI",
-    "InternalName": "LuckyStarMOGAI",
-    "AssemblyVersion": "0.0.0.8",
-    "Description": "基于 NiGuangOwO/LuckyStar 的独立定制版。保留原有农怪项目，新增红玉海巨大鳐三洞循环：洞内骑乘飞行、洞间骑乘潜水，接近目标落地后下坐骑击杀。分类观测计数，达到目标后跳过该种类，全部勾选种类完成后停止并通过聊天与屏幕提示通知。数量完成不代表确认S怪刷新。/luckystarmogai 打开；需要国服 vnavmesh 和配置好的 AE、RSR、Wrath 或 Prome。AGPL-3.0-or-later，保留原作者署名。",
-    "ApplicableVersion": "any",
-    "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
-    "Tags": [
-      "hunt",
-      "RankS",
-      "farm"
-    ],
-    "DalamudApiLevel": 15,
-    "LoadRequiredState": 0,
-    "LoadSync": false,
-    "CanUnloadAsync": false,
-    "LoadPriority": 0,
-    "Punchline": "骑乘飞行农怪，潜水也骑乘；分类数量达标自动跳过并通知",
-    "AcceptsFeedback": true,
-    "IsHide": false,
-    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.8/latest.zip",
-    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.8/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.8/latest.zip",
-    "LastUpdate": 1794660319,
-    "IsTestingExclusive": false,
-    "Changelog": "0.0.0.8：清完当前洞穴并脱战后立即衔接下一洞，不再重走旧小怪点位；出洞全程保持骑乘。进洞加载后等待改为身份、网格、潜水标志和位置全部就绪并稳定350ms，取消两段各2秒的重复等待。保留单洞刷新等待与加载保护，124项回归检查通过。"
-  },
-  {
     "Author": "hunhuan",
     "Name": "魔法水桶",
     "InternalName": "SrankFlag",
@@ -96,6 +68,34 @@
     "IconUrl": "https://raw.githubusercontent.com/Laficia/MagicBucket/main/assets/icon.png",
     "LastUpdate": 1794663765,
     "IsHide": false,
+    "IsTestingExclusive": false
+  },
+  {
+    "Author": "NiGuangOwO / Laficia",
+    "Name": "LuckyStarMOGAI",
+    "InternalName": "LuckyStarMOGAI",
+    "AssemblyVersion": "0.0.0.9",
+    "Description": "基于 NiGuangOwO/LuckyStar 的独立定制版。保留原有农怪项目，新增红玉海巨大鳐三洞循环：洞内骑乘飞行、洞间骑乘潜水，接近目标落地后下坐骑击杀。分类观测计数，达到目标后跳过该种类，全部勾选种类完成后停止并通过聊天与屏幕提示通知。数量完成不代表确认S怪刷新。/luckystarmogai 打开；需要国服 vnavmesh 和配置好的 AE、RSR、Wrath 或 Prome。AGPL-3.0-or-later，保留原作者署名。",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
+    "Tags": [
+      "hunt",
+      "RankS",
+      "farm"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "Punchline": "骑乘飞行农怪，潜水也骑乘；分类数量达标自动跳过并通知",
+    "AcceptsFeedback": true,
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
+    "IsHide": false,
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
+    "LastUpdate": 1794666196,
+    "Changelog": "0.0.0.9：修复到达落地点后下坐骑动画下降导致的误停，原生路线在已查询地面正上方1.5米内结束时接续正常下坐骑，保留真实状态确认与15秒动作超时。非AE循环按职业攻击距离和目标碰撞半径判断追近，能攻击时停止多余移动，远程不再强制贴到怪物中心2.5米。保留三洞骑乘飞行／潜水和快速进出洞衔接，133项回归检查通过。",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
     "IsTestingExclusive": false
   }
 ]
