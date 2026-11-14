@@ -74,8 +74,8 @@
     "Author": "NiGuangOwO / Laficia",
     "Name": "LuckyStarMOGAI",
     "InternalName": "LuckyStarMOGAI",
-    "AssemblyVersion": "0.0.0.9",
-    "Description": "基于 NiGuangOwO/LuckyStar 的独立定制版。保留原有农怪项目，新增红玉海巨大鳐三洞循环：洞内骑乘飞行、洞间骑乘潜水，接近目标落地后下坐骑击杀。分类观测计数，达到目标后跳过该种类，全部勾选种类完成后停止并通过聊天与屏幕提示通知。数量完成不代表确认S怪刷新。/luckystarmogai 打开；需要国服 vnavmesh 和配置好的 AE、RSR、Wrath 或 Prome。AGPL-3.0-or-later，保留原作者署名。",
+    "AssemblyVersion": "0.0.0.10",
+    "Description": "基于NiGuangOwO/LuckyStar新增红玉海农怪循环。",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
     "Tags": [
@@ -90,12 +90,12 @@
     "LoadPriority": 0,
     "Punchline": "骑乘飞行农怪，潜水也骑乘；分类数量达标自动跳过并通知",
     "AcceptsFeedback": true,
-    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
+    "IsTestingExclusive": false,
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
     "IsHide": false,
-    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
-    "LastUpdate": 1794666196,
-    "Changelog": "0.0.0.9：修复到达落地点后下坐骑动画下降导致的误停，原生路线在已查询地面正上方1.5米内结束时接续正常下坐骑，保留真实状态确认与15秒动作超时。非AE循环按职业攻击距离和目标碰撞半径判断追近，能攻击时停止多余移动，远程不再强制贴到怪物中心2.5米。保留三洞骑乘飞行／潜水和快速进出洞衔接，133项回归检查通过。",
-    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.9/latest.zip",
-    "IsTestingExclusive": false
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
+    "LastUpdate": 1794670614,
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
+    "Changelog": "0.0.0.10：恢复原版紧凑UI与各项目独立Go按钮，在伊休妲下方增加红玉海；循环插件下拉框位于首怪延迟右侧。骑乘、洞穴与循环托管设置保留在开发者模式，自动农怪逻辑与已有配置保持不变。打开指令改为原版的/luckystar，插件描述简化为用户指定文案。133项回归检查通过。"
   }
 ]
