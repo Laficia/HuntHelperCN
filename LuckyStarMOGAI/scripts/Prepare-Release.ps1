@@ -1,4 +1,4 @@
-param([string]$Version='0.0.0.10')
+param([string]$Version='0.0.0.12')
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $stage=Join-Path $root "obj/release-v$Version"
@@ -23,7 +23,7 @@ $rollbackName=if($previous){"rollback-luckystarmogai-$($previous.AssemblyVersion
 $entry=Get-Content (Join-Path $buildOutput 'LuckyStarMOGAI/LuckyStarMOGAI.json') -Raw | ConvertFrom-Json
 if($entry.AssemblyVersion -ne $Version){throw 'Manifest version mismatch'}
 $link="https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v$Version/latest.zip"
-$entry | Add-Member -NotePropertyMembers @{DownloadLinkInstall=$link;DownloadLinkUpdate=$link;DownloadLinkTesting=$link;LastUpdate=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds();IsHide=$false;IsTestingExclusive=$false;Changelog="$Version：恢复原版紧凑UI与各项目独立Go按钮，在伊休妲下方增加红玉海；循环插件下拉框位于首怪延迟右侧。骑乘、洞穴与循环托管设置保留在开发者模式，自动农怪逻辑与已有配置保持不变。打开指令改为原版的/luckystar，插件描述简化为用户指定文案。133项回归检查通过。"} -Force
+$entry | Add-Member -NotePropertyMembers @{DownloadLinkInstall=$link;DownloadLinkUpdate=$link;DownloadLinkTesting=$link;LastUpdate=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds();IsHide=$false;IsTestingExclusive=$false;Changelog="$Version：原版六项目恢复原巡点并支持循环选择。新增当前项目S怪出现后停止，仅限已有七种S；严格匹配当前服务器、地图及分线，忽略其他服同地图、SS、击杀和身份不明播报。支持Sonar刷新播报和本地加载对象，175项检查通过。vnavmesh未修改，北萨原版路线仍可能受其0.9.2.0参数异常影响。"} -Force
 @($index | Where-Object InternalName -NE 'LuckyStarMOGAI') + @($entry) | ConvertTo-Json -Depth 12 | Set-Content (Join-Path $stage 'pluginmaster.json') -Encoding utf8
 Copy-Item (Join-Path $root 'README.md') (Join-Path $stage 'LuckyStarMOGAI-README.md') -Force
 Copy-Item (Join-Path $root 'LICENSE.md') (Join-Path $stage 'LICENSE-AGPL-3.0.md') -Force

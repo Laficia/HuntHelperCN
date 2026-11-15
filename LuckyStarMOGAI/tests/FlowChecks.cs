@@ -9,13 +9,13 @@ internal static class FlowChecks
         void Check(string name,Action test){test();count++;Console.WriteLine("PASS mounted goals: "+name);}
         static void Assert(bool ok,string message="flow assertion failed"){if(!ok)throw new Exception(message);}
         var profile=FarmProfiles.Profile(0,[true,true]) with{RequireAllTargets=false};
-        Check("defaults enable mounted flight and each project has the right per-kind quota",()=>{
+        Check("Ruby Sea alone has new quotas and original projects retain only their preset routes",()=>{
             var config=new Configuration();Assert(config.MountBetweenTargets && config.FlyBetweenTargets);
             for(var i=0;i<7;i++)
             {
                 var p=FarmProfiles.Profile(i,Enumerable.Repeat(true,FarmProfiles.NameIds[i].Length).ToArray());
-                Assert(p.Names.All(n=>p.Goals![n]==(i==5?50:100)));
-                if(i>0)Assert(FarmProfiles.Preset(i,Enumerable.Repeat(true,p.Names.Length).ToArray()).All(v=>p.PointNames!.ContainsKey(v)));
+                if(i==0)Assert(p.Names.All(n=>p.Goals![n]==100));
+                else Assert(p.Goals==null && p.PointNames==null && FarmProfiles.Preset(i,Enumerable.Repeat(true,p.Names.Length).ToArray()).Count>0);
             }
         });
         Check("two successive distant kills mount, fly, stop near range, dismount and resume fighting",()=>{

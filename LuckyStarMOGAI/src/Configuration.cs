@@ -33,7 +33,7 @@ public class Configuration : IPluginConfiguration
         if(Selections == null || Selections.Length != FarmProfiles.Titles.Length) Selections = new bool[FarmProfiles.Titles.Length][];
         for(var i=0;i<Selections.Length;i++) if(Selections[i] == null || Selections[i].Length != FarmProfiles.NameIds[i].Length)
             Selections[i]=System.Linq.Enumerable.Repeat(true,FarmProfiles.NameIds[i].Length).ToArray();
-        DelayTime=Math.Clamp(DelayTime,0,120);
+        DelayTime=Math.Max(DelayTime,0);
         if(!Enum.IsDefined(Rotation)) Rotation=RotationProvider.AE;
     }
     public void Save()=>pluginInterface!.SavePluginConfig(this);

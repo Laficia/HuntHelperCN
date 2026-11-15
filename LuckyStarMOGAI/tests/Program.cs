@@ -91,6 +91,9 @@ if(provider==RotationProvider.WrathCombo)Assert(api.Count(RotationCall.WrathRegi
 });
 count+=RotationChecks.Run();
 count+=FlowChecks.Run();
+count+=LegacyChecks.Run();
+count+=SSpawnChecks.Run();
+FFXIVClientStructs.FFXIV.Client.Game.ActionManager.ReleaseTestMemory();
 Console.WriteLine($"ALL {count} CHECKS PASSED");
 
 sealed class Fake:IFarmHost

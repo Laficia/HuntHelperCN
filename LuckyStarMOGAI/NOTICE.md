@@ -8,3 +8,6 @@ Source, tests and build instructions accompany this release. No warranty; see LI
 2026-11-14: added mounted flight between targets and within caves, mounted underwater travel, per-kind observed kill goals, shared cave progress, completed-kind filtering, and in-game completion notifications.
 2026-11-14: fixed dismount animation descent falsely invalidating a completed landing and added a bounded native dismount handoff when flight ends just above verified ground; combat approach now respects job attack distance and target hitbox to avoid chasing within range.
 2026-11-14: restored the original compact farm rows and header, inserted the Ruby Sea row below Rak'tika, and placed the rotation-provider dropdown beside the first-target delay option. Existing farm behavior and saved selections are retained.
+
+2026-11-15: restored the upstream controller for the original six projects. Original movement/refresh methods are preserved; only rotation start/stop and target-ready callbacks adapt other engines. New cave routing and quotas are Ruby Sea only.
+2026-11-15: added the user-requested S-spawn stop guard for the seven existing farm targets. It validates the current-world/territory/map/instance identity against live local objects or displayed Sonar announcements. No Sonar implementation or private assembly is included, and vnavmesh is unchanged.

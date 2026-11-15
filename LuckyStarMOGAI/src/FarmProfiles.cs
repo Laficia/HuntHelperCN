@@ -7,14 +7,16 @@ public static class FarmProfiles
 {
     public static readonly string[] Titles = ["红玉海 · 巨大鳐", "萨维奈岛 · 颇胝迦", "叹息海 · 沉思之物", "拉凯提卡大森林 · 伊休妲", "基拉巴尼亚边区 · 优昙婆罗花", "魔大陆阿济兹拉 · 卢克洛塔", "北萨纳兰 · 蚓螈巨虫"];
     public static readonly uint[] Territories = [613, 957, 959, 817, 612, 402, 147];
+    // Primary trigger targets. The game also marks shared SS monsters Rank=3.
+    public static readonly uint[] SRankNameIds = [5984,10618,10620,8890,5987,4380,2961];
     public static readonly uint[][] NameIds = [[5750,5751],[10701,10697,10698],[10463,10461,10462],[8598,8599,8789],[5671,5685],[3540,3580,3556],[113]];
     public static readonly string[][] Labels = [["观梦螺","无壳观梦螺"],["阿输陀花","毕舍遮","金刚尾"],["思考之物","彷徨之物","叹息之物"],["人偶","石蒺藜","器皿"],["莱西","狄亚卡"],["奇美拉","海德拉","薇薇尔飞龙"],["土元精"]];
     // Community hunt requirements: https://ff14.huijiwiki.com/wiki/怪物狩猎
     public static int KillGoal(int index) => index==5 ? 50 : 100;
-    public static FarmProfile Profile(int index, bool[] selected) => new(Titles[index], Territories[index], NameIds[index].Where((_, i) => selected[i]).ToArray(), index == 0, index == 0 ? 5984u : 0)
+    public static FarmProfile Profile(int index, bool[] selected) => new(Titles[index], Territories[index], NameIds[index].Where((_, i) => selected[i]).ToArray(), index == 0, SRankNameIds[index])
     {
-        Goals=NameIds[index].Where((_,i)=>selected[i]).ToDictionary(n=>n,_=>KillGoal(index)),
-        PointNames=PresetTypes(index,selected)
+        Goals=index==0 ? NameIds[index].Where((_,i)=>selected[i]).ToDictionary(n=>n,_=>KillGoal(index)) : null,
+        PointNames=null
     };
     public static List<Vector3> Preset(int index, bool[] selected)
     {

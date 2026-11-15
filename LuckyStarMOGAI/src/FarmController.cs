@@ -16,42 +16,70 @@ namespace LuckyStar;
 public sealed unsafe class FarmController : IDisposable
 {
     private readonly GameFarmHost host = new();
+    private readonly SSpawnMonitor sSpawn = new();
     public FarmSession Session { get; }
     public RubyPatrol Ruby { get; }
+    public LegacyFarmController Legacy { get; }
     private bool rubyMode;
-    public bool IsRunning => Session.Running || Ruby.Running;
+    private bool legacyMode;
+    private FarmScope legacyScope;
+    private static readonly Dictionary<uint,int> NoLegacyDeaths = [];
+    public bool IsRunning => Session.Running || Ruby.Running || Legacy.IsRunning;
     private string cleanupError="";
     public bool CleanupFailed=>cleanupError.Length>0;
-    public string State => (rubyMode ? Ruby.State : Session.State)+(cleanupError.Length>0?"；"+cleanupError:"");
+    public string State => (legacyMode ? Legacy.State : rubyMode ? Ruby.State : Session.State)+(cleanupError.Length>0?"；"+cleanupError:"");
     public bool ShowingRuby => rubyMode;
-    public IReadOnlyDictionary<uint,int> Deaths => rubyMode ? Ruby.Deaths : Session.Deaths;
+    public IReadOnlyDictionary<uint,int> Deaths => legacyMode ? NoLegacyDeaths : rubyMode ? Ruby.Deaths : Session.Deaths;
     public FarmProfile? ActiveProfile { get; private set; }
     private FarmProgress Progress => rubyMode ? Ruby.Progress : Session.Progress;
     private long nextUpdate;
-    public FarmController() { Session = new(host); Ruby = new(host); Svc.Framework.Update += Update; }
-    public void Dispose() { Svc.Framework.Update -= Update; try { Stop("插件已卸载"); } finally { host.Dispose(); } }
+    public FarmController() { Session = new(host); Ruby = new(host); Legacy = new(false); legacyMode=Plugin.Configuration.SelectedFarm!=0;rubyMode=!legacyMode;Svc.Framework.Update += Update; }
+    public void Dispose() { Svc.Framework.Update -= Update; try { Stop("插件已卸载"); } finally { sSpawn.Dispose();Legacy.Dispose();host.Dispose(); } }
     public string CombatAvailability => host.Rotation.Availability(Plugin.Configuration.Rotation);
     public string CombatStatus => host.Rotation.Message;
     public string StatusJson()
     {
         var c=host.Context;
         return JsonSerializer.Serialize(new{Running=IsRunning,State,Version=typeof(FarmController).Assembly.GetName().Version?.ToString(),
-            Phase=rubyMode?Ruby.Phase.ToString():"Farm",Ruby.CaveIndex,Ruby.CompletedVisits,Rotation=Plugin.Configuration.Rotation.ToString(),CombatStatus,
-            Position=new{c.Position.X,c.Position.Y,c.Position.Z},c.Scope,SessionScope=rubyMode?Ruby.BoundScope:Session.BoundScope,
+            Phase=legacyMode?"OriginalPatrol":rubyMode?Ruby.Phase.ToString():"Farm",Ruby.CaveIndex,Ruby.CompletedVisits,Rotation=Plugin.Configuration.Rotation.ToString(),CombatStatus,
+            Position=new{c.Position.X,c.Position.Y,c.Position.Z},c.Scope,SessionScope=legacyMode?legacyScope:rubyMode?Ruby.BoundScope:Session.BoundScope,
             FarmIndex=Plugin.Configuration.SelectedFarm,Names=ActiveProfile?.Names,
-            c.Mounted,c.Flying,c.Diving,c.Combat,c.Ready,EngageDistance=host.EngageDistance,Deaths,Navigation=rubyMode?Ruby.NavigationDiagnostics:Session.NavigationDiagnostics});
+            c.Mounted,c.Flying,c.Diving,c.Combat,c.Ready,EngageDistance=host.EngageDistance,Deaths,SStop=sSpawn.Diagnostics,Navigation=legacyMode?LegacyDiagnostics():rubyMode?Ruby.NavigationDiagnostics:Session.NavigationDiagnostics});
     }
     public void Stop(string reason = "已停止")
     {
-        try { try { Session.Stop(reason); } finally { Ruby.Stop(reason); } }
+        sSpawn.Disarm();
+        try { if(legacyMode)Legacy.Stop();else try { Session.Stop(reason); } finally { Ruby.Stop(reason); } }
         catch (Exception ex) { Svc.Log.Error(ex, "LuckyStarMOGAI stop failed"); }
         finally { EndRotation(); }
+        if(legacyMode && reason!="已停止")cleanupError=reason;
     }
     public bool Start(FarmProfile profile, IEnumerable<Vector3> points,FarmCheckpoint? checkpoint=null)
     {
         if(IsRunning) return false;
         rubyMode=profile.Ground;
+        legacyMode=!rubyMode;
         cleanupError="";
+        try{sSpawn.Arm(profile,host.Context);}
+        catch(Exception ex){Stop("S怪检测未能确认服务器／地图："+ex.Message);return false;}
+        if(legacyMode)
+        {
+            ActiveProfile=null;
+            try
+            {
+                if(checkpoint!=null)throw new InvalidOperationException("原版项目不使用红玉海进度恢复");
+                legacyScope=host.Context.Scope;
+                if(Plugin.Configuration.Rotation==RotationProvider.AE)Legacy.SetRotationCallbacks(null,null);
+                else
+                {
+                    host.Rotation.Begin(Plugin.Configuration.Rotation,Plugin.Configuration.AllowRotationStart);
+                    Legacy.SetRotationCallbacks(host.Rotation.SetCombat,FocusLegacyTarget);
+                }
+                Legacy.Start(points.Select(p=>(p.X,p.Y,p.Z)).ToList());
+                return true;
+            }
+            catch(Exception ex){Stop();cleanupError="启动失败："+ex.Message;Svc.Log.Error(ex,"LuckyStarMOGAI original patrol start failed");return false;}
+        }
         Session.DelaySeconds = Plugin.Configuration.DelayEnable ? Plugin.Configuration.DelayTime : 0;
         Ruby.DelaySeconds = Session.DelaySeconds;
         Session.MountBetweenTargets=Ruby.MountBetweenTargets=Plugin.Configuration.MountBetweenTargets;
@@ -64,7 +92,7 @@ public sealed unsafe class FarmController : IDisposable
                 throw new InvalidOperationException("进度记录已过期，或服务器、地图、分线、农怪项目已变化");
             var error=CombatAvailability;if(error.Length>0)throw new InvalidOperationException(error);
             var started=rubyMode ? Ruby.Start(profile,Plugin.Configuration.RubyCaves,Environment.TickCount64) : Session.Start(profile, points, Environment.TickCount64);
-            if(!started)return false;
+            if(!started){sSpawn.Disarm();return false;}
             if(checkpoint!=null)Progress.RestoreDeaths(checkpoint.Deaths);
             host.Rotation.Begin(Plugin.Configuration.Rotation,Plugin.Configuration.AllowRotationStart);
             return true;
@@ -80,7 +108,25 @@ public sealed unsafe class FarmController : IDisposable
     }
     private void Update(IFramework framework)
     {
-        if (!IsRunning || Environment.TickCount64 < nextUpdate) return;
+        if(!IsRunning){if(legacyMode)Legacy.Tick(framework);return;}
+        try
+        {
+            if(sSpawn.Check(host.Context,()=>{host.BeginTick();return host.Mobs;}) is { } spawned)
+            {Stop(spawned);Notify(spawned);return;}
+        }
+        catch(Exception ex){Svc.Log.Warning(ex,"LuckyStarMOGAI S-spawn observation skipped");}
+        if(legacyMode)
+        {
+            // Keep the original per-frame movement; only the requested stop check precedes it.
+            if(Environment.TickCount64>=nextUpdate)
+            {
+                nextUpdate=Environment.TickCount64+50;
+                if(host.Rotation.Begun && host.Rotation.CheckWhileReady() is { } error){Stop(error);return;}
+            }
+            Legacy.Tick(framework);
+            return;
+        }
+        if(Environment.TickCount64<nextUpdate)return;
         nextUpdate = Environment.TickCount64 + 50;
         try
         {
@@ -90,7 +136,7 @@ public sealed unsafe class FarmController : IDisposable
             if(Ruby.Running) Ruby.Tick(Environment.TickCount64); else Session.Tick(Environment.TickCount64);
         }
         catch (Exception ex) { Stop("运行中断："+ex.Message); Svc.Log.Error(ex, "LuckyStarMOGAI farm tick failed"); }
-        finally { if(!IsRunning)EndRotation(); }
+        finally { if(!IsRunning){sSpawn.Disarm();EndRotation();} }
         try
         {
             foreach(var name in Progress.TakeCompletedKinds())
@@ -106,6 +152,20 @@ public sealed unsafe class FarmController : IDisposable
         for(var i=0;i<FarmProfiles.NameIds.Length;i++)
         {var at=Array.IndexOf(FarmProfiles.NameIds[i],name);if(at>=0)return FarmProfiles.Labels[i][at];}
         return name.ToString();
+    }
+    private object LegacyDiagnostics()=>new
+    {
+        OriginalPresetRoute=true,Legacy.DataIndex,Legacy.PosDistance,Legacy.WaitingFirst,
+        Legacy.NeedToTakeOff,Legacy.ReadyToTheNextPos,PointCount=Legacy.CurrentList.Count,
+        Goal=Legacy.DataIndex<Legacy.CurrentList.Count ? new{Legacy.CurrentList[Legacy.DataIndex].X,Legacy.CurrentList[Legacy.DataIndex].Y,Legacy.CurrentList[Legacy.DataIndex].Z} : new{X=0f,Y=0f,Z=0f}
+    };
+    private void FocusLegacyTarget()
+    {
+        host.BeginTick();
+        var position=host.Context.Position;
+        var target=host.Mobs.Where(m=>MobsData.Nameid.Contains(m.NameId) && m.Hp>0 && Vector3.Distance(position,m.Position)<=25)
+            .OrderBy(m=>m.Id==Svc.Targets.Target?.GameObjectId ? -1 : Vector3.DistanceSquared(position,m.Position)).FirstOrDefault();
+        if(target.Id!=0)host.Focus(target.Id);
     }
     private static void Notify(string message)
     {

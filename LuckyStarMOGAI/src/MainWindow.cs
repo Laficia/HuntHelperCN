@@ -23,6 +23,7 @@ public sealed class MainWindow : Window, IDisposable
     public string StatusJson()=>controller.StatusJson();
     public bool ResumeFromCheckpoint(string json)
     {
+        if(Plugin.Configuration.SelectedFarm!=0)return false;
         if(json.Length>8192)return false;
         try{return JsonSerializer.Deserialize<FarmCheckpoint>(json) is { } checkpoint && StartSelected(checkpoint);}
         catch(JsonException){return false;}
@@ -33,6 +34,7 @@ public sealed class MainWindow : Window, IDisposable
         var profile=FarmProfiles.Profile(config.SelectedFarm,config.Selections[config.SelectedFarm]);
         var points=config.SelectedFarm==0 ? controller.RubyPoints(profile.Names) : FarmProfiles.Preset(config.SelectedFarm,config.Selections[config.SelectedFarm]);
         var started=controller.Start(profile,points,checkpoint);
+        if(config.SelectedFarm!=0)return started;
         var message=started ? "农怪已启动："+controller.State : "无法开始农怪："+controller.State;
         if(started){Svc.Chat.Print("[LuckyStarMOGAI] "+message);Svc.Toasts.ShowNormal(message);}
         else{Svc.Chat.PrintError("[LuckyStarMOGAI] "+message);Svc.Toasts.ShowError(message);Svc.Log.Warning(message);}
@@ -53,6 +55,11 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.SameLine();
         if(controller.IsRunning)ImGui.TextColored(ImGuiColors.HealerGreen,$"状态：{controller.State}");
         else ImGui.Text($"状态：{controller.State}");
+        if(!controller.ShowingRuby && controller.Legacy.DataIndex==0 && controller.Legacy.WaitingFirst)
+        {
+            ImGui.SameLine();
+            if(ImGui.Button("强制跳过"))controller.Legacy.ForceSkipFirst();
+        }
         ImGui.BeginDisabled(controller.IsRunning);
         if(ImGui.Checkbox("##DelayEnable",ref config.DelayEnable))config.Save();
         ImGui.SameLine();ImGui.Text("每轮第一只刷新时延迟下坐骑");
@@ -60,7 +67,7 @@ public sealed class MainWindow : Window, IDisposable
         {
             ImGui.SameLine();ImGui.SetNextItemWidth(100);
             if(ImGui.InputInt("延迟时间 (s)",ref config.DelayTime))
-            {config.DelayTime=Math.Clamp(config.DelayTime,0,120);config.Save();}
+            {config.DelayTime=Math.Max(config.DelayTime,0);config.Save();}
         }
         ImGui.SameLine();ImGui.SetNextItemWidth(Math.Clamp(ImGui.GetContentRegionAvail().X,80,180));
         var rotation=(int)config.Rotation;
@@ -116,7 +123,14 @@ public sealed class MainWindow : Window, IDisposable
             ImGui.Text($"洞穴: {RubyCaves.All[controller.Ruby.CaveIndex].Name}");
             ImGui.Text($"Phase: {controller.Ruby.Phase}");ImGui.Text($"CompletedVisits: {controller.Ruby.CompletedVisits}");
         }
-        else ImGui.Text($"DataIndex: {controller.Session.Index} / {controller.Session.Points.Count}");
+        else
+        {
+            ImGui.Text($"DataIndex: {controller.Legacy.DataIndex} / {controller.Legacy.CurrentList.Count}");
+            ImGui.Text($"WaitingFirst: {controller.Legacy.WaitingFirst}");
+            ImGui.Text($"NeedToTakeOff: {controller.Legacy.NeedToTakeOff}");
+            ImGui.Text($"ReadyToNextPos: {controller.Legacy.ReadyToTheNextPos}");
+            ImGui.Text($"PosDistance: {controller.Legacy.PosDistance:F2}");
+        }
         if(controller.ActiveProfile is { } active)
         {
             ImGui.Separator();ImGui.TextUnformatted(active.Name);
@@ -137,8 +151,8 @@ public sealed class MainWindow : Window, IDisposable
         ImGui.BeginDisabled(controller.IsRunning);
         if(config.Rotation is RotationProvider.RotationSolverReborn or RotationProvider.Prome)
             if(ImGui.Checkbox("一键托管循环（自动开启，停止时释放）",ref config.AllowRotationStart))config.Save();
-        if(ImGui.Checkbox("小怪之间自动上坐骑（潜水也骑乘）",ref config.MountBetweenTargets))config.Save();
-        if(config.MountBetweenTargets && ImGui.Checkbox("骑乘使用飞行寻路（包含洞内）",ref config.FlyBetweenTargets))config.Save();
+        if(ImGui.Checkbox("红玉海：小怪之间自动上坐骑（潜水也骑乘）",ref config.MountBetweenTargets))config.Save();
+        if(config.MountBetweenTargets && ImGui.Checkbox("红玉海：骑乘使用飞行寻路（包含洞内）",ref config.FlyBetweenTargets))config.Save();
         ImGui.TextUnformatted("红玉海洞穴：");
         for(var i=0;i<RubyCaves.All.Length;i++)if(ImGui.Checkbox(RubyCaves.All[i].Name,ref config.RubyCaves[i]))config.Save();
         ImGui.EndDisabled();
