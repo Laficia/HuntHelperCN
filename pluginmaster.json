@@ -74,7 +74,7 @@
     "Author": "NiGuangOwO / Laficia",
     "Name": "LuckyStarMOGAI",
     "InternalName": "LuckyStarMOGAI",
-    "AssemblyVersion": "0.0.0.10",
+    "AssemblyVersion": "0.0.0.12",
     "Description": "基于NiGuangOwO/LuckyStar新增红玉海农怪循环。",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/Laficia/HuntHelperCN",
@@ -91,11 +91,11 @@
     "Punchline": "骑乘飞行农怪，潜水也骑乘；分类数量达标自动跳过并通知",
     "AcceptsFeedback": true,
     "IsTestingExclusive": false,
-    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
-    "IsHide": false,
-    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
-    "LastUpdate": 1794670614,
-    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.10/latest.zip",
-    "Changelog": "0.0.0.10：恢复原版紧凑UI与各项目独立Go按钮，在伊休妲下方增加红玉海；循环插件下拉框位于首怪延迟右侧。骑乘、洞穴与循环托管设置保留在开发者模式，自动农怪逻辑与已有配置保持不变。打开指令改为原版的/luckystar，插件描述简化为用户指定文案。133项回归检查通过。"
+    "DownloadLinkInstall": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.12/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.12/latest.zip",
+    "DownloadLinkTesting": "https://github.com/Laficia/HuntHelperCN/releases/download/luckystarmogai-v0.0.0.12/latest.zip",
+    "LastUpdate": 1794740474,
+    "Changelog": "0.0.0.12：原版六项目恢复原巡点并支持循环选择。新增当前项目S怪出现后停止，仅限已有七种S；严格匹配当前服务器、地图及分线，忽略其他服同地图、SS、击杀和身份不明播报。支持Sonar刷新播报和本地加载对象，175项检查通过。vnavmesh未修改，北萨原版路线仍可能受其0.9.2.0参数异常影响。",
+    "IsHide": false
   }
 ]
