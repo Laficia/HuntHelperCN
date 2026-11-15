@@ -72,7 +72,8 @@ public sealed partial class HuntFinderUI
         if (_compactOptions) rows.AddRange(advanced);
         var status = _feedback.Length > 0 ? _feedback : _automation.CoverageDataError.Length > 0 && dr ? _automation.CoverageDataError : _automation.Session.Message;
         if (active) status += $" · 已发现 A {_automation.Session.FoundA}" + (!dr ? $" / B {_automation.Session.FoundB}" : "");
-        return new(true, new[] { new NativeFormChoice("start", active ? "停止找怪" : "开始找怪"), new NativeFormChoice("settings", "设置", _compactOptions), new NativeFormChoice("legacy", "原版窗口") }, rows, status);
+        return new(true, new[] { new NativeFormChoice("settings", "设置", _compactOptions), new NativeFormChoice("legacy", "原版窗口") }, rows, status,
+            new NativeFormChoice("start", active ? "停止找怪" : "开始找怪"));
     }
 
     private void RefreshNativeWorlds()

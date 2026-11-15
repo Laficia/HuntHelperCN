@@ -172,7 +172,10 @@ namespace HuntHelper
             PointMacroUI.OpenLegacyUi = () => { Configuration.UseNativeHuntWindows = false; Configuration.Save(); };
             NativeTrains = new NativeTrainRuntime(pluginInterface, framework, pluginLog,
                 Configuration.NativeTrainWindowSize, Configuration.SRankTrain.NativeTrainWindowSize,
-                Configuration.NativeFinderWindowSize, Configuration.NativeMacroWindowSize);
+                Configuration.NativeFinderWindowSize, Configuration.NativeMacroWindowSize,
+                () => clientState.IsLoggedIn && playerState.IsLoaded && objectTable.LocalPlayer != null &&
+                    clientState.TerritoryType != 0 && !condition[ConditionFlag.BetweenAreas] &&
+                    !condition[ConditionFlag.BetweenAreas51] && !gameGui.GameUiHidden);
             CounterUI = new CounterUI(clientState, chatGui, gameGui, Configuration, objectTable, fateTable);
             SpawnPointFinderUI = new SpawnPointFinderUI(MapDataManager, Configuration);
             PointerUI = new PointerUI(HuntManager, Configuration, gameGui);

@@ -10,7 +10,7 @@ using KamiToolKit.Nodes;
 namespace HuntHelper.Gui.Native;
 
 /// <summary>Local native prototype. All widgets belong to the addon's root and die with it.</summary>
-internal sealed class NativeTrainWindow : NativeAddon
+internal sealed class NativeTrainWindow : NativePersistentAddon
 {
     private sealed class Item
     {
@@ -38,7 +38,7 @@ internal sealed class NativeTrainWindow : NativeAddon
     private TextNode? worldLabel, footer, empty;
     private TextButtonNode? finder, recording, macros, more, current, legacy;
     private TextureButtonNode? resize;
-    private bool showTools, setup, suppressClose, dragDone;
+    private bool showTools, setup, dragDone;
     private readonly NativePressGesture press = new();
     private NodeBase? pressNode;
     private static readonly string BuildVersion = typeof(NativeTrainWindow).Assembly.GetName().Version?.ToString() ?? "";
@@ -57,14 +57,12 @@ internal sealed class NativeTrainWindow : NativeAddon
     private long lastAutoScroll;
     private float autoScrollRemainder;
 
-    internal NativeTrainWindow(Action<NativeTrainRequest> dispatch, Action<Vector2> saveSize)
+    internal NativeTrainWindow(Action<NativeTrainRequest> dispatch, Action<Vector2> saveSize, Func<bool> canInteract)
+        : base(() => dispatch(new(NativeTrainAction.Close)), canInteract)
     { this.dispatch = dispatch; this.saveSize = saveSize; }
 
     internal void Apply(NativeTrainSnapshot value)
     { snapshot = value; if (setup && pointer == null) Layout(); }
-
-    internal void CloseFromModel()
-    { suppressClose = true; Close(); }
 
     private void Send(NativeTrainAction action, string key = "", bool value = false)
     {
@@ -75,7 +73,7 @@ internal sealed class NativeTrainWindow : NativeAddon
     protected override unsafe void OnSetup(AtkUnitBase* addon, Span<AtkValue> values)
     {
         base.OnSetup(addon, values);
-        suppressClose = false; showTools = false;
+        showTools = false;
         worldButtons.Clear(); versionButtons.Clear(); tools.Clear(); items.Clear();
         body = new ResNode(); body.AttachNode(this);
         finder = Button(body, "找怪", () => Send(NativeTrainAction.Finder));
@@ -158,7 +156,7 @@ internal sealed class NativeTrainWindow : NativeAddon
             button.LabelNode.TextColor = tab.Selected ? Accent(true) : ColorHelper.GetColor(50);
             // Keep IDs in a separate managed lookup; tooltips contain only user-facing text.
             tabKeys[button] = tab.Id.ToString();
-            button.TextTooltip = "左键选择；按住拖动排序；右键选择、调整顺序或删除";
+            button.TextTooltip = "单击选择；长按0.35秒后左右拖拽排序；右键调整或删除";
             // Selection is dispatched once on a matching left release by OnPointer.
             button.OnClick = () => { };
             x += w + 4;
@@ -369,7 +367,7 @@ internal sealed class NativeTrainWindow : NativeAddon
         EndPointer();
         dragKind = kind; dragKey = source is TextButtonNode tab && kind != "row" && tabKeys.TryGetValue(tab, out var tabId) ? tabId : key;
         dragWorld = snapshot.World; startMouse = new(data->MouseData.PosX, data->MouseData.PosY); startSize = Size;
-        pressNode = source; press.Begin(startMouse);
+        pressNode = source; press.Begin(startMouse, kind is "world" or "version" ? 350 : 0);
         pointerPosition = startMouse; lastAutoScroll = Environment.TickCount64; autoScrollRemainder = 0;
         pointer = new ViewportEventListener(OnPointer);
         pointer.AddEvent(AtkEventType.MouseMove, source); pointer.AddEvent(AtkEventType.MouseUp, source);
@@ -434,6 +432,7 @@ internal sealed class NativeTrainWindow : NativeAddon
     protected override unsafe void OnUpdate(AtkUnitBase* addon)
     {
         base.OnUpdate(addon); if (dragDone) EndPointer(); if (setup && Size != lastSize) Layout();
+        if (pointer != null) press.Move(pointerPosition);
         if (contextClosePending) { if (contextPanel != null) contextPanel.IsVisible = false; contextPointer?.Dispose(); contextPointer = null; contextClosePending = false; }
         if (setup) foreach (var item in items) { item.Name.Animate(); item.Map.Animate(); }
         if (pointer != null && press.Dragging && dragKind == "row" && scroll != null && InternalAddon != null)
@@ -447,7 +446,7 @@ internal sealed class NativeTrainWindow : NativeAddon
         }
     }
     protected override unsafe void OnHide(AtkUnitBase* addon)
-    { EndPointer(); contextPointer?.Dispose(); contextPointer = null; saveSize(Size); if (!suppressClose) dispatch(new(NativeTrainAction.Close)); base.OnHide(addon); }
+    { EndPointer(); contextPointer?.Dispose(); contextPointer = null; saveSize(Size); base.OnHide(addon); }
     protected override unsafe void OnFinalize(AtkUnitBase* addon)
     {
         setup = false; EndPointer(); worldButtons.Clear(); versionButtons.Clear(); tools.Clear(); items.Clear(); tabKeys.Clear();

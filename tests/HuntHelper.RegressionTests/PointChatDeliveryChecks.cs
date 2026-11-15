@@ -69,7 +69,7 @@ internal static class PointChatDeliveryChecks
             var host = new Host(); var line = Line(command + " 正文"); HuntPointChatDelivery.Send(line, Target, host);
             Check(line.LocalOnly == (command is "/echo" or "/e") && host.Current == Original && host.Events.SequenceEqual(new[] { "submit" }));
         }
-        Check(Line("/p <pos>").Text == "/p <flag>");
+        Check(Line("/p <pos>").Text == "/p <pos>" && !Line("/p <pos>").UsesFlag);
     }
     private static void WholeBatchValidation()
     {

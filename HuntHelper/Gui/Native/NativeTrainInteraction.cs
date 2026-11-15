@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -23,20 +24,30 @@ internal static class NativeTrainToolbar
 }
 
 /// <summary>One left press becomes either a release click or a drag, never both.</summary>
-internal sealed class NativePressGesture
+internal sealed class NativePressGesture(Func<long>? clock = null)
 {
+    private readonly Func<long> now = clock ?? (() => Environment.TickCount64);
     private Vector2 origin;
     private bool pressed;
+    private bool moved;
+    private long started;
+    private int holdMilliseconds;
     internal bool Dragging { get; private set; }
-    internal void Begin(Vector2 pointer) { origin = pointer; pressed = true; Dragging = false; }
-    internal void Move(Vector2 pointer) { if (pressed && Vector2.DistanceSquared(pointer, origin) >= 36) Dragging = true; }
+    internal void Begin(Vector2 pointer, int hold = 0)
+    { origin = pointer; pressed = true; moved = Dragging = false; started = now(); holdMilliseconds = hold; }
+    internal void Move(Vector2 pointer)
+    {
+        if (!pressed) return;
+        moved |= Vector2.DistanceSquared(pointer, origin) >= 36;
+        Dragging |= moved && now() - started >= holdMilliseconds;
+    }
     internal bool Release(Vector2 pointer, bool inside)
     {
         if (!pressed) return false;
         Move(pointer); pressed = false;
-        return inside && !Dragging;
+        return inside && !moved && !Dragging;
     }
-    internal void Cancel() { pressed = Dragging = false; }
+    internal void Cancel() { pressed = moved = Dragging = false; }
 }
 
 internal readonly record struct NativeMenuChoice(string Label, NativeTrainRequest Request);

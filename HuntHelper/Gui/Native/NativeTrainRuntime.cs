@@ -21,6 +21,7 @@ internal sealed class NativeTrainRuntime : IDisposable
     }
     private readonly IFramework framework;
     private readonly IPluginLog log;
+    private readonly Func<bool> canShow;
     private readonly Task init;
     private readonly Slot a = new(), s = new();
     private sealed class FormSlot
@@ -40,10 +41,11 @@ internal sealed class NativeTrainRuntime : IDisposable
     private Vector4 textColor, buttonColor;
     internal bool Failed { get; private set; }
 
-    internal NativeTrainRuntime(IDalamudPluginInterface pi, IFramework framework, IPluginLog log, Vector2 aSize, Vector2 sSize, Vector2 finderSize, Vector2 macroSize)
+    internal NativeTrainRuntime(IDalamudPluginInterface pi, IFramework framework, IPluginLog log, Vector2 aSize, Vector2 sSize, Vector2 finderSize, Vector2 macroSize, Func<bool> canShow)
     {
         this.framework = framework; this.log = log; this.aSize = aSize; this.sSize = sSize;
         this.finderSize = finderSize; this.macroSize = macroSize;
+        this.canShow = canShow;
         init = KamiToolKitLibrary.InitializeAsync(pi);
         framework.Update += OnUpdate;
     }
@@ -81,13 +83,12 @@ internal sealed class NativeTrainRuntime : IDisposable
             slot.Window = new NativeFormWindow(request => {
                 if (request.Key == "close") slot.UserClosed = true;
                 forms.Enqueue((kind, request));
-            }, changed => sizes.Enqueue((kind, changed))) {
+            }, changed => sizes.Enqueue((kind, changed)), canShow) {
                 InternalName = "HHTNative" + kind, Title = kind == "Finder" ? "A 怪找怪" : "预设宏",
                 Size = Vector2.Clamp(size, new(380, 380), new(1600, 1600)) };
         if (slot.Window == null) return;
         slot.Window.Apply(snapshot);
-        if (snapshot.Visible && !slot.UserClosed && !slot.Window.IsOpen) slot.Window.Open();
-        else if (!snapshot.Visible && slot.Window.IsOpen) slot.Window.CloseFromModel();
+        slot.Window.SyncVisibility(snapshot.Visible && !slot.UserClosed, canShow());
     }
 
     private unsafe void RefreshTheme()
@@ -111,14 +112,13 @@ internal sealed class NativeTrainRuntime : IDisposable
             slot.Window = new NativeTrainWindow(request => {
                 if (request.Action == NativeTrainAction.Close) slot.UserClosed = true;
                 requests.Enqueue((rank, request));
-            }, changed => sizes.Enqueue((rank, changed))) {
+            }, changed => sizes.Enqueue((rank, changed)), canShow) {
                 InternalName = rank == "A" ? "HHTNativeTrain" : "HHSNativeTrain",
                 Title = rank == "A" ? "狩猎车" : "S怪记录",
                 Size = Vector2.Clamp(size, new(350, 300), new(1500, 1400)) };
         if (slot.Window == null) return;
         slot.Window.Apply(snapshot);
-        if (snapshot.Visible && !slot.UserClosed && !slot.Window.IsOpen) slot.Window.Open();
-        else if (!snapshot.Visible && slot.Window.IsOpen) slot.Window.CloseFromModel();
+        slot.Window.SyncVisibility(snapshot.Visible && !slot.UserClosed, canShow());
     }
 
     public void Dispose()

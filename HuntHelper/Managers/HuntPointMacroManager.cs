@@ -80,17 +80,23 @@ public sealed class HuntPointMacroManager : IDisposable
                 _waitUntil = null;
                 if (_queue.Count == 0) { Status = _completionStatus; return; }
             }
+            var nativeCommandSent = false;
             while (_queue.Count > 0)
             {
                 var next = _queue.Peek();
                 if (!next.Line.IsWaitOnly)
                 {
-                    if (now < _nextSend) return;
+                    if (nativeCommandSent) return;
+                    var chat = HuntPointMacro.IsChatCommand(next.Line.Channel);
+                    if (chat && now < _nextSend) return;
                     HuntPointChatDelivery.Send(next.Line, next.Flag, _chatHost);
-                    _nextSend = _now() + 1200;
+                    if (chat) _nextSend = _now() + 1200;
+                    else nativeCommandSent = true;
                     _completionStatus = next.Line.LocalOnly
                         ? "本地回显已执行（/echo，仅自己可见）"
-                        : $"已提交 {next.Line.Channel} 频道；是否送达以游戏反馈为准";
+                        : HuntPointMacro.IsChatCommand(next.Line.Channel)
+                            ? $"已提交 {next.Line.Channel} 频道；是否送达以游戏反馈为准"
+                            : $"已提交游戏命令 {next.Line.Channel}；执行结果以游戏反馈为准";
                 }
                 _queue.Dequeue();
                 if (next.Line.WaitSeconds > 0)

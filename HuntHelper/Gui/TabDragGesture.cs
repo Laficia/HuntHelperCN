@@ -9,10 +9,16 @@ namespace HuntHelper.Gui;
 internal sealed class TabDragGesture
 {
     private uint? _source;
+    private uint? _pressed;
+    private double _pressedAt;
     public bool Dragging => _source.HasValue;
     public void RegisterItem(uint id)
     {
-        if (ImGui.IsItemActive() && ImGui.IsMouseDragging(ImGuiMouseButton.Left)) _source = id;
+        if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
+        {
+            if (_pressed != id) { _pressed = id; _pressedAt = ImGui.GetTime(); }
+            if (ImGui.GetTime() - _pressedAt >= .35 && ImGui.IsMouseDragging(ImGuiMouseButton.Left)) _source = id;
+        }
     }
 
     public bool Finish(List<uint> order, IEnumerable<(uint Id, Vector2 Min, Vector2 Max)> tabs, float scale)
@@ -36,5 +42,5 @@ internal sealed class TabDragGesture
         return changed;
     }
 
-    public void EndFrame() { if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _source = null; }
+    public void EndFrame() { if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _source = _pressed = null; }
 }

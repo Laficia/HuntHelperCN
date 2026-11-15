@@ -1,4 +1,4 @@
-Native UI dependencies for HuntHelperCN 1.0.0.23.
+Native UI dependencies for HuntHelperCN 1.0.0.24.
 
 KamiToolKit
 Repository: https://github.com/Dalamud-DailyRoutines/KamiToolKit

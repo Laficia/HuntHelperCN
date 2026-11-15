@@ -15,7 +15,7 @@ internal static class PointAndImportChecks
         ("S coordinate macros substitute record world and local only on the actual visited world", ServerMacro),
         ("A and S presets persist independently and defaults match their own rank", IndependentMacros),
         ("Macro flag parts bind to the clicked record without replacing injected names as template tokens", FlagParts),
-        ("Coordinate macros reject nonchat commands and control injection before sending any line", InvalidMacros),
+        ("Coordinate macros reject malformed commands and control injection before sending any line", InvalidMacros),
         ("Multi-line macros preserve line sequence and reject more than fifteen", MultiLine),
         ("Same-map imported A hunts start with the closer hunt from the player entry", PairOrder),
         ("Map route optimization agrees with exhaustive enumeration on a nontrivial group", ExactRoute),
@@ -60,7 +60,7 @@ internal static class PointAndImportChecks
     }
     private static void InvalidMacros()
     {
-        foreach (var t in new[] { "/tp 1 2 3", "/vnav moveto 1 2 3", "/p ok\n/ac sprint", "/sh hi\u0000evil", "", "/sh" })
+        foreach (var t in new[] { "not a command", "/ 1 2 3", "/p ok\n/merror off", "/sh hi\u0000evil", "", "/sh" })
         { var rejected = false; try { Expand(t); } catch (ArgumentException) { rejected = true; } Check(rejected); }
     }
     private static void MultiLine()

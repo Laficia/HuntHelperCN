@@ -28,7 +28,7 @@ public static class HuntPointChatDelivery
                 throw new ArgumentException("宏的本地等待步骤无效");
             var waitSeconds = waits.Length == 0 ? 0 : waits[0].WaitSeconds;
             if (parts.Any(p => !p.IsFlag && (p.Text.Contains("<flag>", StringComparison.OrdinalIgnoreCase) ||
-                p.Text.Contains("<pos>", StringComparison.OrdinalIgnoreCase))))
+                p.IsRecordValue && p.Text.Contains("<pos>", StringComparison.OrdinalIgnoreCase))))
                 throw new ArgumentException("记录名称等数据中含有点位指令，请修正记录后重试");
             var text = string.Concat(parts.Select(p => p.IsFlag ? "<flag>" : p.Text));
             if (HuntPointMacro.ContainsWaitMarker(text))

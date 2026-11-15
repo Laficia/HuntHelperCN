@@ -175,7 +175,12 @@ public sealed partial class HuntPointMacroUI
         var text = draft.Item2;
         ImGui.InputTextMultiline("##MacroTemplate", ref text, 6000, new Vector2(-1, 112 * scale)); Remember("text");
         _drafts[entry.Id] = (name, text);
-        if (_showVariables) ImGui.TextWrapped("<服务器>/<sever>  <名字>/<name>  <地图>/<map>\n<等级>/<lv>  <分线>/<ins>  <flag>  <wait.数字>（本地等待）");
+        if (_showVariables)
+        {
+            ImGui.TextWrapped("<服务器>/<sever>  <名字>/<name>  <地图>/<map>\n<等级>/<lv>  <分线>/<ins>  <flag>  <wait.数字>（本地等待）");
+            MutedWrapped("游戏命令：/ac /target /mount /mk /countdown /readycheck\n/wait 2 等待2秒；<pos> 玩家位置，<flag> 记录点位");
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip("普通游戏命令交由游戏解析。/micon、/merror、/mlock 等需要宏栏上下文，当前预设宏会在发送前提示；不直接当作聊天发送。");
+        }
         if (ImGui.Button("保存宏", new Vector2(88, 28) * scale))
         {
             if (_library.Save(entry.Id, name, text)) _save();

@@ -8,7 +8,7 @@ internal sealed record NativeFormChoice(string Id, string Label, bool Selected =
 internal sealed record NativeFormRow(string Key, string Label, NativeFormKind Kind, string Value = "",
     bool Enabled = true, IReadOnlyList<NativeFormChoice>? Choices = null, int Min = 0, int Max = 100, string Tooltip = "");
 internal sealed record NativeFormSnapshot(bool Visible, IReadOnlyList<NativeFormChoice> Toolbar,
-    IReadOnlyList<NativeFormRow> Rows, string Status = "")
+    IReadOnlyList<NativeFormRow> Rows, string Status = "", NativeFormChoice? PrimaryAction = null)
 {
     internal static NativeFormSnapshot Hidden { get; } = new(false, Array.Empty<NativeFormChoice>(), Array.Empty<NativeFormRow>());
 }

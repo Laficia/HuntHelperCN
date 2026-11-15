@@ -11,7 +11,7 @@ using KamiToolKit.Nodes;
 namespace HuntHelper.Gui.Native;
 
 /// <summary>Shared native form for finder and macro editor. Native events enqueue model requests.</summary>
-internal sealed class NativeFormWindow : NativeAddon
+internal sealed class NativeFormWindow : NativePersistentAddon
 {
     private sealed class MacroInput : TextInputNode
     {
@@ -41,20 +41,21 @@ internal sealed class NativeFormWindow : NativeAddon
     private ResNode? body, menu;
     private ScrollingNode<ResNode>? scroll;
     private TextNode? status;
+    private TextButtonNode? primaryAction;
     private TextureButtonNode? resize;
     private ColorImageNode? menuBackground, cue;
     private ViewportEventListener? pointer, menuPointer;
-    private bool setup, suppressClose, dragDone, dragging, resizing, closeMenu;
+    private bool setup, dragDone, dragging, resizing, closeMenu;
     private Vector2 startMouse, startSize, mousePosition, lastSize;
     private string dragId = "";
     private long suppressClickUntil, menuOpenedAt, lastScroll;
     private float scrollRemainder;
 
-    internal NativeFormWindow(Action<NativeFormRequest> dispatch, Action<Vector2> saveSize)
+    internal NativeFormWindow(Action<NativeFormRequest> dispatch, Action<Vector2> saveSize, Func<bool> canInteract)
+        : base(() => dispatch(new("close")), canInteract)
     { this.dispatch = dispatch; this.saveSize = saveSize; }
     internal void Apply(NativeFormSnapshot value)
     { snapshot = value; if (setup && pointer == null) Layout(); }
-    internal void CloseFromModel() { suppressClose = true; Close(); }
     private void Send(string key, string value = "", string target = "", bool after = true)
     { if (Environment.TickCount64 >= suppressClickUntil) dispatch(new(key, value, target, after)); }
 
@@ -89,11 +90,12 @@ internal sealed class NativeFormWindow : NativeAddon
 
     protected override unsafe void OnSetup(AtkUnitBase* addon, Span<AtkValue> values)
     {
-        base.OnSetup(addon, values); suppressClose = false;
+        base.OnSetup(addon, values);
         fields.Clear(); toolbar.Clear(); dragTargets.Clear(); menuButtons.Clear();
         body = new ResNode(); body.AttachNode(this);
         scroll = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 32 }; scroll.AttachNode(body);
         status = Text(body); status.AddTextFlags(TextFlags.MultiLine);
+        primaryAction = Button(body);
         resize = new TextureButtonNode { Size = new(18), TexturePath = "ui/uld/ChatLog.tex", TextureCoordinates = new(32, 34), TextureSize = new(18), TextTooltip = "拖动调整窗口大小" };
         resize.ImageNode.ImageNodeFlags = ImageNodeFlags.FlipV;
         resize.AddEvent(AtkEventType.MouseDown, (_, _, _, _, data) => {
@@ -239,7 +241,7 @@ internal sealed class NativeFormWindow : NativeAddon
     {
         if (!setup || scroll == null || body == null) return;
         body.Position = ContentStartPosition;
-        var width = MathF.Max(330, Size.X - ContentStartPosition.X * 2);
+        var width = MathF.Max(16, Size.X - ContentStartPosition.X * 2);
         while (toolbar.Count < snapshot.Toolbar.Count) toolbar.Add(Button(body));
         float x = 0, toolbarY = 0;
         for (int i = 0; i < toolbar.Count; i++)
@@ -249,8 +251,10 @@ internal sealed class NativeFormWindow : NativeAddon
             if (x > 0 && x + w > width) { x = 0; toolbarY += 32; }
             Place(button, x, toolbarY, w); button.String = entry.Label; button.IsChecked = entry.Selected; button.IsEnabled = entry.Enabled; button.OnClick = () => Send(entry.Id); x += w + 4;
         }
-        var top = toolbarY + 36;
-        var viewport = MathF.Max(100, Size.Y - ContentStartPosition.Y - top - 46);
+        var bounds = NativeFormLayout.Arrange(Size, ContentStartPosition, snapshot.Toolbar.Count == 0 ? 0 : (int)toolbarY / 32 + 1);
+        body.Size = bounds.Body;
+        var top = bounds.ScrollTop;
+        var viewport = bounds.ScrollHeight;
         Place(scroll, 0, top, width, viewport);
         foreach (var field in fields.Values) field.Used = false;
         dragTargets.Clear(); float y = 0;
@@ -267,7 +271,17 @@ internal sealed class NativeFormWindow : NativeAddon
         foreach (var field in fields.Values.Where(f => !f.Used))
         { field.Input?.ClearFocus(); field.Root.IsVisible = false; }
         scroll.ContentNode.Size = new(width - 14, MathF.Max(viewport, y)); scroll.RecalculateSizes();
-        Place(status!, 0, top + viewport + 4, width - 14, 36);
+        float statusX = 0;
+        primaryAction!.IsVisible = snapshot.PrimaryAction != null;
+        if (snapshot.PrimaryAction is { } action)
+        {
+            var actionWidth = Math.Min(ButtonWidth(action.Label), width - 32);
+            Place(primaryAction, 0, bounds.FooterY + 4, actionWidth);
+            primaryAction.String = action.Label; primaryAction.IsEnabled = action.Enabled;
+            primaryAction.OnClick = () => Send(action.Id);
+            statusX = actionWidth + 8;
+        }
+        Place(status!, statusX, bounds.FooterY, width - statusX - 14, 36);
         status!.String = snapshot.Status; status.TextTooltip = snapshot.Status;
         resize!.Position = Size - new Vector2(23, 23); lastSize = Size;
         if (menuBackground != null) menuBackground.Color = Light ? new(.9f, .89f, .86f, 1) : new(.07f, .10f, .16f, 1);
@@ -354,12 +368,12 @@ internal sealed class NativeFormWindow : NativeAddon
     {
         EndPointer(); menuPointer?.Dispose(); menuPointer = null;
         foreach (var field in fields.Values) field.Input?.ClearFocus();
-        saveSize(Size); if (!suppressClose) dispatch(new("close")); base.OnHide(addon);
+        saveSize(Size); base.OnHide(addon);
     }
     protected override unsafe void OnFinalize(AtkUnitBase* addon)
     {
         setup = false; EndPointer(); menuPointer?.Dispose(); menuPointer = null;
-        fields.Clear(); toolbar.Clear(); dragTargets.Clear(); menuButtons.Clear(); body = null; scroll = null; menu = null; menuBackground = null; cue = null;
+        fields.Clear(); toolbar.Clear(); dragTargets.Clear(); menuButtons.Clear(); body = null; scroll = null; menu = null; menuBackground = null; cue = null; primaryAction = null;
         base.OnFinalize(addon);
     }
 }

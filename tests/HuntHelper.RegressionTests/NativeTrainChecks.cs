@@ -17,6 +17,7 @@ internal static class NativeTrainChecks
         ("native left press selects exactly once on inside release", PressClick),
         ("native held movement becomes a drag and never clicks on release", PressDrag),
         ("native outside releases and cancelled gestures cannot select", PressCancel),
+        ("native tabs require a long press before held movement can reorder", LongPress),
     ];
     private static NativeTrainRow Row(string key, uint map, uint instance = 0, bool missing = false, bool dead = false) =>
         new(key, map, instance, $"地图{map}", key, missing, dead, false, !missing, !missing, "", "");
@@ -41,6 +42,16 @@ internal static class NativeTrainChecks
         gesture.Move(new(102, 101)); Require(!gesture.Dragging);
         Require(gesture.Release(new(102, 101), true));
         Require(!gesture.Release(new(102, 101), true));
+    }
+    private static void LongPress()
+    {
+        long now = 0; var gesture = new NativePressGesture(() => now);
+        gesture.Begin(new(100, 100), 350); gesture.Move(new(120, 100));
+        Require(!gesture.Dragging); now = 349; gesture.Move(new(120, 100)); Require(!gesture.Dragging);
+        now = 350; gesture.Move(new(120, 100)); Require(gesture.Dragging);
+        Require(!gesture.Release(new(120, 100), true));
+        gesture.Begin(new(100, 100), 350); now += 400; Require(gesture.Release(new(100, 100), true));
+        gesture.Begin(new(100, 100), 350); now += 100; Require(!gesture.Release(new(120, 100), false) && !gesture.Dragging);
     }
     private static void PressDrag()
     {

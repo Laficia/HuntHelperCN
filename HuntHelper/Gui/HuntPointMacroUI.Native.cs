@@ -33,6 +33,8 @@ public sealed partial class HuntPointMacroUI
             Tooltip: "支持中文输入与多行宏，Enter 换行；编辑不会自动发送。快捷按钮只发送已保存的正文。"));
         rows.Add(new("save-row", "", NativeFormKind.Buttons, Choices: new[] { new NativeFormChoice("save", "保存宏"), new NativeFormChoice("pin-selected", "加入宏集合", Enabled: !_library.Collection.Contains(_selected)) }));
         if (_showVariables) rows.Add(new("variables", "<服务器>/<sever>  <名字>/<name>  <地图>/<map>\n<等级>/<lv>  <分线>/<ins>  <flag>  <wait.数字>（本地等待）", NativeFormKind.Label));
+        if (_showVariables) rows.Add(new("game-commands", "游戏命令：/ac /target /mount /mk /countdown /readycheck\n/wait 2 等待2秒；<pos> 玩家位置，<flag> 记录点位", NativeFormKind.Label,
+            Tooltip: "普通游戏命令交由游戏解析，<me>、<t>、<se.1> 等保持原义。HHT 的 <name>、<lv> 等既有别名不变。/micon、/merror、/mlock 等宏栏专用命令暂不执行，会在发送前提示。"));
         var toolbar = new List<NativeFormChoice> { new("variables", "变量说明", _showVariables), new("legacy", "原版窗口") };
         if (_busy()) toolbar.Insert(0, new("cancel", "取消发送"));
         return new(true, toolbar, rows, string.Join(" · ", new[] { _status, _sendStatus() }.Where(s => s.Length > 0)));

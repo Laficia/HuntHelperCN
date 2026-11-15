@@ -27,7 +27,55 @@ internal static class MacroQueueChecks
         ("logout world changes cancellation and disposal abort a waiting macro immediately", WaitCancellation),
         ("a trailing or wait-only macro remains busy until its local delay completes", TrailingWait),
         ("record values and direct submissions cannot inject wait markers into outgoing chat", WaitInjection),
+        ("native action target mount marker countdown and hotbar commands reach the game parser unchanged", NativeCommands),
+        ("game player target position and sound placeholders remain native without a hunt record", NativeTokens),
+        ("slash waits run locally and preserve mixed native command order", SlashWait),
+        ("invalid slash waits and macro-only context commands reject the whole batch", NativeValidation),
+        ("native commands advance on separate frames without imposing a chat delay", NativePacing),
     ];
+    private static void NativeCommands()
+    {
+        foreach (var command in new[] { "/ac \"冲刺\" <me>", "/target <t>", "/mount \"陆行鸟\"", "/mk attack1 <t>", "/countdown 10", "/readycheck", "/hotbar display 1 on", "/gearset change 1" })
+        {
+            using var f = new Fixture(); f.Sender.SendTemplate(command, null, "A"); f.Framework.Tick();
+            Check(f.Host.Submitted.Single().Text == command && !f.Sender.Busy && f.Sender.Status.Contains("游戏命令"));
+        }
+    }
+    private static void NativeTokens()
+    {
+        using var f = new Fixture();
+        const string text = "/p <me> <t> <tt> <f> <1> <hp> <pos> <where> <se.1>";
+        f.Sender.SendTemplate(text, null, "A"); f.Framework.Tick();
+        Check(f.Host.Submitted.Single().Text == text && f.Host.Submitted.Single().Flag == null);
+        Check(f.Sender.Status.Contains("频道"));
+    }
+    private static void SlashWait()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate("/ac 冲刺 <me>\r/wait 2\r/readycheck", null, "A"); f.Framework.Tick();
+        Check(f.Host.Submitted.Single().Text == "/ac 冲刺 <me>" && f.Sender.Busy);
+        f.Now = 1999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 1);
+        f.Now = 2000; f.Framework.Tick(); Check(f.Host.Submitted.Last().Text == "/readycheck" && !f.Sender.Busy);
+        f.Sender.SendTemplate("/wait 99999999999999999999\n/echo done", null, "A"); f.Framework.Tick();
+        f.Now = 61999; f.Framework.Tick(); Check(f.Host.Submitted.Count == 2);
+        f.Now = 62000; f.Framework.Tick(); Check(f.Host.Submitted.Last().Text == "/echo done");
+    }
+    private static void NativeValidation()
+    {
+        foreach (var line in new[] { "/wait", "/wait 0", "/wait -1", "/wait 1.5", "/wait 2 extra", "/wait 2 <wait.1>", "/micon 冲刺", "/merror off", "/mlock", "/macrocancel" })
+        {
+            using var f = new Fixture(); f.Sender.SendTemplate("/echo first\n" + line, null, "A"); f.Framework.Tick();
+            Check(!f.Sender.Busy && f.Host.Submitted.Count == 0 && f.Sender.Status.Contains("未发送"));
+        }
+    }
+    private static void NativePacing()
+    {
+        using var f = new Fixture();
+        f.Sender.SendTemplate("/target <t>\n/ac 冲刺 <me>\n/p 完成", null, "A");
+        f.Framework.Tick(); Check(f.Host.Submitted.Count == 1 && f.Sender.Busy);
+        f.Framework.Tick(); Check(f.Host.Submitted.Count == 2 && f.Sender.Busy);
+        f.Framework.Tick(); Check(f.Host.Submitted.Count == 3 && !f.Sender.Busy);
+    }
     private sealed class Framework : IFramework
     { public event Action<IFramework>? Update; public void Tick() => Update?.Invoke(this); }
     private sealed class Client : IClientState { public bool IsLoggedIn { get; set; } = true; }

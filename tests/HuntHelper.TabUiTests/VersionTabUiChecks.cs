@@ -61,6 +61,7 @@ internal static class VersionTabUiChecks
     {
         var io=ImGui.GetIO();var b=Tabs.VisibleTabs.Single(b=>b.Version==source);var start=(b.Min+b.Max)/2;
         io.AddMousePosEvent(start.X,start.Y);Frame();io.AddMouseButtonEvent(0,true);Frame();
+        for(var i=0;i<24;i++)Frame();
         io.AddMousePosEvent(start.X+12,start.Y);Frame();
         var dest=Tabs.VisibleTabs.Single(b=>b.Version==target);
         io.AddMousePosEvent(after?dest.Max.X-3:dest.Min.X+3,(dest.Min.Y+dest.Max.Y)/2);Frame();

@@ -21,6 +21,7 @@ internal static class Program
         (string Name, Func<Task> Run)[] tests =
         [
             .. NativeTrainChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. NativeWindowChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroQueueChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroLibraryChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroAliasChecks.Tests.Select(t => (t.Name, Sync(t.Run))),

@@ -23,6 +23,9 @@ internal static unsafe class Program
             io.Fonts.AddFontDefault();
             io.Fonts.Build();
             Frame(); Frame();
+            Drag(101, 103, after: true, held: false);
+            Expect(101, 102, 103);
+            Console.WriteLine("PASS Short tab movement cannot reorder before the long-press threshold");
             Drag(101, 103, after: true);
             Expect(102, 103, 101);
             Frame();
@@ -84,18 +87,19 @@ internal static unsafe class Program
         return (b.Min + b.Max) / 2;
     }
 
-    private static void Drag(uint source, uint target, bool after)
+    private static void Drag(uint source, uint target, bool after, bool held = true)
     {
         var io = ImGui.GetIO();
         var start = Center(source);
         io.AddMousePosEvent(start.X, start.Y); Frame();
         io.AddMouseButtonEvent(0, true); Frame();
+        if (held) for (var i = 0; i < 24; i++) Frame();
         io.AddMousePosEvent(start.X + 12, start.Y); Frame();
         var dest = Tabs.VisibleTabs.Single(b => b.WorldId == target);
         io.AddMousePosEvent(after ? dest.Max.X - 3 : dest.Min.X + 3, (dest.Min.Y + dest.Max.Y) / 2); Frame();
         if (!ImGui.GetDragDropPayload().IsNull) throw new Exception("Default drop target became active");
         io.AddMouseButtonEvent(0, false); Frame();
-        if (!_action.OrderChanged) throw new Exception("Drop did not change the tab order");
+        if (_action.OrderChanged != held) throw new Exception("Tab reorder did not respect the long-press threshold");
     }
 
     private static void Expect(params uint[] expected)
