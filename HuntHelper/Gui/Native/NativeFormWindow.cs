@@ -26,7 +26,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         internal NumericInputNode? Number;
         internal StringDropDownNode? Choice;
         internal TextInputNode? Input;
-        internal ScrollingNode<ResNode>? List;
+        internal NativeScrollViewport? List;
         internal NativeTrainText? DropZone;
         internal readonly List<CheckboxNode> Checks = new();
         internal readonly List<TextButtonNode> Buttons = new();
@@ -39,7 +39,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     private readonly List<TextButtonNode> toolbar = new(), menuButtons = new();
     private readonly List<(TextButtonNode Node, string Id, bool Collection)> dragTargets = new();
     private ResNode? body, menu;
-    private ScrollingNode<ResNode>? scroll;
+    private NativeScrollViewport? scroll;
     private TextNode? status;
     private TextButtonNode? primaryAction;
     private TextureButtonNode? resize;
@@ -93,7 +93,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         base.OnSetup(addon, values);
         fields.Clear(); toolbar.Clear(); dragTargets.Clear(); menuButtons.Clear();
         body = new ResNode(); body.AttachNode(this);
-        scroll = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 32 }; scroll.AttachNode(body);
+        scroll = new NativeScrollViewport { AutoHideScrollBar = true, ScrollSpeed = 32 }; scroll.AttachNode(body);
         status = Text(body); status.AddTextFlags(TextFlags.MultiLine);
         primaryAction = Button(body);
         resize = new TextureButtonNode { Size = new(18), TexturePath = "ui/uld/ChatLog.tex", TextureCoordinates = new(32, 34), TextureSize = new(18), TextTooltip = "拖动调整窗口大小" };
@@ -130,7 +130,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
                 field.Input.CurrentTextNode.FontSize = 13; field.Input.AttachNode(field.Root);
                 field.Input.OnInputReceived = text => { if (!field.Binding) dispatch(new(field.Row.Key, text.ToString())); }; break;
             case NativeFormKind.CheckList:
-                field.List = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 30 }; field.List.AttachNode(field.Root); break;
+                field.List = new NativeScrollViewport { AutoHideScrollBar = true, ScrollSpeed = 30 }; field.List.AttachNode(field.Root); break;
             case NativeFormKind.Collection:
                 field.DropZone = new NativeTrainText { IsEnabled = false }; field.DropZone.AttachNode(field.Root); break;
         }

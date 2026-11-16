@@ -18,6 +18,9 @@ internal sealed class NativeTrainRuntime : IDisposable
         internal NativeTrainSnapshot? Snapshot;
         internal NativeTrainWindow? Window;
         internal bool UserClosed;
+        internal NativeClearWindow? ClearWindow;
+        internal string? ClearToken;
+        internal bool ClearClosed;
     }
     private readonly IFramework framework;
     private readonly IPluginLog log;
@@ -72,7 +75,7 @@ internal sealed class NativeTrainRuntime : IDisposable
         if (!init.IsCompletedSuccessfully)
         { Failed = true; log.Error(init.Exception!, "[HHT Native] KamiToolKit 初始化失败，恢复原窗口"); return; }
         try { RefreshTheme(); Tick(a, "A", aSize); Tick(s, "S", sSize); TickForm(finder, "Finder", finderSize); TickForm(macro, "Macro", macroSize); }
-        catch (Exception ex) { Failed = true; log.Error(ex, "[HHT Native] 原生窗口异常，恢复原窗口"); a.Window?.CloseFromModel(); s.Window?.CloseFromModel(); finder.Window?.CloseFromModel(); macro.Window?.CloseFromModel(); }
+        catch (Exception ex) { Failed = true; log.Error(ex, "[HHT Native] 原生窗口异常，恢复原窗口"); a.Window?.CloseFromModel(); s.Window?.CloseFromModel(); a.ClearWindow?.CloseFromModel(); s.ClearWindow?.CloseFromModel(); finder.Window?.CloseFromModel(); macro.Window?.CloseFromModel(); }
     }
 
     private void TickForm(FormSlot slot, string kind, Vector2 size)
@@ -89,6 +92,25 @@ internal sealed class NativeTrainRuntime : IDisposable
         if (slot.Window == null) return;
         slot.Window.Apply(snapshot);
         slot.Window.SyncVisibility(snapshot.Visible && !slot.UserClosed, canShow());
+    }
+
+    private void TickClear(Slot slot, string rank, NativeClearSnapshot? snapshot)
+    {
+        if (slot.ClearToken != snapshot?.Token)
+        { slot.ClearToken = snapshot?.Token; slot.ClearClosed = false; }
+        if (slot.ClearWindow == null && snapshot != null)
+            slot.ClearWindow = new NativeClearWindow(() => {
+                slot.ClearClosed = true;
+                requests.Enqueue((rank, new(NativeTrainAction.CancelClear, Key: slot.ClearToken ?? "")));
+            }, token => {
+                slot.ClearClosed = true;
+                requests.Enqueue((rank, new(NativeTrainAction.ConfirmClear, Key: token)));
+            }, canShow) {
+                InternalName = rank == "A" ? "HHTNativeClear" : "HHSNativeClear",
+                Title = "确认清除记录", Size = new(440, 230) };
+        if (slot.ClearWindow == null) return;
+        if (snapshot != null) slot.ClearWindow.Apply(snapshot);
+        slot.ClearWindow.SyncVisibility(snapshot != null && !slot.ClearClosed, canShow());
     }
 
     private unsafe void RefreshTheme()
@@ -119,6 +141,7 @@ internal sealed class NativeTrainRuntime : IDisposable
         if (slot.Window == null) return;
         slot.Window.Apply(snapshot);
         slot.Window.SyncVisibility(snapshot.Visible && !slot.UserClosed, canShow());
+        TickClear(slot, rank, snapshot.Visible && !slot.UserClosed ? snapshot.Clear : null);
     }
 
     public void Dispose()
@@ -127,7 +150,7 @@ internal sealed class NativeTrainRuntime : IDisposable
         disposed = true; framework.Update -= OnUpdate;
         void Cleanup()
         {
-            a.Window?.Dispose(); s.Window?.Dispose(); finder.Window?.Dispose(); macro.Window?.Dispose(); KamiToolKitLibrary.Dispose();
+            a.ClearWindow?.Dispose(); s.ClearWindow?.Dispose(); a.Window?.Dispose(); s.Window?.Dispose(); finder.Window?.Dispose(); macro.Window?.Dispose(); KamiToolKitLibrary.Dispose();
         }
         // The library's synchronous disposal restores native vtables before nodes are freed.
         // Do not block the framework on its own scheduler.

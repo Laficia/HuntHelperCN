@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.25）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.26）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -11,6 +11,10 @@
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
 
+## 原生窗口与清理记录（1.0.0.26）
+
+- 修复找怪工具栏、开始按钮及多窗口裁剪；原生清空确认，更多新增清除全部，A/S独立，自动备份可恢复。
+- 游戏内检查显示和取消，隔离数据验证删除恢复；440项检查通过。旧版1.0.0.25和固定回退源保留。
 ## DR巡航、多服与窗口修正（1.0.0.25）
 
 DR巡航按官方固定提交29225845核对寻点、水晶筛选、路径截断和失败重试，保留原始点位；多服改用DR「快捷跨服」。DR模式中断后重试，用HHT「停止找怪」结束。修复独立原生窗口关闭后重开。436项自动检查通过，本次未在本地游戏加载；细节与备份见[PENDING_CHANGES.zh-CN.md](PENDING_CHANGES.zh-CN.md)。下方版本历史描述对应当时发布行为，当前规则见[使用说明](USER_GUIDE.zh-CN.md#finder)。

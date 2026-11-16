@@ -19,6 +19,8 @@ public partial class HuntTrainUI
     private List<HuntTrainMob>? _nativeClearRecords;
     private uint _nativeClearWorld;
     private string _nativeClearLabel = "";
+    private string _nativeClearToken = "";
+    private bool _nativeClearAll;
     private readonly HashSet<uint> _nativeVisitedWorlds = new();
     private static string NativeKey(HuntTrainMob mob) => $"{mob.MobID}/{mob.Instance}";
 
@@ -72,12 +74,20 @@ public partial class HuntTrainUI
         return new(_huntTrainWindowVisible && NativePresentation && !_nativeLegacy, _rankLabel, world, current.WorldName, _trainManager.RecordTrain,
             _patrolActive(), _navigation.OwnsMovement, _settings.NativeTrainGroupByMap, status,
             worldOrder.Select(id => worlds.First(w => w.WorldID == id)).Select(w => new NativeTrainTab(w.WorldID, $"{w.WorldName} ({w.Count})", w.WorldID == world)).ToArray(),
-            versionOrder.Select(id => groups.First(g => VersionKey(g.Version) == id)).Select(g => new NativeTrainTab(VersionKey(g.Version), g.DisplayLabel, g.Version == version)).ToArray(), rows);
+            versionOrder.Select(id => groups.First(g => VersionKey(g.Version) == id)).Select(g => new NativeTrainTab(VersionKey(g.Version), g.DisplayLabel, g.Version == version)).ToArray(), rows,
+            _nativeClearRecords == null ? null : new NativeClearSnapshot(_nativeClearToken, _rankLabel, _nativeClearLabel,
+                _nativeClearRecords.Count, _nativeClearRecords.Select(m => m.WorldID).Distinct().Count(), _nativeClearAll));
     }
 
     internal void NativeDispatch(NativeTrainRequest request)
     {
-        if (request.Action == NativeTrainAction.Close) { _huntTrainWindowVisible = false; return; }
+        if (request.Action == NativeTrainAction.Close) { CancelNativeClear(); _huntTrainWindowVisible = false; return; }
+        if (request.Action is NativeTrainAction.ConfirmClear or NativeTrainAction.CancelClear)
+        {
+            if (_nativeClearRecords == null || request.Key != _nativeClearToken) return;
+            if (request.Action == NativeTrainAction.ConfirmClear) ConfirmNativeClear(); else CancelNativeClear();
+            return;
+        }
         if (request.Action == NativeTrainAction.CurrentWorld) { SelectDisplayedWorld(_trainManager.CurrentWorldId); return; }
         if (request.Action == NativeTrainAction.World) { SelectDisplayedWorld(request.World); return; }
         // Discard stale row actions if the player changes tabs before a native click is processed.
@@ -87,6 +97,7 @@ public partial class HuntTrainUI
         switch (request.Action)
         {
             case NativeTrainAction.Legacy:
+                CancelNativeClear();
                 _nativeLegacy = false; _config.UseNativeHuntWindows = false; _config.Save(); break;
             case NativeTrainAction.Finder:
                 if (_patrolActive()) _stopPatrol(); else if (_navigation.OwnsMovement) _navigation.Stop(); else _openFinder();
@@ -120,6 +131,8 @@ public partial class HuntTrainUI
                 _trainActionMessage = _trainManager.ActionError ?? $"已恢复 {count} 条记录为存活"; break;
             case NativeTrainAction.Clear:
                 RequestNativeClear(); break;
+            case NativeTrainAction.ClearAll:
+                RequestNativeClear(allWorlds: true); break;
             case NativeTrainAction.ClearVersion:
                 if (uint.TryParse(request.Key, out var clearVersion))
                 {
@@ -179,32 +192,46 @@ public partial class HuntTrainUI
         }
     }
 
-    private void RequestNativeClear()
+    private void RequestNativeClear(bool allWorlds = false)
     {
         _nativeClearWorld = _trainManager.SelectedWorldId;
-        _nativeClearRecords = VisibleMobs.ToList();
+        _nativeClearAll = allWorlds;
+        _nativeClearToken = Guid.NewGuid().ToString("N");
+        _nativeClearRecords = allWorlds ? _trainManager.GetAllTrainRecords() : VisibleMobs.ToList();
         var server = _trainManager.GetWorlds().FirstOrDefault(w => w.WorldID == _nativeClearWorld)?.WorldName ?? "当前服务器";
-        _nativeClearLabel = $"{server} / {VersionLabel}";
-        _nativePanel = "清空"; _nativePopup = "确认清空记录##NativeTrainClear";
+        _nativeClearLabel = allWorlds ? $"全部服务器 / 全部版本（{_rankLabel}怪）" : $"{server} / {VersionLabel}";
     }
 
-    private void DrawNativeClearModal()
+    private void CancelNativeClear()
     {
-        if (!ImGui.BeginPopupModal("确认清空记录##NativeTrainClear")) return;
-        ImGui.TextWrapped($"清空「{_nativeClearLabel}」的 {_nativeClearRecords?.Count ?? 0} 条记录？其他服务器与版本不受影响。");
-        if (ImGui.Button("确认清空"))
+        _nativeClearRecords = null; _nativeClearToken = "";
+    }
+
+    private void ConfirmNativeClear()
+    {
+        if (_nativeClearRecords == null) return;
+        var captured = _nativeClearRecords;
+        var stopNavigation = captured.Any(_navigation.IsMovingTo);
+        var before = _trainManager.GetAllTrainRecords().Count;
+        var previousWorld = _trainManager.SelectedWorldId;
+        try
         {
-            var previousWorld = _trainManager.SelectedWorldId;
-            try
+            if (_nativeClearAll) _trainManager.RemoveRecordsAcrossWorlds(captured);
+            else
             {
                 _trainManager.SelectWorld(_nativeClearWorld);
-                _trainManager.RemoveRecords(_nativeClearRecords ?? new(), pauseRecording: true);
+                _trainManager.RemoveRecords(captured, pauseRecording: true);
             }
-            finally { _trainManager.SelectWorld(previousWorld); }
-            _nativeClearRecords = null; ClampSelection(); ImGui.CloseCurrentPopup();
         }
-        ImGui.SameLine(); if (ImGui.Button("取消")) { _nativeClearRecords = null; ImGui.CloseCurrentPopup(); }
-        ImGui.EndPopup();
+        finally { _trainManager.SelectWorld(previousWorld); }
+        var removed = before - _trainManager.GetAllTrainRecords().Count;
+        if (_trainManager.ActionError == null && removed > 0)
+        {
+            if (stopNavigation) _navigation.Stop();
+            if (_nativeClearAll && !_isS && _patrolActive()) _stopPatrol();
+        }
+        _trainActionMessage = _trainManager.ActionError ?? $"已清除 {removed} 条记录，可在备份撤销中恢复";
+        CancelNativeClear(); ClampSelection();
     }
 
     private void DrawNativeDialogs()
@@ -250,7 +277,7 @@ public partial class HuntTrainUI
             }
             if (_nativePanel == "导入" && ImGui.Button("重新读取剪贴板"))
             { _trainManager.Import(ImGui.GetClipboardText()); ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup"); }
-            DrawImportWindowModal(); DrawNativeClearModal(); DrawRestoreModal();
+            DrawImportWindowModal(); DrawRestoreModal();
             if (_teleportManager.TeleportPluginNotFound) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["TeleportWindowTitle"]}##ModalPopupWindowThingymajig");
             DrawTeleportPluginNotFoundModal();
         }

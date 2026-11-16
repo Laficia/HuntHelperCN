@@ -12,7 +12,8 @@ internal sealed record NativeTrainRow(string Key, uint Territory, uint Instance,
 internal sealed record NativeTrainGroup(uint Territory, uint Instance, string Title, IReadOnlyList<NativeTrainRow> Rows);
 internal sealed record NativeTrainSnapshot(bool Visible, string Rank, uint World, string CurrentWorld,
     bool Recording, bool Patrol, bool Moving, bool GroupByMap, string Status,
-    IReadOnlyList<NativeTrainTab> Worlds, IReadOnlyList<NativeTrainTab> Versions, IReadOnlyList<NativeTrainRow> Rows)
+    IReadOnlyList<NativeTrainTab> Worlds, IReadOnlyList<NativeTrainTab> Versions, IReadOnlyList<NativeTrainRow> Rows,
+    NativeClearSnapshot? Clear = null)
 {
     internal IReadOnlyList<NativeTrainGroup> Groups => Rows.GroupBy(row => (row.Territory, row.Instance))
         .Select(group => new NativeTrainGroup(group.Key.Territory, group.Key.Instance,
@@ -25,6 +26,9 @@ internal enum NativeTrainAction
     Select, Map, Teleport, Move, Coordinates, Dead, Import, Export, Backups, Settings,
     ClearDead, Revive, Clear, ReorderRow, ReorderWorld, ReorderVersion,
     SelectOnly, RowUp, RowDown, RemoveRow, ShiftWorld, DeleteWorld, ShiftVersion, ClearVersion,
+    ClearAll, ConfirmClear, CancelClear,
 }
+
+internal sealed record NativeClearSnapshot(string Token, string Rank, string Scope, int Count, int WorldCount, bool AllWorlds);
 
 internal sealed record NativeTrainRequest(NativeTrainAction Action, uint World = 0, string Key = "", string Target = "", bool Value = false);

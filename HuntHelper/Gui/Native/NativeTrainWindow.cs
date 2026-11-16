@@ -87,7 +87,8 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
             ("导入", NativeTrainAction.Import), ("导出", NativeTrainAction.Export),
             ("备份撤销", NativeTrainAction.Backups), ("设置", NativeTrainAction.Settings),
             ("清理死亡", NativeTrainAction.ClearDead), ("恢复存活", NativeTrainAction.Revive),
-            ("清空标签", NativeTrainAction.Clear), (snapshot?.Rank == "S" ? "A怪记录" : "S怪记录", NativeTrainAction.OtherRank),
+            ("清空标签", NativeTrainAction.Clear), ("清除全部", NativeTrainAction.ClearAll),
+            (snapshot?.Rank == "S" ? "A怪记录" : "S怪记录", NativeTrainAction.OtherRank),
             ("原版窗口", NativeTrainAction.Legacy) })
             tools.Add(Button(body, label, () => Send(action)));
         scroll = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 34 };

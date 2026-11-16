@@ -30,6 +30,10 @@ internal static class RecoveryChecks
         ("live record save failure rolls the in-memory mutation back", SaveFailure),
         ("invalid snapshot identifiers and corrupt snapshots preserve current data", InvalidSnapshot),
         ("restoring a backup also backs up the present and preserves manual death guards", RestoreAgain),
+        ("clear-all atomically clears all servers and can restore them with one snapshot", ClearAllUndo),
+        ("clear-all keeps records added after confirmation opened and ignores foreign rows", ClearAllCaptured),
+        ("clear-all save failure preserves all servers and recording state", ClearAllFailure),
+        ("clear-all in A storage cannot erase independent S records", ClearAllRankIsolation),
     ];
     private static readonly DateTime Seen = new(2026,10,24,10,0,0,DateTimeKind.Utc);
     private static readonly HuntTrainWorld A=new(101,"A服","",0), B=new(102,"B服","",0);
@@ -200,5 +204,42 @@ internal static class RecoveryChecks
         var manual=0;f.M.ManualDeadStateChanged+=_=>manual++;f.M.RecordTrain=true;
         Check(f.M.RestoreSnapshot(id) && !f.M.HuntTrain.Single().Dead && !f.M.RecordTrain && manual==1);
         var redo=f.M.Snapshots.List()[0];Check(redo.Operation=="恢复备份前" && f.M.RestoreSnapshot(redo.Id) && f.M.HuntTrain.Single().Dead);
+    }
+    private static void ClearAllUndo()
+    {
+        using var f=new Fixture();f.M.AddMob(Mob());f.M.AddMob(Mob(2));
+        f.World=B;f.M.AddMob(Mob(3));f.M.SelectWorld(101);f.M.RecordTrain=true;
+        var deleted=new List<uint>();f.M.WorldDeleted+=deleted.Add;
+        Check(f.M.RemoveRecordsAcrossWorlds(f.M.GetAllTrainRecords())==3);
+        Check(f.M.GetAllTrainRecords().Count==0 && f.M.GetWorlds().Count==0 && !f.M.RecordTrain && f.M.SelectedWorldId==101);
+        var snapshot=f.M.Snapshots.List().Single();
+        Check(snapshot.Operation=="清除全部" && snapshot.Records.Count==3 && deleted.Order().SequenceEqual(new uint[]{101,102}));
+        Check(f.M.RestoreSnapshot(snapshot.Id) && f.M.GetTrainRecords(101).Count==2 && f.M.GetTrainRecords(102).Count==1);
+    }
+    private static void ClearAllCaptured()
+    {
+        using var f=new Fixture();f.M.AddMob(Mob());f.World=B;f.M.AddMob(Mob(2));
+        var captured=f.M.GetAllTrainRecords();f.M.AddMob(Mob(3));
+        Check(f.M.RemoveRecordsAcrossWorlds(captured)==2 && f.M.GetAllTrainRecords().Single().MobID==3);
+        var count=f.M.Snapshots.List().Count;f.M.RecordTrain=true;
+        Check(f.M.RemoveRecordsAcrossWorlds(new[]{Mob(3,102)})==0 && f.M.GetAllTrainRecords().Single().MobID==3);
+        Check(f.M.Snapshots.List().Count==count && f.M.RecordTrain);
+    }
+    private static void ClearAllFailure()
+    {
+        using var f=new Fixture();f.M.AddMob(Mob());f.World=B;f.M.AddMob(Mob(2));f.M.RecordTrain=true;
+        var before=File.ReadAllText(f.FilePath);var deleted=0;f.M.WorldDeleted+=_=>deleted++;
+        using(var locked=File.Open(f.FilePath,FileMode.Open,FileAccess.Read,FileShare.None))
+        {Check(f.M.RemoveRecordsAcrossWorlds(f.M.GetAllTrainRecords())==0);}
+        Check(f.M.GetAllTrainRecords().Count==2 && File.ReadAllText(f.FilePath)==before && f.M.RecordTrain && deleted==0);
+        Check(f.M.ActionError!.Contains("保存失败"));
+    }
+    private static void ClearAllRankIsolation()
+    {
+        using var f=new Fixture();f.M.AddMob(Mob());
+        using var s=new TrainManager(new Host(),new Host(),Path.Combine(f.Dir.Path,"SRankTrain.json"),()=>A,m=>m.MobID==20);
+        s.AddMob(Mob(20));
+        Check(f.M.RemoveRecordsAcrossWorlds(s.GetAllTrainRecords())==0 && f.M.GetAllTrainRecords().Count==1);
+        Check(f.M.RemoveRecordsAcrossWorlds(f.M.GetAllTrainRecords())==1 && s.GetAllTrainRecords().Single().MobID==20);
     }
 }

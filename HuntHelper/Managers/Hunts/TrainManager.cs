@@ -471,6 +471,24 @@ public class TrainManager : IDisposable
         }
     }
 
+    // One frozen confirmation, one backup and one save across all affected worlds.
+    // Only remove the exact rows shown by the confirmation, retaining later scans/imports.
+    public int RemoveRecordsAcrossWorlds(IEnumerable<HuntTrainMob> records)
+    {
+        ActionError = null;
+        var requested = records.ToHashSet();
+        var selected = GetAllTrainRecords().Where(requested.Contains).ToHashSet();
+        if (selected.Count == 0) return 0;
+        var worlds = selected.Select(m => m.WorldID).Distinct().ToArray();
+        if (!Change("清除全部", worlds, () =>
+        {
+            foreach (var world in worlds) GetOrCreateTrain(world).RemoveAll(selected.Contains);
+        })) return 0;
+        RecordTrain = false;
+        foreach (var world in worlds) WorldDeleted?.Invoke(world);
+        return selected.Count;
+    }
+
     public int RestoreRecords(IEnumerable<HuntTrainMob> records)
     {
         var restored = records.Where(HuntTrain.Contains).Where(m => m.Dead).Distinct().ToList();
