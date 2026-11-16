@@ -8,6 +8,9 @@ using System;
 using System.Collections.Generic;
 using Action = System.Action;
 using System.Numerics;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Linq;
 
 namespace HuntHelper.Managers;
 
@@ -29,6 +32,11 @@ public sealed class NavigationManager : IDisposable
     private readonly ICallGateSubscriber<Vector3, bool, float, Vector3?> _pointOnFloor;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestReachable;
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> _nearestFlightPoint;
+    private readonly ICallGateSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>> _drFind;
+    private readonly ICallGateSubscriber<List<Vector3>, bool, object> _drFollow;
+    private readonly ICallGateSubscriber<float, object> _drTolerance;
+    private Task<List<Vector3>>? _drTask;
+    private CancellationTokenSource? _drCancellation;
     private readonly Func<bool> _isFlying;
     private readonly Func<Action?>? _pendingStopResolver;
     private Action? _pendingStop;
@@ -60,6 +68,9 @@ public sealed class NavigationManager : IDisposable
         _pendingStopResolver = pendingStopResolver;
         _nearestReachable = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         _nearestFlightPoint = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Voxel.NearestPoint");
+        _drFind = pluginInterface.GetIpcSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>>("vnavmesh.Nav.PathfindCancelable");
+        _drFollow = pluginInterface.GetIpcSubscriber<List<Vector3>, bool, object>("vnavmesh.Path.MoveTo");
+        _drTolerance = pluginInterface.GetIpcSubscriber<float, object>("vnavmesh.Path.SetTolerance");
         _ready = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
         _pathfinding = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
         _running = pluginInterface.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
@@ -251,13 +262,13 @@ public sealed class NavigationManager : IDisposable
     {
         lock (_requestLock)
         {
-            if (_disposed || !_nearestFlightPoint.HasFunction)
-                return "DR 覆盖模式需要支持飞行体素查询接口的国服 vnavmesh，请安装并启用最新版";
+            if (_disposed || !_nearestFlightPoint.HasFunction || !_drFind.HasFunction || !_drFollow.HasAction || !_drTolerance.HasAction)
+                return "DR 巡航需要支持飞行查询、可取消寻路和路径执行接口的国服 vnavmesh";
             return string.Empty;
         }
     }
 
-    /// <summary>Only queries a legal flight point. Execution remains owned by native SimpleMove.</summary>
+    /// <summary>Queries the voxel using DR's original horizontal and vertical extents.</summary>
     public bool TryResolveCoveragePoint(Vector3 candidate, out Vector3 destination)
     {
         lock (_requestLock)
@@ -266,7 +277,7 @@ public sealed class NavigationManager : IDisposable
             try
             {
                 if (GetCoverageDisabledReason().Length != 0 || !_ready.HasFunction || !_ready.InvokeFunc() ||
-                    !_isFlying() || !NavigationRules.IsFinite(candidate)) return false;
+                    !NavigationRules.IsFinite(candidate)) return false;
                 // The CN IPC has separate horizontal and vertical half extents.
                 // This matches DR's 80m candidate retry range and 2048m height range.
                 var point = _nearestFlightPoint.InvokeFunc(candidate, 80f, 2048f);
@@ -285,6 +296,70 @@ public sealed class NavigationManager : IDisposable
     public void NotifyStopCommand()
     {
         lock (_requestLock) { if (_movingTo == null) return; Interrupted = true; StopCurrentRequest(); }
+    }
+
+    public bool CoveragePathPending => _drTask is { IsCompleted: false };
+    public bool CoverageNavigationReady
+    {
+        get
+        {
+            lock (_requestLock)
+            {
+                try { return GetCoverageDisabledReason().Length == 0 && _ready.HasFunction && _ready.InvokeFunc(); }
+                catch { return false; }
+            }
+        }
+    }
+    public bool BeginCoveragePath(HuntTrainMob target)
+    {
+        lock (_requestLock)
+        {
+            var reason = GetDisabledReason(target);
+            if (reason.Length != 0 || GetCoverageDisabledReason().Length != 0 || target.WorldPosition is not { } destination ||
+                !NavigationRules.IsFinite(destination))
+            { LastMessage = reason.Length > 0 ? reason : "DR 寻路接口或目标不可用"; return false; }
+            var cancellation = new CancellationTokenSource();
+            try
+            {
+                var from = _objectTable.LocalPlayer!.Position + new Vector3(0, 2, 0);
+                var task = _drFind.InvokeFunc(from, destination, true, cancellation.Token)
+                    ?? throw new InvalidOperationException("vnavmesh 没有返回寻路任务");
+                _drTask = task;
+                _drCancellation = cancellation;
+                _pendingStop = () => { cancellation.Cancel(); cancellation.Dispose(); };
+                _movingTo = target; _destination = destination; _requestFly = true; Interrupted = false;
+                _lastStatusCheck = 0;
+                return true;
+            }
+            catch (Exception ex) { cancellation.Cancel(); cancellation.Dispose(); LastMessage = "DR 寻路失败：" + ex.Message; return false; }
+        }
+    }
+    public List<Vector3>? TakeCoveragePath()
+    {
+        lock (_requestLock)
+        {
+            if (_drTask is not { IsCompleted: true } task) return null;
+            var result = task.IsCompletedSuccessfully ? task.Result?.ToList() : null;
+            if (task.IsFaulted) _ = task.Exception;
+            _drTask = null; _drCancellation?.Dispose(); _drCancellation = null; _pendingStop = null;
+            return result;
+        }
+    }
+    public bool FollowCoveragePath(HuntTrainMob target, List<Vector3> path)
+    {
+        lock (_requestLock)
+        {
+            if (GetDisabledReason(target).Length != 0 || path.Count == 0 || path.Any(p => !NavigationRules.IsFinite(p))) return false;
+            try
+            {
+                _drTolerance.InvokeAction(2f);
+                _movingTo = target; _destination = path[^1]; _requestFly = true; Interrupted = false;
+                _lastStatusCheck = 0;
+                _drFollow.InvokeAction(path.ToList(), true);
+                return true;
+            }
+            catch (Exception ex) { StopCurrentRequest(); LastMessage = "DR 路径执行失败：" + ex.Message; return false; }
+        }
     }
 
     public void Stop()
@@ -313,6 +388,10 @@ public sealed class NavigationManager : IDisposable
 
     private void ClearCurrentRequest()
     {
+        if (_drTask != null)
+            _ = _drTask.ContinueWith(task => { _ = task.Exception; }, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+        _drTask = null; _drCancellation = null;
         _movingTo = null;
         _pendingStop = null;
         _lastStatusCheck = 0;
@@ -331,6 +410,7 @@ public sealed class NavigationManager : IDisposable
             }
             try
             {
+                if (_drTask != null) return;
                 if (_pathfinding.InvokeFunc() || _running.InvokeFunc()) return;
                 var delta = _objectTable.LocalPlayer!.Position - _destination;
                 if (!_requestFly) delta.Y = 0;

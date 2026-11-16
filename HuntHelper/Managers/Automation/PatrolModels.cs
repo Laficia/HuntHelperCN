@@ -52,12 +52,19 @@ public sealed record PatrolCoverageCrystal(PatrolCrystal Crystal, Vector2 Positi
 public interface IPatrolHost
 {
     bool BeginCoverage(out string error) { error = string.Empty; return true; }
+    bool CoveragePathPending => false;
+    bool CoverageNavigationReady => true;
+    string CoverageMountError => string.Empty;
+    bool BeginCoveragePath(PatrolRoute route, Vector3 destination) => false;
+    List<Vector3>? TakeCoveragePath() => null;
+    bool FollowCoveragePath(PatrolRoute route, List<Vector3> path) => false;
     void EndCoverage() { }
     bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
     { destination = candidate; return Utilities.NavigationRules.IsFinite(candidate); }
     IReadOnlyList<PatrolCoverageCrystal> CoverageCrystals(PatrolRoute route) => Array.Empty<PatrolCoverageCrystal>();
     float CoverageSpeed(PatrolOptions options) => 12;
-    string WorldTravelError => "请先安装并启用 Lifestream";
+    string WorldTravelError => "请先启用 DR「快捷跨服」模块";
+    string WorldTravelStopHint => string.Empty;
     bool WorldTravelBusy => false;
     string WorldVisitProblem(HuntTrainWorld world) => WorldTravelError;
     bool ChangeWorld(HuntTrainWorld world, out string error) { error = WorldTravelError; return false; }

@@ -7,6 +7,10 @@ internal static class NativeWindowChecks
         ("native game hide waits for finalization then restores the requested window", ZoneHide),
         ("native loading and hidden game UI never reopen windows early", Loading),
         ("native user-close preference stays closed across zone transitions", ManualClose),
+        ("native direct Hide dismissal closes only that window and never gets restored", DirectHide),
+        ("native Hide2 dismissal is not mistaken for a recoverable loading hide", DirectSoftHide),
+        ("native adapter recognizes toolkit-bypassing close and keeps the other window open", AdapterClose),
+        ("native adapter distinguishes zoning model close and disposal from user dismissal", AdapterModel),
         ("native soft-hidden allocated windows use Show instead of a no-op Open", SoftHide),
         ("native close and reopen animations cannot repeatedly close or allocate", Animations),
         ("native form body scrolling and fixed start footer stay within the same window", FormBounds),
@@ -44,6 +48,31 @@ internal static class NativeWindowChecks
         Check(state.Evaluate(true, true, true, false) == NativeWindowAction.Show);
         Check(state.Evaluate(false, true, true, false) == NativeWindowAction.Close);
     }
+    private static void DirectHide()
+    {
+        var main = new NativeWindowLifetime(); main.Setup();
+        var finder = new NativeWindowLifetime(); finder.Setup();
+        Check(finder.Hidden(true)); Check(!finder.Hidden(true));
+        finder.Finalized();
+        Check(finder.Evaluate(false, true, false, false) == NativeWindowAction.None);
+        Check(main.Evaluate(true, true, true, true) == NativeWindowAction.None);
+        main.BeginClose(); Check(!main.Hidden(true)); // model close must not emit another dismissal
+        var zone = new NativeWindowLifetime(); zone.Setup(); Check(!zone.Hidden(false));
+        zone.Finalized(); Check(zone.Evaluate(true, true, false, false) == NativeWindowAction.Open);
+    }
+    private static void DirectSoftHide()
+    {
+        var state = new NativeWindowLifetime(); state.Setup();
+        Check(!state.DismissedWhileReady(true, false)); // setup/open animation
+        Check(!state.DismissedWhileReady(true, true));
+        Check(state.DismissedWhileReady(true, false));
+        Check(!state.DismissedWhileReady(true, false));
+        state.Finalized(); Check(state.Evaluate(false, true, false, false) == NativeWindowAction.None);
+        state.Setup(); state.DismissedWhileReady(true, true);
+        Check(!state.DismissedWhileReady(false, false));
+        Check(!state.DismissedWhileReady(true, false)); // hidden by game UI/loading
+        Check(state.Evaluate(true, true, true, false) == NativeWindowAction.Show);
+    }
     private static void Animations()
     {
         var state = new NativeWindowLifetime(); state.Setup(); state.BeginClose();
@@ -64,5 +93,34 @@ internal static class NativeWindowChecks
             Check(bounds.ScrollTop + bounds.ScrollHeight < bounds.FooterY);
             Check(bounds.FooterY + 36 <= bounds.Body.Y);
         }
+    }
+    private sealed class Probe(Action closed, Func<bool> ready) : NativePersistentAddon(closed, ready) { }
+    private static void AdapterClose()
+    {
+        var ready = true; var closes = 0; var otherCloses = 0;
+        using var target = new Probe(() => closes++, () => ready);
+        using var main = new Probe(() => otherCloses++, () => ready);
+        target.SyncVisibility(true, ready); main.SyncVisibility(true, ready);
+        target.NativeHide(); Check(closes == 1 && main.IsOpen && otherCloses == 0);
+        for (var i = 0; i < 10; i++) target.SyncVisibility(false, ready);
+        Check(!target.IsOpen && closes == 1);
+        target.SyncVisibility(true, ready); target.SyncVisibility(true, ready);
+        target.NativeSoftHide(); target.SyncVisibility(true, ready); // stale published snapshot
+        Check(closes == 2 && !target.IsOpen && main.IsOpen);
+        target.SyncVisibility(false, ready); Check(!target.IsOpen);
+        target.SyncVisibility(true, ready); target.Close(); Check(closes == 3 && !target.IsOpen);
+    }
+    private static void AdapterModel()
+    {
+        var ready = true; var closes = 0;
+        using var target = new Probe(() => closes++, () => ready);
+        target.SyncVisibility(true, ready); ready = false; target.NativeHide();
+        target.SyncVisibility(true, ready); Check(!target.IsOpen && closes == 0);
+        ready = true; target.SyncVisibility(true, ready); Check(target.IsOpen);
+        ready = false; target.Close(); Check(closes == 0);
+        ready = true; target.SyncVisibility(true, ready); Check(target.IsOpen);
+        target.SyncVisibility(false, ready); Check(!target.IsOpen && closes == 0);
+        target.SyncVisibility(true, ready); target.Dispose(); Check(closes == 0);
+        target.SyncVisibility(true, ready); Check(!target.IsOpen);
     }
 }

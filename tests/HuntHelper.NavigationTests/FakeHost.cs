@@ -63,6 +63,7 @@ internal sealed class FakePlugin : IDalamudPluginInterface
     private sealed class Gate1<T1, TRet>(FakePlugin plugin, Endpoint endpoint) : GateBase(plugin, endpoint), ICallGateSubscriber<T1, TRet>
     {
         public TRet InvokeFunc(T1 first) => (TRet)InvokeFunction(first)!;
+        public void InvokeAction(T1 first) => base.InvokeAction(first);
     }
 
     private sealed class Gate2<T1, T2, TRet>(FakePlugin plugin, Endpoint endpoint) : GateBase(plugin, endpoint), ICallGateSubscriber<T1, T2, TRet>
@@ -146,6 +147,10 @@ internal sealed class Fixture : IDisposable
     {
         MapHelpers.CurrentInstance = 1;
         Plugin.At("vnavmesh.Nav.IsReady").Function = (Func<bool>)(() => Ready);
+        Plugin.At("vnavmesh.Query.Voxel.NearestPoint").Function = (Func<Vector3, float, float, Vector3?>)((p, _, _) => p);
+        Plugin.At("vnavmesh.Nav.PathfindCancelable").Function = (Func<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>>)((_, to, _, _) => Task.FromResult(new List<Vector3> { to }));
+        Plugin.At("vnavmesh.Path.MoveTo").Action = (Action<List<Vector3>, bool>)((path, _) => { LastDestination = path[^1]; Busy = false; Running = true; });
+        Plugin.At("vnavmesh.Path.SetTolerance").Action = (Action<float>)(_ => { });
         Plugin.At("vnavmesh.SimpleMove.PathfindInProgress").Function = (Func<bool>)(() => Busy);
         Plugin.At("vnavmesh.Path.IsRunning").Function = (Func<bool>)(() => Running);
         Plugin.At("vnavmesh.Path.GetMovementAllowed").Function = (Func<bool>)(() => MovementAllowed);

@@ -26,8 +26,23 @@ public static class PatrolTravelPlanner
         var entering = context.Territory != route.TerritoryId || context.Map != route.MapId;
         if (!entering && !options.SmartTeleport) return null;
         var target = Point(point, scale);
-        var candidates = crystals.Where(c => c.Id != 0).OrderBy(c => c.Id).ToList();
+        var candidates = crystals.Where(c => c.Id != 0 &&
+            (options.RouteMode != PatrolRouteMode.DRCoverage || DRScanRules.CrystalAllowed(c.Id))).OrderBy(c => c.Id).ToList();
         if (candidates.Count == 0) return null;
+        if (entering && options.RouteMode == PatrolRouteMode.DRCoverage)
+        {
+            // DR enters through the crystal nearest to any spawn on the selected map.
+            // The first serialized spawn is not a designated entry point.
+            var spawns = route.Points.Select(p => Point(p, scale)).Where(p => p.HasValue).Select(p => p!.Value).ToArray();
+            if (spawns.Length == 0 && target.HasValue) spawns = [target.Value];
+            if (spawns.Length == 0) return null;
+            var entry = candidates.Where(c => c.Position.HasValue && scale > 0)
+                .Select(c => new PatrolCoverageCrystal(c, Horizontal(NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
+                .Where(c => float.IsFinite(c.Position.X) && float.IsFinite(c.Position.Y))
+                .MinBy(c => spawns.Min(p => Vector2.DistanceSquared(p, c.Position)));
+            return entry != null
+                ? new(entry.Crystal, entry.Position, float.PositiveInfinity, 10) : null;
+        }
         speed = float.IsFinite(speed) ? Math.Clamp(speed, 6, 20) : 20;
         var overhead = float.IsFinite(options.TeleportSeconds) ? Math.Clamp(options.TeleportSeconds, 10, 120) : 25;
         var radius = Math.Clamp(options.Radius, 10, 150);

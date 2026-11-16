@@ -9,6 +9,7 @@
   <ItemGroup>
     <Compile Include="..\..\HuntHelper\Utilities\VnavmeshPendingStop.cs" Link="Production\VnavmeshPendingStop.cs" />
     <Compile Include="../../HuntHelper/Managers/Automation/LifestreamWorldTravel.cs" Link="Production/LifestreamWorldTravel.cs" />
+    <Compile Include="../../HuntHelper/Managers/Automation/DRWorldTravel.cs" Link="Production/DRWorldTravel.cs" />
     <Compile Include="../../HuntHelper/Managers/Hunts/Models/HuntTrainWorld.cs" Link="Production/HuntTrainWorld.cs" />
     <Compile Include="../../HuntHelper/Managers/NavigationManager.cs" Link="Production/NavigationManager.cs" />
     <Compile Include="../../HuntHelper/Utilities/NavigationRules.cs" Link="Production/NavigationRules.cs" />

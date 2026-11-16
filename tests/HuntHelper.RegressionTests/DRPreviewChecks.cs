@@ -195,7 +195,7 @@ internal static class DRPreviewChecks
         Check(preview.Points.Select(point => point.Passed).SequenceEqual(new[] { true, true, false, false }));
         Check(preview.Points.All(point => !point.Covered) && session.CompletedPoints == 0 && session.FoundA == 0 && host.Moves == 0,
             "Immediate passed colour completed a scan or invented a discovery");
-        session.Tick(1000);
+        session.Tick(249);
         Check(session.GetDRPreview(host.Context)!.Points.All(point => !point.Covered) && session.CompletedPoints == 0);
         session.Stop();
     }
@@ -269,6 +269,10 @@ internal static class DRPreviewChecks
         public bool WorldTravelBusy { get; set; }
         public int Moves, Scans, Teleports, Stops;
         public Vector3 Target;
+        public bool BeginCoveragePath(PatrolRoute route, Vector3 destination) { Target = destination; return true; }
+        public List<Vector3>? TakeCoveragePath() => [Target];
+        public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path)
+        { Moves++; Target = path[^1]; Navigating = true; return true; }
         public PatrolTeleport? EntryPlan;
         public Func<Vector3, bool>? DestinationAllowed;
         public IReadOnlyList<PatrolCoverageCrystal> Crystals = Array.Empty<PatrolCoverageCrystal>();

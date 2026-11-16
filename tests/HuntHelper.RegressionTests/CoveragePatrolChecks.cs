@@ -12,6 +12,7 @@ internal static class CoveragePatrolChecks
     [
         ("DR point data is the exact pinned resource with all 47 maps and 924 three-dimensional points", PinnedData),
         ("DR points retain server-independent territory metadata and A-only rank filtering", PointMetadata),
+        ("DR scan crystal blacklist excludes Ruby Sea underwater entry while normal crystal teleport remains available", RubyCrystalBlacklist),
         ("DR malformed partial duplicate and non-finite data fails without substituting presets", InvalidData),
         ("missing DR data cannot silently become a valid empty or preset route set", MissingData),
         ("DR observation waits before covering multiple spawn points without inventing discoveries", ObserveMultiple),
@@ -19,8 +20,8 @@ internal static class CoveragePatrolChecks
         ("DR coverage navigation stops near an observation point instead of the monster's exact coordinates", NearbyObservation),
         ("DR uses normal crystal travel only after comparing coverage and travel cost", CoverageTeleport),
         ("DR same-map teleport waits for busy and arrival and rejects a changed instance", TeleportGuard),
-        ("DR respects a native navigation cancellation and never starts a replacement path", NativeStop),
-        ("DR world map instance combat death and logout interruptions restore the range lease", ContextGuards),
+        ("DR retries native navigation cancellation until HHT stop ends the task", NativeStop),
+        ("DR world map instance death and logout interruptions restore the range lease", ContextGuards),
         ("DR uses existing complete live records without unnecessary travel", CompleteRecords),
         ("DR coverage and species counts reset between queued worlds", MultiWorldIsolation),
         ("the original preset mode never acquires DR display settings", PresetUnaffected),
@@ -30,7 +31,7 @@ internal static class CoveragePatrolChecks
         ("DR mount preparation and stalled movement have bounded timeouts and restore settings", StepTimeouts),
         ("DR running mode and three-dimensional points are snapshots independent of later UI edits", Snapshot),
         ("DR unknown current world pauses scanning and navigation before selecting an observation point", UnknownWorld),
-        ("DR native stop takes precedence over a simultaneous complete A-rank discovery", NativeStopBeforeCompletion),
+        ("DR complete A-rank discoveries can finish the map even when the previous path stops", NativeStopBeforeCompletion),
         ("DR cross-map travel requires a loading transition and actual known-crystal arrival", CrossMapArrival),
     ];
 
@@ -69,6 +70,23 @@ internal static class CoveragePatrolChecks
             Check(!ReferenceEquals(route, metadata) && !ReferenceEquals(route.Points, metadata.Points));
         }
         Check(maps.All(m => m.Points.Count == 0), "Loading DR points mutated the existing preset maps");
+    }
+
+    private static void RubyCrystalBlacklist()
+    {
+        var context = new PatrolContext(101, 10, 20, 1, Vector3.Zero, true, true, false, false);
+        var ruby = new PatrolRoute { TerritoryId = 613, MapId = 100, Expansion = 2 };
+        var point = new PatrolPoint { Position = new Vector3(0, 0, 0) };
+        var crystals = new[] { new PatrolCrystal(105, "海底水晶", new(21.5f, 21.5f)),
+            new PatrolCrystal(106, "自凝岛", new(30, 30)) };
+        var dr = new PatrolOptions { RouteMode = PatrolRouteMode.DRCoverage };
+        Check(PatrolTravelPlanner.Select(context, ruby, point, dr, crystals, 100, 12)?.Crystal.Id == 106);
+        Check(PatrolTravelPlanner.Select(context, ruby, point, dr, crystals.Take(1), 100, 12) == null);
+        var preset = new PatrolOptions { RouteMode = PatrolRouteMode.Preset };
+        Check(PatrolTravelPlanner.Select(context, ruby, point, preset, crystals, 100, 12)?.Crystal.Id == 105,
+            "DR scan blacklist unexpectedly changed normal preset travel");
+        Check(new uint[] { 105, 148, 173, 175, 181, 201 }.All(id => !DRScanRules.CrystalAllowed(id)) &&
+            DRScanRules.CrystalAllowed(106));
     }
 
     private static void InvalidData()
@@ -127,9 +145,9 @@ internal static class CoveragePatrolChecks
     private static void ObserveMultiple()
     {
         var (host, session) = Start(Route(100, 250, 399));
-        session.Tick(0); session.Tick(100); session.Tick(1000);
+        session.Tick(0); session.Tick(100); session.Tick(249);
         Check(session.CompletedPoints == 0 && session.Active && host.Moves == 0);
-        Until(session, () => !session.Active, 1100);
+        Until(session, () => !session.Active, 250);
         Check(session.State == PatrolState.Completed && session.FoundA == 0 && host.Moves == 0 && host.ScannedWorlds.Count > 0);
         Check(host.Begins == 1 && host.Ends == 1, "Normal completion did not restore DR display settings exactly once");
     }
@@ -137,11 +155,11 @@ internal static class CoveragePatrolChecks
     {
         var (host, session) = Start(Route(100, 250));
         var observing = Until(session, () => session.State == PatrolState.Scanning);
-        session.Tick(observing + 1000);
+        session.Tick(observing + 100);
         host.Context = host.Context with { Position = new(2, 0, 0) };
-        session.Tick(observing + 1100); session.Tick(observing + 2000);
+        session.Tick(observing + 150); session.Tick(observing + 399);
         Check(session.Active && session.CompletedPoints == 0, "Moved player was treated as a stable observation");
-        Until(session, () => !session.Active, observing + 2700);
+        Until(session, () => !session.Active, observing + 400);
         Check(session.State == PatrolState.Completed && host.Moves == 0);
     }
     private static void NearbyObservation()
@@ -199,7 +217,8 @@ internal static class CoveragePatrolChecks
         var (host, session) = Start(); var now = Until(session, () => host.Moves > 0);
         host.Navigating = false; host.NavigationInterrupted = true;
         session.Tick(now + 100); session.Tick(now + 3000); session.Tick(now + 10000);
-        Check(!session.Active && host.Moves == 1 && session.CompletedPoints == 0 && host.Ends == 1);
+        Check(session.Active && host.Moves > 1 && session.CompletedPoints == 0 && host.Ends == 0);
+        session.Stop(); Check(host.Ends == 1);
     }
     private static void ContextGuards()
     {
@@ -207,7 +226,7 @@ internal static class CoveragePatrolChecks
         {
             context => context with { World = 102 }, context => context with { Territory = 11 },
             context => context with { Map = 21 }, context => context with { Instance = 2 },
-            context => context with { InCombat = true }, context => context with { Dead = true },
+            context => context with { Dead = true },
             context => context with { LoggedIn = false },
         };
         foreach (var change in changes)
@@ -282,7 +301,8 @@ internal static class CoveragePatrolChecks
         Check(!session.Active && host.Moves == 0 && host.Ends == 1);
         (host, session) = Start(); now = Until(session, () => host.Moves > 0);
         session.Tick(now + 15001);
-        Check(!session.Active && host.Moves == 1 && host.Ends == 1 && host.Stops > 0);
+        Check(session.Active && host.Moves == 1 && host.Ends == 0 && host.Stops > 0);
+        session.Stop(); Check(host.Ends == 1);
     }
     private static void Snapshot()
     {
@@ -317,10 +337,9 @@ internal static class CoveragePatrolChecks
         host.Found = new[] { new PatrolDetection(1, true), new PatrolDetection(2, true) };
         host.NavigationInterrupted = true; host.Navigating = false;
         session.Tick(now + 100); session.Tick(now + 1000); session.Tick(now + 5000);
-        Check(session.State == PatrolState.Stopped && session.CurrentRoute?.TerritoryId == 10,
-            "A simultaneous complete discovery advanced the route after a native stop");
-        Check(host.Moves == 1 && host.Teleports == 0 && host.ScannedWorlds.Count == scans && host.Ends == 1,
-            "Native stop allowed a scan, replacement path or next-map teleport");
+        Check(session.Active && session.CurrentRoute?.TerritoryId == 11);
+        Check(host.Moves == 1 && host.Teleports == 1 && host.ScannedWorlds.Count > scans && host.Ends == 0);
+        session.Stop(); Check(host.Ends == 1);
     }
     private static void CrossMapArrival()
     {
@@ -366,6 +385,11 @@ internal static class CoveragePatrolChecks
         public int Begins, Ends, Moves, Teleports, Stops, Queries;
         public List<uint> Changes = new(), ScannedWorlds = new();
         public Vector3 Target;
+        public bool BeginCoveragePath(PatrolRoute route, Vector3 destination)
+        { Target = destination; NavigationInterrupted = false; return true; }
+        public List<Vector3>? TakeCoveragePath() => [Target];
+        public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path)
+        { Moves++; Target = path[^1]; Navigating = true; return true; }
         public PatrolTeleport? LastTeleport, EntryPlan;
         public IReadOnlyList<PatrolCoverageCrystal> Crystals = Array.Empty<PatrolCoverageCrystal>();
         public IReadOnlyList<PatrolDetection> Known = Array.Empty<PatrolDetection>();

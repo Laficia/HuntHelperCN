@@ -22,6 +22,8 @@ internal static class Program
         [
             .. NativeTrainChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. NativeWindowChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. DRRulesChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
+            .. DRPathPatrolChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroQueueChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroLibraryChecks.Tests.Select(t => (t.Name, Sync(t.Run))),
             .. MacroAliasChecks.Tests.Select(t => (t.Name, Sync(t.Run))),

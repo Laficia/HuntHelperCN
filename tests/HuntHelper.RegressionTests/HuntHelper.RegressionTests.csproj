@@ -4,9 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\..\HuntHelper\Gui\Native\NativeWindowLifetime.cs" Link="Production\NativeWindowLifetime.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\Native\NativePersistentAddon.cs" Link="Production\NativePersistentAddon.cs" />
     <Compile Include="..\..\HuntHelper\Gui\Native\NativeFormLayout.cs" Link="Production\NativeFormLayout.cs" />
     <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainModel.cs" Link="Production\NativeTrainModel.cs" />
     <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainInteraction.cs" Link="Production\NativeTrainInteraction.cs" />
@@ -22,6 +24,7 @@
     <None Include="..\Fixtures\CnWorldCatalog.json" Link="CnWorldCatalog.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\PatrolTravelPlanner.cs" Link="Production\PatrolTravelPlanner.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRPatrolRoutes.cs" Link="Production\DRPatrolRoutes.cs" />
+    <Compile Include="..\..\HuntHelper\Managers\Automation\DRScanRules.cs" Link="Production\DRScanRules.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRCoveragePlanner.cs" Link="Production\DRCoveragePlanner.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRCoveragePatrol.cs" Link="Production\DRCoveragePatrol.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRPatrolPreview.cs" Link="Production\DRPatrolPreview.cs" />

@@ -28,6 +28,7 @@ internal abstract class NativePersistentAddon(Action userClose, Func<bool> canIn
     internal unsafe void SyncVisibility(bool wanted, bool ready)
     {
         if (disposing) return;
+        if (lifetime.DismissedWhileReady(ready, IsOpen)) { userClose(); base.Close(); return; }
         switch (lifetime.Evaluate(wanted, ready, InternalAddon != null, IsOpen))
         {
             case NativeWindowAction.Close: CloseFromModel(); break;
@@ -40,7 +41,10 @@ internal abstract class NativePersistentAddon(Action userClose, Func<bool> canIn
     protected override unsafe void OnSetup(AtkUnitBase* addon, Span<AtkValue> values)
     { lifetime.Setup(); base.OnSetup(addon, values); }
     protected override unsafe void OnHide(AtkUnitBase* addon)
-    { lifetime.Hidden(); base.OnHide(addon); }
+    {
+        if (lifetime.Hidden(!disposing && canInteract())) userClose();
+        base.OnHide(addon);
+    }
     protected override unsafe void OnFinalize(AtkUnitBase* addon)
     { lifetime.Finalized(); base.OnFinalize(addon); }
 

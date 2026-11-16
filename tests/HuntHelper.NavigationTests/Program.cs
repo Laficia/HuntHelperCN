@@ -7,6 +7,14 @@ internal static class Program
     private static int Main()
     {
         LifestreamChecks.Run(Run);
+        DRWorldTravelChecks.Run(Run);
+        DRPathChecks.Run(Run);
+        Run("DR voxel lookup preserves player-height inputs and the original horizontal/vertical extents", () => {
+            using var f = new Fixture(); var input = new Vector3(400, 37, 0); var seen = false;
+            f.Plugin.At("vnavmesh.Query.Voxel.NearestPoint").Function = (Func<Vector3, float, float, Vector3?>)((p, x, y) => {
+                seen = p == input && x == 80 && y == 2048; return p with { Y = -170 }; });
+            Check(f.Manager.TryResolveCoveragePoint(input, out var resolved) && resolved.Y == -170 && seen);
+        });
         PendingStopChecks.Run(Run);
         OwnedPathChecks.Run(Run);
         Run("Native SimpleMove owns pending calculation and execution",()=>

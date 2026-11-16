@@ -43,12 +43,13 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private readonly string _coverageDataPath;
     private IReadOnlyList<PatrolRoute>? _coverageMaps;
     public string CoverageDataError { get; private set; } = string.Empty;
-    private readonly LifestreamWorldTravel _worldTravel;
+    private readonly DRWorldTravel _worldTravel;
     public string WorldTravelError => _worldTravel.Error;
     public bool WorldTravelBusy => _worldTravel.Busy;
     public string WorldVisitProblem(HuntTrainWorld world) => _worldTravel.VisitProblem(world);
     public bool ChangeWorld(HuntTrainWorld world, out string error) => _worldTravel.Change(world, out error);
-    public void AbortWorldTravel() => _worldTravel.AbortOwnedRequest();
+    public void AbortWorldTravel() => _worldTravel.ReleaseOwnedRequest();
+    public string WorldTravelStopHint => DRWorldTravel.StopHint;
     private readonly HuntDeathMonitor _deaths = new();
     private readonly HuntDeathMonitor _sDeaths = new();
     private readonly TrainManager? _sTrains;
@@ -78,12 +79,12 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         MapHelpers.CurrentInstance, _objects.LocalPlayer?.Position ?? Vector3.Zero,
         _client.IsLoggedIn,
         _player.IsLoaded && _objects.LocalPlayer != null && _client.TerritoryType != 0 && _client.MapId != 0 && !_condition[ConditionFlag.BetweenAreas] &&
-        !_condition[ConditionFlag.BetweenAreas51] && !_condition[ConditionFlag.Casting],
+        !_condition[ConditionFlag.BetweenAreas51] && (_coverageRange.Active || !_condition[ConditionFlag.Casting]),
         _condition[ConditionFlag.InCombat], _objects.LocalPlayer?.IsDead ?? false);
 
     public HuntAutomationManager(IClientState client, IPlayerState player, IObjectTable objects, ICondition condition,
         IAetheryteList aetherytes, IDataManager data, TrainManager trains, HuntManager hunts, NavigationManager navigation,
-        MapDataManager maps, Configuration config, IDalamudPluginInterface pluginInterface, IGameConfig gameConfig, IFramework framework, TrainManager? sTrains = null)
+        MapDataManager maps, Configuration config, IDalamudPluginInterface pluginInterface, IGameConfig gameConfig, IFramework framework, ICommandManager commands, TrainManager? sTrains = null)
     {
         _client = client; _player = player; _objects = objects; _condition = condition; _aetherytes = aetherytes;
         _data = data; _trains = trains; _hunts = hunts; _navigation = navigation; _config = config;
@@ -95,7 +96,10 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         _coverageRange = new(ReadCoverageRange, ApplyCoverageRange);
         _gameConfig.SystemChanged += OnSystemConfigChanged;
         _coverageDataPath = Path.Combine(pluginInterface.AssemblyLocation.Directory!.FullName, "Data", "DRSpawnPoints.json");
-        _worldTravel = new(pluginInterface);
+        _worldTravel = new(pluginInterface, commands.ProcessCommand,
+            () => { var c = Context; return (c.World, c.LoggedIn && c.Ready); },
+            () => _condition[ConditionFlag.WaitingToVisitOtherWorld] || _condition[ConditionFlag.ReadyingVisitOtherWorld],
+            () => _trains.GetCurrentWorld().DataCenterName);
         _sTrains = sTrains;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged += _sDeaths.ManualChange;
         Session = new(this);
@@ -183,8 +187,6 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     public bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
     {
         destination = default;
-        if (!_condition[ConditionFlag.InFlight]) return false;
-        candidate = PatrolTravelPlanner.FlightTarget(Context.Territory, candidate, true);
         return _navigation.TryResolveCoveragePoint(candidate, out destination);
     }
 
@@ -192,12 +194,27 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         var scale = MapScale(route);
         if (scale <= 0) return Array.Empty<PatrolCoverageCrystal>();
-        return AvailableCrystals(route.TerritoryId).Where(c => c.Position.HasValue)
+        return AvailableCrystals(route.TerritoryId).Where(c => c.Position.HasValue && DRScanRules.CrystalAllowed(c.Id))
             .Select(c => new PatrolCoverageCrystal(c, PatrolTravelPlanner.Horizontal(NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
             .Where(c => float.IsFinite(c.Position.X) && float.IsFinite(c.Position.Y)).ToList();
     }
 
     public float CoverageSpeed(PatrolOptions options) => TravelSpeed(options);
+    public string CoverageMountError => _condition[ConditionFlag.Mounted] &&
+        Control.GetFlightAllowedStatus() != Control.FlightAllowedStatus.CanFly
+        ? "DR 巡航需要当前地图已解锁飞行" : string.Empty;
+    public bool CoveragePathPending => _navigation.CoveragePathPending;
+    public bool CoverageNavigationReady => _navigation.CoverageNavigationReady;
+    private HuntTrainMob CoverageTarget(PatrolRoute route, Vector3 destination)
+    {
+        var world = _trains.GetCurrentWorld();
+        return new("找怪扫描点", 0, route.TerritoryId, route.MapId, Context.Instance, route.Name, Vector2.Zero,
+            DateTime.UtcNow, false, world.WorldID, world.WorldName, world.DataCenterName, destination);
+    }
+    public bool BeginCoveragePath(PatrolRoute route, Vector3 destination) => _navigation.BeginCoveragePath(CoverageTarget(route, destination));
+    public List<Vector3>? TakeCoveragePath() => _navigation.TakeCoveragePath();
+    public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path) =>
+        path.Count > 0 && _navigation.FollowCoveragePath(CoverageTarget(route, path[^1]), path);
 
     public IDalamudTextureWrap? GetPreviewMapImage(uint territory)
     {
@@ -303,7 +320,8 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         error = string.Empty;
         if (!Context.Ready || Context.InCombat || Context.Dead) { error = "角色暂时无法传送"; return false; }
-        if (plan == null || !AvailableCrystals(route.TerritoryId).Any(c => c.Id == plan.Crystal.Id))
+        if (plan == null || _coverageRange.Active && !DRScanRules.CrystalAllowed(plan.Crystal.Id) ||
+            !AvailableCrystals(route.TerritoryId).Any(c => c.Id == plan.Crystal.Id))
         { error = $"{route.Name} 没有已解锁的可用水晶，请手动进入该地图后开始"; return false; }
         // Standard game teleport to an unlocked crystal. No arbitrary-coordinate teleport exists here.
         if (Telepo.Instance() == null || !Telepo.Instance()->Teleport(plan.Crystal.Id, 0))
@@ -323,6 +341,9 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         if (!mount) return true;
         if (_condition[ConditionFlag.Mounted])
         {
+            // DR mounts, verifies flight access and lets Path.MoveTo(fly: true)
+            // take off. No additional HHT jump, altitude or takeoff delay.
+            if (_coverageRange.Active) return CoverageMountError.Length == 0;
             if (!takeoff || _condition[ConditionFlag.InFlight]) return true;
             if (Environment.TickCount64 < _takeoffUntil) { message = "等待起飞状态确认"; return false; }
             if (Control.GetFlightAllowedStatus() != Control.FlightAllowedStatus.CanFly)
@@ -339,8 +360,8 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
             }
             return false;
         }
-        if (Environment.TickCount64 >= _nextAction)
-        { _nextAction = Environment.TickCount64 + 1500; if (ActionManager.Instance() != null) ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9); }
+        if (!_condition[ConditionFlag.Casting] && Environment.TickCount64 >= _nextAction)
+        { _nextAction = Environment.TickCount64 + (_coverageRange.Active ? 1000 : 1500); if (ActionManager.Instance() != null) ActionManager.Instance()->UseAction(ActionType.GeneralAction, 9); }
         return false;
     }
 

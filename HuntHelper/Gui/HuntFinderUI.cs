@@ -81,9 +81,9 @@ public sealed partial class HuntFinderUI
         if (ImGui.Checkbox("多服找怪（按勾选顺序）", ref enabled))
         { _config.HuntFinderMultiWorld = enabled; _config.Save(); }
         if (!enabled) return;
-        ImGui.TextWrapped("需安装国服 Lifestream。");
+        ImGui.TextWrapped("需启用 DR「快捷跨服」；跨大区还需 DCTravelerX。");
         if (ImGui.SmallButton("下载说明"))
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/NightmareXIV/Lifestream") { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/Dalamud-DailyRoutines/DailyRoutines") { UseShellExecute = true });
         if (_automation.WorldTravelError.Length != 0) ImGui.TextWrapped(_automation.WorldTravelError);
         var current = _automation.Context.World;
         var now = Environment.TickCount64;

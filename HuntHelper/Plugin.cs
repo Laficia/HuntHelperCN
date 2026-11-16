@@ -148,7 +148,7 @@ namespace HuntHelper
                 () => condition[ConditionFlag.InFlight], stopCompatibility.Resolve);
             StopCommandObserver = new NavigationStopCommandObserver(gameInterop, NavigationManager);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
-                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, SRankManager);
+                TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, commandManager, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
             HuntFinderUI.OpenNativeUi = () => { Configuration.UseNativeHuntWindows = true; Configuration.Save(); };
             Configuration.PointMacros ??= new();

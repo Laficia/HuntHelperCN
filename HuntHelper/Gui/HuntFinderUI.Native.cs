@@ -50,10 +50,10 @@ public sealed partial class HuntFinderUI
             _nativeDataCenter ??= _worldCatalog.FirstOrDefault(w => w.WorldID == _automation.Context.World)?.DataCenterName ?? "";
             if (_nativeDataCenter.Length > 0 && !groups.Contains(_nativeDataCenter)) _nativeDataCenter = "";
             var order = _config.HuntFinderWorlds ??= new();
-            rows.Add(new("world-info", "跨服需要国服 Lifestream", NativeFormKind.Label, Tooltip: _automation.WorldTravelError));
+            rows.Add(new("world-info", "DR 快捷跨服 · 跨大区需 DCTravelerX", NativeFormKind.Label, Tooltip: _automation.WorldTravelError));
             rows.Add(new("world-actions", "", NativeFormKind.Buttons, Enabled: !active, Choices: new[] {
                 new NativeFormChoice("world-refresh", "刷新列表"), new NativeFormChoice("world-clear", "清空服务器"),
-                new NativeFormChoice("lifestream", "下载说明") }));
+                new NativeFormChoice("dr-travel", "下载说明") }));
             rows.Add(new("dc", "大区", NativeFormKind.Choice, _nativeDataCenter, !active,
                 new[] { new NativeFormChoice("", "全部大区") }.Concat(groups.Select(g => new NativeFormChoice(g, g))).ToArray()));
             rows.Add(new("world", "服务器", NativeFormKind.CheckList, Enabled: !active, Choices:
@@ -107,7 +107,7 @@ public sealed partial class HuntFinderUI
                 { var list = _config.HuntFinderWorlds ??= new(); if (!list.Remove(world)) list.Add(world); _config.Save(); } break;
             case "world-clear": (_config.HuntFinderWorlds ??= new()).Clear(); _config.Save(); break;
             case "world-refresh": _catalogWorld = 0; _nextCatalogRefresh = 0; RefreshNativeWorlds(); break;
-            case "lifestream": System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/NightmareXIV/Lifestream") { UseShellExecute = true }); break;
+            case "dr-travel": System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("https://github.com/Dalamud-DailyRoutines/DailyRoutines") { UseShellExecute = true }); break;
             case "recorded": _options.UseRecordedHunts = _config.HuntFinderUseRecordedHunts = value; _config.Save(); break;
             case "rankA": _options.RankA = value; break;
             case "rankB": _options.RankB = value; break;

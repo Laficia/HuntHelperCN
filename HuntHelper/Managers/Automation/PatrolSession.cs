@@ -78,11 +78,12 @@ public sealed class PatrolSession
         if (worlds.Any(w => w.WorldID != context.World))
         {
             if (_host.WorldTravelError.Length != 0) { Message = _host.WorldTravelError; return false; }
-            if (_host.WorldTravelBusy) { Message = "Lifestream 正在执行其他任务，请先等待其完成"; return false; }
+            if (_host.WorldTravelBusy) { Message = "正在跨服，请先等待其完成"; return false; }
             foreach (var world in worlds.Where(w => w.WorldID != context.World))
             { var reason = _host.WorldVisitProblem(world); if (reason.Length != 0) { Message = reason; return false; } }
         }
-        if (!context.LoggedIn || !context.Ready || context.World == 0 || context.Dead || context.InCombat ||
+        if (!context.LoggedIn || !context.Ready || context.World == 0 || context.Dead ||
+            context.InCombat && options.RouteMode != PatrolRouteMode.DRCoverage ||
             _host.Navigating || copy.Count == 0 || !PatrolRouteRules.Valid(copy) || (!options.RankA && !options.RankB))
         { Message = "请等待角色就绪、选择地图和 A/B 等级，并停止已有移动"; return false; }
         if (!Enum.IsDefined(options.RouteMode)) { Message = "请选择有效的寻路模式"; return false; }
@@ -116,7 +117,11 @@ public sealed class PatrolSession
     {
         _coverage?.Stop(); _coverage = null;
         if (_ownsNavigation) _host.StopNavigation();
-        if (_ownsWorldTravel) _host.AbortWorldTravel();
+        if (_ownsWorldTravel)
+        {
+            _host.AbortWorldTravel();
+            if (_host.WorldTravelStopHint.Length != 0) reason += "；" + _host.WorldTravelStopHint;
+        }
         _ownsWorldTravel = false;
         _ownsNavigation = false; State = PatrolState.Stopped; Message = reason;
         ReleaseCoverageRange();
@@ -128,10 +133,11 @@ public sealed class PatrolSession
         var c = _host.Context;
         if (State is PatrolState.PreparingWorld or PatrolState.ChangingWorld) { TickWorld(c, now); return; }
         if (!c.LoggedIn || (c.World != 0 && c.World != _world)) { Stop("区服改变或退出登录，已停止找怪"); return; }
-        if (c.Dead || c.InCombat) { Stop("角色死亡或进入战斗，已停止找怪"); return; }
+        if (c.Dead || c.InCombat && _options.RouteMode != PatrolRouteMode.DRCoverage)
+        { Stop("角色死亡或进入战斗，已停止找怪"); return; }
         var route = CurrentRoute!;
         if (now >= _deadline) { Stop("找怪步骤超时，请检查传送、坐骑或导航路线"); return; }
-        if (State == PatrolState.Moving && _host.NavigationInterrupted)
+        if (State == PatrolState.Moving && _options.RouteMode != PatrolRouteMode.DRCoverage && _host.NavigationInterrupted)
         { Stop("vnavmesh 已中止移动，找怪已停止"); return; }
         if (_coverage != null)
         {
@@ -313,7 +319,7 @@ public sealed class PatrolSession
     private void TickWorld(PatrolContext c, long now)
     {
         var target = TargetWorld!;
-        if (now >= _deadline) { Stop("Lifestream 跨服等待超时，已停止找怪"); return; }
+        if (now >= _deadline) { Stop("跨服等待超时，已停止找怪；请检查 DR 跨服提示及跨大区依赖"); return; }
         if (c.Dead || c.InCombat) { Stop("角色死亡或进入战斗，已停止跨服找怪"); return; }
         if (State == PatrolState.PreparingWorld)
         {
@@ -324,13 +330,13 @@ public sealed class PatrolSession
             if (!_host.ChangeWorld(target, out var error)) { Stop(error); return; }
             _ownsWorldTravel = true; _worldTravelStarted = now; _worldTravelBusySeen = false;
             State = PatrolState.ChangingWorld; _deadline = now + 600000;
-            Message = $"Lifestream 正在前往 {target.WorldName}（{WorldProgress}/{WorldCount}），确认到服后再扫描";
+            Message = $"DR 正在前往 {target.WorldName}（{WorldProgress}/{WorldCount}），确认到服后再扫描";
             return;
         }
-        if (_host.WorldTravelError.Length != 0) { Stop(_host.WorldTravelError); return; }
+        if (c.LoggedIn && c.Ready && _host.WorldTravelError.Length != 0) { Stop(_host.WorldTravelError); return; }
         var busy = _host.WorldTravelBusy;
         _worldTravelBusySeen |= busy;
-        // Cross-DC Lifestream travel can legitimately pass through logout and intermediate worlds.
+        // Cross-DC travel can legitimately pass through logout and intermediate worlds.
         if (busy) return;
         if (c.LoggedIn && c.Ready && c.World == target.WorldID)
         {
@@ -338,6 +344,6 @@ public sealed class PatrolSession
             Message = $"已确认到达 {target.WorldName}，开始所选地图预设路线";
         }
         else if (now - _worldTravelStarted > (_worldTravelBusySeen ? 3000 : 10000))
-            Stop($"Lifestream 未到达 {target.WorldName}，已停止，未在其他服务器继续扫描");
+            Stop($"跨服未到达 {target.WorldName}，已停止，未在其他服务器继续扫描");
     }
 }
