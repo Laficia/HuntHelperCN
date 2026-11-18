@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.29）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.30）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -10,6 +10,10 @@
 - 使用 `Dalamud.NET.Sdk/15.0.0`、`DalamudPackager/15.0.0` 和 `net10.0-windows`，平台为 x64。
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
+
+## 原版齿轮与窄窗布局（1.0.0.30）
+
+原版右上角齿轮直接打开设置，A/S 记录入口位于顶部。列表随窗宽压缩以保留操作按钮和死亡勾选框，怪物悬停提示保留常用的来源和时间。
 
 ## 紧凑标签与地图标注（1.0.0.29）
 
@@ -61,10 +65,10 @@ DR巡航按官方固定提交29225845核对寻点、水晶筛选、路径截断�
 ## 原生主窗口（1.0.0.21）
 
 - HHT/HHS 改用 KamiToolKit 原生窗口，直接替换现有主窗口；内部名称和卫月订阅不变，已有记录、宏及区服分线隔离继续保留。
-- 默认紧凑列表，可在「更多 → 设置」切换地图分组，A/S 分别记忆。「全部」默认排最前，空版本不显示标签或占位。
+- 原生窗口默认使用紧凑列表，可在设置中切换地图分组，A/S 分别记忆。「全部」默认排最前，空版本不显示标签或占位。
 - 怪物名、地图是独立纯文字区域；悬停淡入高亮，无按钮底框和位置跳动。文字跟随原生主题颜色表，按钮与行高度统一。
 - 恢复标签和怪物拖动及右键排序、删除；修正局部坐标与屏幕坐标混用、缩放后拖放不命中的问题，统一青蓝插入提示并保留边缘滚动。
-- 更多菜单保留导入、导出、备份撤销、清理死亡、恢复存活及完整设置；默认 DR 巡航和现有导航功能保留。找怪、宏编辑等辅助功能仍使用原功能窗口。
+- 原版的导入、导出、备份和死亡记录管理使用底部工具栏，显示及录制选项通过顶部齿轮打开。找怪默认使用 DR 巡航。
 - 原生依赖及 MIT 许可随包提供，固定版本和校验值见 `lib/native/PROVENANCE.txt`，不需额外安装 KamiToolKit。
 - [v1.0.0.20 旧版](https://github.com/Laficia/HuntHelperCN/releases/tag/v1.0.0.20)与固定回退订阅 `rollback-1.0.0.20.json` 已保留。回退前另存最新记录。
 

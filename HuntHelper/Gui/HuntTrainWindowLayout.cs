@@ -17,11 +17,12 @@ public static class HuntTrainWindowLayout
     public static Vector2 ClampSize(Vector2 size, float scale) =>
         Vector2.Clamp(size, MinimumSize(scale), MaximumSize(scale));
 
-    public static bool Begin(string title, ref bool visible, Vector2 savedSize, Vector2 savedPosition, float scale)
+    public static bool Begin(string title, ref bool visible, Vector2 savedSize, Vector2 savedPosition, float scale, bool applyBounds = false)
     {
-        ImGui.SetNextWindowSize(ClampSize(savedSize, scale), ImGuiCond.FirstUseEver);
+        var condition = applyBounds ? ImGuiCond.Always : ImGuiCond.FirstUseEver;
+        ImGui.SetNextWindowSize(ClampSize(savedSize, scale), condition);
         ImGui.SetNextWindowSizeConstraints(MinimumSize(scale), MaximumSize(scale));
-        ImGui.SetNextWindowPos(savedPosition, ImGuiCond.FirstUseEver);
+        ImGui.SetNextWindowPos(savedPosition, condition);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, MinimumSize(scale));
         return ImGui.Begin(title, ref visible, ImGuiWindowFlags.None);
     }
@@ -32,10 +33,9 @@ public static class HuntTrainWindowLayout
         ImGui.PopStyleVar();
     }
 
-    public static void DrawSizeControls(float scale)
+    public static bool DrawSizeControls(float scale, ref Vector2 size, ref Vector2 position)
     {
         ImGui.TextUnformatted("窗口大小（也可拖动右下角）");
-        var size = ImGui.GetWindowSize();
         var minimum = MinimumSize(scale);
         var maximum = MaximumSize(scale);
         ImGui.SetNextItemWidth(110 * scale);
@@ -43,17 +43,17 @@ public static class HuntTrainWindowLayout
         if (ImGui.GetContentRegionAvail().X >= 330 * scale) ImGui.SameLine();
         ImGui.SetNextItemWidth(110 * scale);
         changed |= ImGui.DragFloat("高度", ref size.Y, 2 * scale, minimum.Y, maximum.Y, "%.0f");
-        if (changed) ImGui.SetWindowSize(ClampSize(size, scale));
-        if (ImGui.Button("恢复默认大小")) RestoreDefaultSize(scale);
-    }
-
-    public static void RestoreDefaultSize(float scale)
-    {
-        var size = ClampSize(new Vector2(520, 300) * scale, scale);
-        ImGui.SetWindowSize(size);
+        if (ImGui.Button("恢复默认大小"))
+        {
+            size = new Vector2(520, 300) * scale;
+            changed = true;
+        }
+        if (!changed) return false;
+        size = ClampSize(size, scale);
         var viewport = ImGui.GetMainViewport();
         var min = viewport.WorkPos + new Vector2(8 * scale);
         var max = Vector2.Max(min, viewport.WorkPos + viewport.WorkSize - size - new Vector2(8 * scale));
-        ImGui.SetWindowPos(Vector2.Clamp(ImGui.GetWindowPos(), min, max));
+        position = Vector2.Clamp(position, min, max);
+        return true;
     }
 }

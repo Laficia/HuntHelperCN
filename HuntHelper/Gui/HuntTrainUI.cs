@@ -1,6 +1,4 @@
 using Dalamud.Bindings.ImGui;
-using Dalamud.Interface;
-using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
 using HuntHelper.Gui.Resource;
 using HuntHelper.Managers;
@@ -57,19 +55,12 @@ public partial class HuntTrainUI : IDisposable
     private Vector2 _savedWindowSize;
     private Vector2 _savedWindowPos;
 
-    private bool _showLastSeen = true;
-    private bool _useBorder = false;
     private bool _openMap = false;
-    private bool _teleportMe = false;
     private bool _teleportMeOnCommand = false;
-    private bool _showTeleButtons = false;
     private bool _teleToAetheryte = false;
     private bool _showInChat = true;
     private bool _showTrainUIDuringIPCImport = true;
-    private bool _showMapName = false;
     #endregion
-
-    private Vector4 _deadTextColour = new Vector4(.6f, .7f, .6f, 1f);
 
     private int _selectedIndex = 0;
     private List<HuntTrainMob> _mobList => _trainManager.HuntTrain;
@@ -148,16 +139,11 @@ public partial class HuntTrainUI : IDisposable
         _huntTrainWindowPos = _settings.HuntTrainWindowPos;
         _savedWindowSize = _huntTrainWindowSize;
         _savedWindowPos = _huntTrainWindowPos;
-        _showLastSeen = _settings.HuntTrainShowLastSeen;
-        _useBorder = _settings.HuntTrainUseBorder;
         _openMap = _settings.HuntTrainNextOpensMap;
-        _teleportMe = _settings.HuntTrainNextTeleportMe;
         _teleportMeOnCommand = _settings.HuntTrainNextTeleportMeOnCommand;
-        _showTeleButtons = _settings.HuntTrainShowTeleportButtons;
         _teleToAetheryte = _settings.HuntTrainTeleportToAetheryte;
         _showInChat = _settings.HuntTrainShowFlagInChat;
         _showTrainUIDuringIPCImport = _settings.HuntTrainShowUIDuringIPCImport;
-        _showMapName = _settings.HuntTrainShowMapName;
     }
 
     public void SaveSettings()
@@ -165,276 +151,19 @@ public partial class HuntTrainUI : IDisposable
         //_settings.HuntTrainWindowVisible = HuntTrainWindowVisible;
         _settings.HuntTrainWindowSize = _huntTrainWindowSize;
         _settings.HuntTrainWindowPos = _huntTrainWindowPos;
-        _settings.HuntTrainShowLastSeen = _showLastSeen;
-        _settings.HuntTrainUseBorder = _useBorder;
         _settings.HuntTrainNextOpensMap = _openMap;
-        _settings.HuntTrainNextTeleportMe = _teleportMe;
         _settings.HuntTrainNextTeleportMeOnCommand = _teleportMeOnCommand;
-        _settings.HuntTrainShowTeleportButtons = _showTeleButtons;
         _settings.HuntTrainTeleportToAetheryte = _teleToAetheryte;
         _settings.HuntTrainShowFlagInChat = _showInChat;
         _settings.HuntTrainShowUIDuringIPCImport = _showTrainUIDuringIPCImport;
-        _settings.HuntTrainShowMapName = _showMapName;
     }
 
 
-    private Vector4 bg = new Vector4(.3f, .3f, .3f, 1f);
-    private float trainItemY => 23f * ImGuiHelpers.GlobalScale;
-    private ImGuiWindowFlags defaultTrainFlags = ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse;
-
-    private void DrawClassicHuntTrainWindow()
-    {
-        if (!HuntTrainWindowVisible) return;
-        if (_trainManager.ImportFromIPC) ImGui.SetNextWindowCollapsed(false);
-
-        ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8, 8));
-        ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 10);
-        ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 4));
-
-        if (HuntTrainWindowLayout.Begin(_isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
-            ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, ImGuiHelpers.GlobalScale))
-        {
-            _huntTrainWindowSize = ImGui.GetWindowSize();
-            _huntTrainWindowPos = ImGui.GetWindowPos();
-
-
-            if (!_isS)
-            {
-                if (ImGui.Button("找怪")) _openFinder();
-                if (_patrolActive()) { ImGui.SameLine(); if (ImGui.Button("停止找怪")) _stopPatrol(); }
-            }
-            if (_openOther != null)
-            {
-                if (!_isS) ImGui.SameLine();
-                if (ImGui.Button(_isS ? "A怪狩猎车 /hht" : "S怪记录 /hhs")) _openOther();
-            }
-            if (_openMacros != null) { ImGui.SameLine(); if (ImGui.Button("预设宏")) _openMacros(); }
-            ImGui.SameLine();
-            if (ImGui.Button("原生窗口")) { if (_nativeLegacy) _huntTrainWindowVisible = false; _nativeLegacy = false; _config.UseNativeHuntWindows = true; _config.Save(); }
-            DrawWorldTabs();
-            DrawVersionTabs();
-            DrawTrainRows();
-            DrawNavigationStatus();
-            if (_trainManager.PersistenceError != null)
-                ImGui.TextWrapped($"记录文件异常：{_trainManager.PersistenceError}");
-
-
-            if (ImGui.TreeNode($"{GuiResources.HuntTrainGuiText["Settings"]}"))
-            {
-                var showMissingRoster = _settings.HuntTrainShowMissingRoster;
-                if (ImGui.Checkbox($"显示未发现 {_rankLabel} 怪占位", ref showMissingRoster))
-                {
-                    _settings.HuntTrainShowMissingRoster = showMissingRoster;
-                    _versions.ShowEmptyRosters = showMissingRoster;
-                    _config.Save();
-                }
-                ImGuiUtil.ImGui_HoveredToolTip("默认关闭，只显示已记录的怪物，并隐藏无记录的版本标签。开启后按当前服务器各地图的分线补齐完整名单；设置自动保存。");
-                if (!_isS)
-                {
-                    var syncKills = _config.SonarSyncAKills;
-                    if (ImGui.Checkbox("同步 Sonar A怪击杀标记", ref syncKills)) { _config.SonarSyncAKills = syncKills; _config.Save(); }
-                    ImGuiUtil.ImGui_HoveredToolTip("默认开启；只标记明确匹配的已有 A 怪，不要求开启录制。缺少区服或分线时跳过。");
-                }
-                var sonar = _settings.HuntTrainCaptureSonar;
-                if (ImGui.Checkbox($"录制 Sonar 聊天中的 {_rankLabel} 怪", ref sonar))
-                { _settings.HuntTrainCaptureSonar = sonar; _config.Save(); }
-                ImGuiUtil.ImGui_HoveredToolTip("仅在本模块开启录制时接收。需包含可识别怪物、地图链接和明确区服；按消息中的区服和分线保存，不修改另一模块。");
-                if (_isS)
-                {
-                    var monitor = _config.HuntSDeathMonitoring;
-                    if (ImGui.Checkbox("自动监测 S 怪死亡", ref monitor)) { _config.HuntSDeathMonitoring = monitor; _config.Save(); }
-                }
-                DrawInstanceSettings();
-                DrawSnapshotSettings();
-                HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale);
-                ImGui.Separator();
-                if (ImGui.TreeNode("显示设置##iwanttodeletethisbutmaybesomeusersactuallyuseit"))
-                {
-                    if (ImGui.BeginTable("settingsalignment", 2))
-                    {
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["Border"], ref _useBorder); //doesn't do anything anymore
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox("显示信息时间", ref _showLastSeen);
-                        ImGuiUtil.ImGui_HoveredToolTip("现场、Sonar接收与导入时间分开展示在悬停提示中。列表年龄仅表示兼容的信息时间，不保证怪物存活。");
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox("显示地图名称", ref _showMapName);
-                        ImGuiUtil.ImGui_HoveredToolTip("显示地图名称");
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["ShowFlagInChat"], ref _showInChat);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["ShowFlagInChat"]);
-                        ImGui.EndTable();
-                    }
-                    ImGui.TreePop();
-                }
-
-                if (ImGui.TreeNode("传送设置###Teleport"))
-                {
-                    if (ImGui.BeginTable("settingsalignment", 2))
-                    {
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["OpenMap"], ref _openMap);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["OpenMapToolTip"]);
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleButtons"], ref _showTeleButtons);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleButtonsToolTip"]);
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleportOnClick"], ref _teleportMe);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleportOnClickToolTip"]);
-                        ImGui.TableNextColumn();
-                        var commandText = GuiResources.HuntTrainGuiText["TeleportOnCommand"];
-                        if (_isS) commandText = commandText.Replace("/hhn", "/hhsn");
-                        ImGui.Checkbox(commandText, ref _teleportMeOnCommand);
-                        ImGuiUtil.ImGui_HoveredToolTip(commandText);
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["TeleportToAetheryte"], ref _teleToAetheryte);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["TeleportToAetheryte"]);
-                        ImGui.EndTable();
-                    }
-                    ImGui.TreePop();
-                }
-
-                if (!_isS && ImGui.TreeNode("插件联动###IPCRelatedStuffIdk"))
-                {
-                    if (ImGui.BeginTable("settingsalignment", 1))
-                    {
-                        ImGui.TableNextColumn();
-                        ImGui.Checkbox(GuiResources.HuntTrainGuiText["OpenUIWhenIPCImport"], ref _showTrainUIDuringIPCImport);
-                        ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["OpenUIWhenIPCImport"]);
-                        ImGui.EndTable();
-                    }
-                    ImGui.TreePop();
-                }
-
-                ImGui.TreePop();
-                ImGui.Separator();
-            }
-            ImGui.Dummy(new Vector2(0, 12f));
-
-
-            #region Buttons
-
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.History)) ApplyTrainChange(() => _trainManager.RemoveRecords(VisibleMobs.Where(m => m.Dead)));
-            ImGuiUtil.ImGui_HoveredToolTip($"删除当前 {VersionLabel} 标签内已死亡的记录");
-            ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
-
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.Syringe))
-            {
-                var restored = _trainManager.RestoreRecords(VisibleMobs);
-                _trainActionMessage = _trainManager.ActionError ?? (restored > 0 ? $"已恢复当前 {VersionLabel} 标签内 {restored} 条记录为存活"
-                    : $"当前 {VersionLabel} 标签内没有已死亡的记录，无需恢复");
-            }
-            ImGuiUtil.ImGui_HoveredToolTip($"恢复当前 {VersionLabel} 标签内已死亡的记录为存活；只修改记录的死亡标记，不会重新扫描。");
-            ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
-            var latestBackup = _trainManager.Snapshots.List().FirstOrDefault();
-            ImGui.BeginDisabled(latestBackup == null);
-            if (ImGui.SmallButton("撤销")) RequestRestore(latestBackup!);
-            ImGui.EndDisabled();
-            ImGuiUtil.ImGui_HoveredToolTip("恢复最近一次手动操作前的备份；需确认影响服务器。自动扫描和死亡监测不逐条生成撤销记录。");
-
-            //position record button on far right
-            ImGui.SetCursorPosX(ImGui.GetWindowSize().X - (50 * ImGuiHelpers.GlobalScale));
-            if (!_trainManager.RecordTrain)
-            {
-                if (ImGuiComponents.IconButton(FontAwesomeIcon.Play)) _trainManager.RecordTrain = true;
-                ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["StartRecordingButton"]);
-            }
-            else
-            {
-                if (ImGuiComponents.IconButton(FontAwesomeIcon.Pause)) _trainManager.RecordTrain = false;
-                ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["StopRecordingButton"]);
-            }
-
-            ImGui.Dummy(new Vector2(0, 20f));
-
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.Skull)) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["DeleteWindowTitle"]}##modal");
-            ImGuiUtil.ImGui_HoveredToolTip($"清空当前 {VersionLabel} 标签内记录");
-            ImGui.SameLine();
-
-            //gosh these buttons don't line up, off by like 1 pixel :(
-            ImGui.SetCursorPosX(ImGui.GetWindowSize().X - (80 * ImGuiHelpers.GlobalScale));
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.SignOutAlt))
-            {
-                ImGui.OpenPopup("HuntTrainExportScope");
-            }
-
-            ImGuiUtil.ImGui_HoveredToolTip(_copyText);
-            if (ImGui.BeginPopup("HuntTrainExportScope"))
-            {
-                ImGui.TextUnformatted("选择导出范围");
-                ImGui.Separator();
-                var visible = VisibleMobs;
-                if (ImGui.MenuItem($"当前标签：{VersionLabel}（{visible.Count} 条）", enabled: visible.Count > 0))
-                    CopyExportCode(ExportImport.Export(visible));
-                var selectedName = _trainManager.GetWorlds().FirstOrDefault(w => w.WorldID == _trainManager.SelectedWorldId)?.WorldName ?? "当前服务器";
-                if (ImGui.MenuItem($"当前服务器：{selectedName}（{_mobList.Count} 条）", enabled: _mobList.Count > 0))
-                    CopyExportCode(_trainManager.ExportSelectedTrain());
-                var all = _trainManager.GetAllTrainRecords(_settings.HuntTrainWorldTabOrder);
-                if (ImGui.MenuItem($"全部服务器（{all.Select(m => m.WorldID).Distinct().Count()} 服，{all.Count} 条）", enabled: all.Count > 0))
-                    CopyExportCode(_trainManager.ExportAllTrains(_settings.HuntTrainWorldTabOrder));
-                if (ImGui.IsItemHovered())
-                    ImGui.SetTooltip("定制版可按服务器恢复。原版不区分区服，分享给原版用户时建议导出单个服务器。");
-                ImGui.EndPopup();
-            }
-            ImGui.SameLine(); ImGui.Dummy(new Vector2(4, 0)); ImGui.SameLine();
-
-            if (ImGuiComponents.IconButton(FontAwesomeIcon.SignInAlt) || _trainManager.ImportFromIPC)
-            {
-                if (_trainManager.ImportFromIPC)
-                {
-                    _trainManager.ImportFromIPC = false;
-                }
-                else
-                {
-                    var importCode = string.Empty;
-                    try
-                    {
-                        importCode = ImGui.GetClipboardText();
-                    }
-                    catch { } // if clipboard doesn't have string throws object null error. i.e. a file
-                    _trainManager.Import(importCode);
-                }
-
-                ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup");
-            }
-
-            ImGuiUtil.ImGui_HoveredToolTip(GuiResources.HuntTrainGuiText["ImportButton"]);
-
-            DrawDeleteModal();
-            DrawImportWindowModal();
-            DrawRestoreModal();
-            #endregion
-
-            if (_teleportManager.TeleportPluginNotFound) ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["TeleportWindowTitle"]}##ModalPopupWindowThingymajig");
-            DrawTeleportPluginNotFoundModal();
-
-            _huntTrainWindowSize = ImGui.GetWindowSize();
-            _huntTrainWindowPos = ImGui.GetWindowPos();
-
-        }
-        HuntTrainWindowLayout.End();
-        ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
-        if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) &&
-            (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
-        {
-            SaveSettings();
-            _config.Save();
-            _savedWindowSize = _huntTrainWindowSize;
-            _savedWindowPos = _huntTrainWindowPos;
-        }
-    }
-
-    private void DrawWorldTabs(bool showCurrent = true)
+    private void DrawWorldTabs()
     {
         var current = _trainManager.GetCurrentWorld();
-        if (showCurrent)
-        {
-            ImGui.TextUnformatted($"当前区服：{FormatWorld(current.WorldName, current.DataCenterName)}");
-            ImGuiUtil.ImGui_HoveredToolTip("扫描保存到角色当前所在服务器。左键拖拽调整顺序；右键可选择、左右移动或删除该服记录及标签。");
-        }
         if (_trainManager.SelectedWorldId != current.WorldID && current.WorldID != 0)
         {
-            if (showCurrent) ImGui.SameLine();
             if (ImGui.SmallButton("查看当前服")) SelectDisplayedWorld(current.WorldID);
         }
         var worlds = _trainManager.GetWorlds();
@@ -488,8 +217,6 @@ public partial class HuntTrainUI : IDisposable
         _trainActionMessage = string.Empty;
     }
 
-    private static string FormatWorld(string name, string dataCenter) => name;
-
     private void CopyExportCode(string code)
     {
         ImGui.SetClipboardText(code);
@@ -501,7 +228,7 @@ public partial class HuntTrainUI : IDisposable
         _selectedIndex = TrainVersionFilter.Clamp(_selectedIndex, VisibleIndices);
     }
 
-    private void DrawVersionTabs(bool showSummary = true)
+    private void DrawVersionTabs()
     {
         var world = _trainManager.SelectedWorldId;
         if (!_settings.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
@@ -513,18 +240,9 @@ public partial class HuntTrainUI : IDisposable
         if (action.ClearVersion is { } clearVersion && groups.Find(g => g.Version == clearVersion) is { Count: > 0 } target)
             ClearVersionTab(target.Version);
         var version = _versions.Selected(world, _mobList);
-        _rosterSnapshot = null;
-        if (version is >= 2)
-        {
-            _rosterSnapshot = _roster.Snapshot(world, version.Value, _mobList,
-                territory => _instances.Instances(world, territory, _mobList));
-            var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
-            var recorded = VisibleMobs.Count;
-            if (showSummary) HuntRosterPresentation.Summary(name, version.Value, recorded, _rankLabel);
-            if (showSummary) ImGuiUtil.ImGui_HoveredToolTip("已录入数仅统计当前服务器、当前版本的真实记录，包含死亡记录；不同分线分别计数，占位不计入。");
-            if (showSummary && recorded == 0 && !_trainManager.RecordTrain && !_patrolActive())
-                ImGui.TextWrapped(_isS ? "开启下方录制后，附近 S 怪和 Sonar 定位消息会录入此模块。" : "开启下方记录或使用找怪扫描，发现后会自动标出。");
-        }
+        _rosterSnapshot = _settings.HuntTrainShowMissingRoster && version is >= 2
+            ? _roster.Snapshot(world, version.Value, _mobList, territory => _instances.Instances(world, territory, _mobList))
+            : null;
         ClampSelection();
     }
 
@@ -543,11 +261,84 @@ public partial class HuntTrainUI : IDisposable
         ClampSelection();
     }
 
+    private void DrawTrainSettings()
+    {
+        var changed = false;
+        if (ImGui.CollapsingHeader("显示与窗口", ImGuiTreeNodeFlags.DefaultOpen))
+        {
+            ImGui.TextUnformatted("原生窗口列表样式");
+            if (ImGui.RadioButton("紧凑列表", !_settings.NativeTrainGroupByMap))
+            { _settings.NativeTrainGroupByMap = false; changed = true; }
+            ImGui.SameLine();
+            if (ImGui.RadioButton("地图分组", _settings.NativeTrainGroupByMap))
+            { _settings.NativeTrainGroupByMap = true; changed = true; }
+            if (!NativePresentation)
+            {
+                var location = _settings.CompactShowLocationColumn;
+                if (ImGui.Checkbox("显示地点列", ref location))
+                {
+                    _settings.CompactShowLocationColumn = location;
+                    _compactLocationColumn.Cancel();
+                    changed = true;
+                }
+                if (HuntTrainWindowLayout.DrawSizeControls(ImGuiHelpers.GlobalScale, ref _huntTrainWindowSize, ref _huntTrainWindowPos))
+                    _applyCompactWindowBounds = true;
+            }
+            var missing = _settings.HuntTrainShowMissingRoster;
+            if (ImGui.Checkbox("显示未发现占位（已有记录的版本）", ref missing))
+            { _settings.HuntTrainShowMissingRoster = missing; changed = true; }
+            changed |= ImGui.Checkbox("在本地聊天栏显示下一站坐标", ref _showInChat);
+        }
+
+        if (ImGui.CollapsingHeader("地图分线")) DrawInstanceSettings();
+        if (ImGui.CollapsingHeader("录制与 Sonar"))
+        {
+            var capture = _settings.HuntTrainCaptureSonar;
+            if (ImGui.Checkbox($"录制 Sonar 聊天中的 {_rankLabel} 怪", ref capture))
+            { _settings.HuntTrainCaptureSonar = capture; changed = true; }
+            ImGuiUtil.ImGui_HoveredToolTip("开启录制后，按 Sonar 消息中的区服和分线保存怪物位置。");
+
+            if (!_isS)
+            {
+                var syncKills = _config.SonarSyncAKills;
+                if (ImGui.Checkbox("同步 Sonar A 怪击杀标记", ref syncKills))
+                { _config.SonarSyncAKills = syncKills; changed = true; }
+            }
+            var monitor = _isS ? _config.HuntSDeathMonitoring : _config.HuntDeathMonitoring;
+            if (ImGui.Checkbox($"自动监测 {_rankLabel} 怪死亡", ref monitor))
+            {
+                if (_isS) _config.HuntSDeathMonitoring = monitor;
+                else _config.HuntDeathMonitoring = monitor;
+                changed = true;
+            }
+        }
+
+        if (ImGui.CollapsingHeader("传送与插件联动"))
+        {
+            changed |= ImGui.Checkbox("在下一站命令中打开地图", ref _openMap);
+            var next = _isS ? "/hhsn" : "/hhn";
+            var crystal = _isS ? "/hhsna" : "/hhna";
+            changed |= ImGui.Checkbox($"使用 {next} 时传送到最近的水晶", ref _teleportMeOnCommand);
+            changed |= ImGui.Checkbox($"改为使用 {crystal} 时传送", ref _teleToAetheryte);
+            if (!_isS) changed |= ImGui.Checkbox("接收其他插件的导入记录时打开狩猎车", ref _showTrainUIDuringIPCImport);
+        }
+        // The S window has no finder button that can double as the movement stop button.
+        if (_isS && _navigation.OwnsMovement && ImGui.Button("停止移动"))
+        {
+            if (_patrolActive()) _stopPatrol();
+            else _navigation.Stop();
+        }
+        if (!changed) return;
+        SaveSettings();
+        _config.Save();
+    }
+
     private void DrawInstanceSettings()
     {
-        if (!ImGui.TreeNode("地图分线设置（当前所选服务器）")) return;
-        ImGui.TextWrapped("自动模式根据本服该地图的记录和实际到访分线识别，未确认时先显示一份。无法凭空获知尚未到访的分线，可按地图手动补全；不会自动切线。");
         var world = _trainManager.SelectedWorldId;
+        var name = _trainManager.GetImportWorlds().FirstOrDefault(w => w.WorldID == world)?.WorldName ?? $"区服 {world}";
+        ImGui.TextUnformatted($"当前所选服务器：{name}");
+        ImGui.TextWrapped("按本服记录和到访分线自动识别。也可以手动设置每张地图的分线数量。");
         var version = _versions.Selected(world, _mobList);
         foreach (var map in _roster.Entries.Where(e => e.TerritoryId != 0 && (version == null || e.Version == version))
             .Select(e => e.TerritoryId).Distinct())
@@ -571,7 +362,6 @@ public partial class HuntTrainUI : IDisposable
             }
             ImGui.PopID();
         }
-        ImGui.TreePop();
     }
 
     private void ApplyTrainChange(Action change)
@@ -580,123 +370,6 @@ public partial class HuntTrainUI : IDisposable
         change();
         _selectedIndex = selected == null ? 0 : Math.Max(0, _mobList.IndexOf(selected));
         ClampSelection();
-    }
-
-    private void DrawTrainRows()
-    {
-        var visible = VisibleIndices;
-        IReadOnlyList<HuntRosterSlot> missing = _settings.HuntTrainShowMissingRoster && _rosterSnapshot != null
-            ? _rosterSnapshot.Missing : Array.Empty<HuntRosterSlot>();
-        if (visible.Count == 0 && missing.Count == 0)
-        {
-            _rowDrag.Cancel();
-            ImGui.TextWrapped("当前标签暂无记录。可在设置开启未发现占位，或开始记录／找怪扫描。");
-            return;
-        }
-        var columns = 4 + (_showMapName ? 1 : 0) + (_showLastSeen ? 1 : 0);
-        var tableHeight = Math.Clamp(ImGui.GetContentRegionAvail().Y - 140 * ImGuiHelpers.GlobalScale,
-            110 * ImGuiHelpers.GlobalScale, 340 * ImGuiHelpers.GlobalScale);
-        var visibleMobs = visible.Select(i => _mobList[i]).ToList();
-        _rowDrag.Begin($"{_trainManager.SelectedWorldId}/{VersionLabel}", visibleMobs);
-        if (!ImGui.BeginTable("WorldTrainTable", columns, ImGuiTableFlags.RowBg | ImGuiTableFlags.BordersInnerH |
-            ImGuiTableFlags.Resizable | ImGuiTableFlags.ScrollY | ImGuiTableFlags.ScrollX, new Vector2(0, tableHeight),
-            Math.Max(ImGui.GetContentRegionAvail().X, 485 * ImGuiHelpers.GlobalScale))) return;
-        ImGui.TableSetupScrollFreeze(0, 1);
-        ImGui.TableSetupColumn("怪物", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("状态", ImGuiTableColumnFlags.WidthFixed, 70 * ImGuiHelpers.GlobalScale);
-        if (_showMapName) ImGui.TableSetupColumn("地图", ImGuiTableColumnFlags.WidthStretch);
-        ImGui.TableSetupColumn("操作", ImGuiTableColumnFlags.WidthFixed, 154 * ImGuiHelpers.GlobalScale);
-        if (_showLastSeen) ImGui.TableSetupColumn("信息", ImGuiTableColumnFlags.WidthFixed, 52 * ImGuiHelpers.GlobalScale);
-        ImGui.TableSetupColumn("死亡", ImGuiTableColumnFlags.WidthFixed, 36 * ImGuiHelpers.GlobalScale);
-        ImGui.TableHeadersRow();
-        for (var row = 0; row < visible.Count; row++)
-        {
-            var n = visible[row];
-            var mob = _mobList[n];
-            var listChanged = false;
-            ImGui.PushID(n);
-            ImGui.TableNextRow();
-            ImGui.TableNextColumn();
-            ImGui.PushStyleColor(ImGuiCol.Text, TrainTheme.Color(mob.Dead ? ImGuiCol.TextDisabled : ImGuiCol.Text));
-            if (_rowDrag.Selectable(mob, $"{mob.Name} {mob.Instance.GetInstanceGlyph()}", n == _selectedIndex))
-            {
-                SelectRecordAndOpenMap(n);
-                _trainManager.SendTrainFlag(n, openMap: false, showInChat: _showInChat);
-                if (_teleportMe && CanTeleport(mob)) _teleportManager.TeleportToHunt(mob);
-            }
-            ImGui.PopStyleColor();
-            if (!_rowDrag.Dragging)
-                ImGuiUtil.ImGui_HoveredToolTip($"{FormatWorld(mob.WorldName, mob.DataCenterName)}\n{MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n左键拖动名称调整车序；拖到目标名称上半部／下半部插入其前／后\n右键可选择、删除或调整顺序");
-            if (ImGui.BeginPopupContextItem("HuntRowContext"))
-            {
-                if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuSelect"])) _selectedIndex = n;
-                if (ImGui.MenuItem("上移", enabled: row > 0)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, visible[row - 1])); listChanged = true; }
-                if (ImGui.MenuItem("下移", enabled: row + 1 < visible.Count)) { ApplyTrainChange(() => _trainManager.SwapTrainMobs(n, visible[row + 1])); listChanged = true; }
-                if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuRemove"])) { ApplyTrainChange(() => _trainManager.TrainRemove(mob)); listChanged = true; }
-                ImGui.EndPopup();
-            }
-            ImGui.TableNextColumn();
-            HuntRosterPresentation.Status(true, mob.Dead, ImGuiHelpers.GlobalScale);
-            if (_showMapName)
-            {
-                ImGui.TableNextColumn();
-                if (ImGui.Selectable(MapHelpers.GetMapName(mob.TerritoryID) + "##location")) _trainManager.OpenMap(mob, true);
-            }
-            ImGui.TableNextColumn();
-            if (_showTeleButtons)
-            {
-                var teleportReason = _automation.GetHuntTeleportProblem(mob);
-                ImGui.BeginDisabled(teleportReason.Length != 0);
-                if (ImGui.Button($"{GuiResources.HuntTrainGuiText["TeleportButton"]}##teleport")) TeleportRecord(mob, _openMap);
-                ImGui.EndDisabled();
-                if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                    ImGui.SetTooltip(TeleportTooltip(mob, teleportReason));
-                ImGui.SameLine();
-            }
-            var reason = GetMoveProblem(mob);
-            ImGui.BeginDisabled(reason.Length != 0);
-            if (ImGui.Button("移动")) _navigation.TryMoveTo(mob);
-            ImGui.EndDisabled();
-            if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                ImGui.SetTooltip(reason.Length != 0 ? reason : "调用国服 vnavmesh 前往该怪物点位；起飞后使用飞行路线，仅限同区服、同地图、同分线");
-            if (_macros != null)
-            {
-                ImGui.SameLine();
-                if (ImGui.Button("坐标")) _macros.Send(mob, _rankLabel);
-                ImGuiUtil.ImGui_HoveredToolTip($"发送已保存的 {_rankLabel} 预设宏；使用该记录的服务器和点位");
-            }
-            if (_showLastSeen)
-            {
-                ImGui.TableNextColumn();
-                ImGui.TextUnformatted($"{Math.Max(0, (DateTime.UtcNow - mob.LastSeenUTC).TotalMinutes):0}m");
-                ImGuiUtil.ImGui_HoveredToolTip(HuntRecordInfo.Describe(mob));
-            }
-            ImGui.TableNextColumn();
-            var dead = mob.Dead;
-            if (ImGui.Checkbox("##dead", ref dead))
-            {
-                if (!listChanged) _trainManager.SetDead(n, dead);
-                if (mob.Dead && n == _selectedIndex) SelectNext();
-            }
-            ImGui.PopID();
-            if (listChanged) { _rowDrag.Cancel(); break; }
-        }
-        foreach (var expected in missing)
-        {
-            ImGui.TableNextRow();
-            ImGui.TableNextColumn(); ImGui.TextDisabled($"{expected.Entry.Name} {expected.Instance.GetInstanceGlyph()}");
-            var mapName = expected.TerritoryId == 0 ? "地图待识别" : MapHelpers.GetMapName(expected.TerritoryId);
-            var lineName = expected.Instance == 0 ? "无分线或尚未确认分线" : $"{expected.Instance} 线";
-            ImGuiUtil.ImGui_HoveredToolTip($"{expected.Entry.Name}\n{mapName} · {lineName}\n该服务器该分线尚无此怪记录；开启记录或找怪扫描后自动更新。");
-            ImGui.TableNextColumn(); HuntRosterPresentation.Status(false, false, ImGuiHelpers.GlobalScale);
-            if (_showMapName) { ImGui.TableNextColumn(); ImGui.TextDisabled(mapName); }
-            ImGui.TableNextColumn(); ImGui.TextDisabled("--");
-            if (_showLastSeen) { ImGui.TableNextColumn(); ImGui.TextDisabled("--"); }
-            ImGui.TableNextColumn(); ImGui.TextDisabled("--");
-        }
-        var reordered = _rowDrag.Finish(ImGuiHelpers.GlobalScale);
-        ImGui.EndTable();
-        if (reordered != null) ApplyTrainChange(() => _trainManager.ReorderTrainMobs(visibleMobs, reordered));
     }
 
     private bool CanTeleport(HuntTrainMob mob) => mob.WorldID != 0 && mob.WorldID == _trainManager.CurrentWorldId;
@@ -724,17 +397,6 @@ public partial class HuntTrainUI : IDisposable
         return _navigation.GetDisabledReason(mob);
     }
 
-    private void DrawNavigationStatus()
-    {
-        if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
-        else if (_automation.CrystalTravelStatus.Length != 0) ImGui.TextWrapped(_automation.CrystalTravelStatus);
-        if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
-        if (_relayStatus?.Invoke() is { Length: > 0 } relayMessage) ImGui.TextWrapped(relayMessage);
-        if (_macros?.Status is { Length: > 0 } macroStatus) ImGui.TextWrapped(macroStatus);
-        if (_navigation.LastMessage.Length != 0) ImGui.TextWrapped(_navigation.LastMessage);
-        if (_navigation.OwnsMovement && ImGui.Button("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
-    }
-
     private void DrawTeleportPluginNotFoundModal()
     {
         var center = ImGui.GetWindowPos() + ImGui.GetWindowSize() / 2;
@@ -758,35 +420,6 @@ public partial class HuntTrainUI : IDisposable
         ImGui.PopStyleColor();
     }
 
-    private void DrawDeleteModal()
-    {
-        var center = ImGui.GetWindowPos() + ImGui.GetWindowSize() / 2;
-        ImGui.SetNextWindowPos(center, ImGuiCond.Appearing, new Vector2(0.5f, 0.5f));
-        ImGui.SetNextWindowSize(new Vector2(400, 200));
-
-        if (ImGui.BeginPopupModal($"{GuiResources.HuntTrainGuiText["DeleteWindowTitle"]}##modal"))
-        {
-            ImGui.TextWrapped($"清空当前服务器「{VersionLabel}」标签中的记录？");
-            ImGui.TextWrapped($"仅清空当前服务器的 {VersionLabel} 标签（{VisibleIndices.Count} 条）。清空当前所在服会暂停录制和找怪；其他版本、服务器的记录保留。右键服务器标签可删除整服记录。");
-
-            ImGui.Dummy(new Vector2(0, 25));
-            ImGui.Dummy(new Vector2(6, 0)); ImGui.SameLine();
-            if (ImGui.Button(GuiResources.HuntTrainGuiText["DeleteWindowDeleteButton"]))
-            {
-                _trainManager.RemoveRecords(VisibleMobs, pauseRecording: true);
-                _selectedIndex = 0;
-                ImGui.CloseCurrentPopup();
-            }
-
-            ImGui.SameLine(); ImGui.Dummy(new Vector2(16, 0));
-            ImGui.SameLine();
-            if (ImGui.Button(GuiResources.HuntTrainGuiText["CancelButton"]))
-            {
-                ImGui.CloseCurrentPopup();
-            }
-            ImGui.EndPopup();
-        }
-    }
     private void DrawImportWindowModal()
     {
         var center = ImGui.GetWindowPos() + ImGui.GetWindowSize() / 2;
@@ -1023,66 +656,6 @@ public partial class HuntTrainUI : IDisposable
         }
     }
 
-    //based off of https://github.com/ocornut/imgui/blob/docking/imgui_demo.cpp#L2337
-    /// <summary>
-    /// no longer used since ui rework
-    /// </summary>
-    /// <param name="attributeToDisplay"></param>
-    private void SelectableFromList(HuntTrainMobAttribute attributeToDisplay)
-    {
-        for (int n = 0; n < _mobList.Count; n++)
-        {
-            var mob = _mobList[n];
-            var label = GetAttributeFromMob(attributeToDisplay, mob);
-
-            if (mob.Dead) ImGui.PushStyleColor(ImGuiCol.Text, _deadTextColour);
-            else ImGui.PushStyleColor(ImGuiCol.Text, Vector4.One); //white
-
-            if (n == _selectedIndex) ImGui.Selectable($"{label}", true, ImGuiSelectableFlags.None, new Vector2(ImGui.GetContentRegionAvail().X, 23f * ImGuiHelpers.GlobalScale));
-            else ImGui.Selectable($"{label}", false, ImGuiSelectableFlags.None, new Vector2(ImGui.GetContentRegionAvail().X, 23f * ImGuiHelpers.GlobalScale));
-
-            if (ImGui.IsItemActive() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-            {
-                _trainManager.SendTrainFlag(n, _openMap, _showInChat);
-                if (_teleportMe) _teleportManager.TeleportToHunt(mob);
-            }
-
-            if (ImGui.BeginPopupContextItem($"ContextMenu##{mob.Name}:{mob.Instance}", ImGuiPopupFlags.MouseButtonRight))
-            {
-                ImGui.PushStyleColor(ImGuiCol.Text, Vector4.One); //white
-                if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuSelect"], true)) _selectedIndex = n;
-                ImGui.MenuItem("   ---", false);
-                if (ImGui.MenuItem(GuiResources.HuntTrainGuiText["ContextMenuRemove"], true)) _trainManager.TrainRemove(mob);
-                ImGui.EndPopup();
-                ImGui.PopStyleColor();
-            }
-
-            if (ImGui.IsItemActive() && !ImGui.IsItemHovered())
-            {
-                int n_next = n + (ImGui.GetMouseDragDelta(ImGuiMouseButton.Left).Y < 0f ? -1 : 1);
-                if (n_next >= 0 && n_next < _mobList.Count)
-                {
-                    _mobList[n] = _mobList[n_next];
-                    _mobList[n_next] = mob;
-                    ImGui.ResetMouseDragDelta();
-                }
-            }
-
-            ImGui.Separator();
-            ImGui.PopStyleColor(); // pop style text colour
-        }
-    }
-
-    private string GetAttributeFromMob(HuntTrainMobAttribute attribute, HuntTrainMob mob) =>
-        attribute switch
-        {
-            HuntTrainMobAttribute.Name =>
-                _showMapName ? $"「{MapHelpers.GetMapName(mob.TerritoryID)}」{mob.Name}{mob.Instance.GetInstanceGlyph()}"
-                : $"{mob.Name}{mob.Instance.GetInstanceGlyph()}",
-            HuntTrainMobAttribute.LastSeen => $"{(DateTime.Now.ToUniversalTime() - mob.LastSeenUTC).TotalMinutes:0.}m",
-            HuntTrainMobAttribute.Position => $"({mob.Position.X:0.0}, {mob.Position.Y:0.0})"
-        };
-
     /// <summary>
     /// returns -1 if no living mobs remain
     /// </summary>
@@ -1097,11 +670,6 @@ public partial class HuntTrainUI : IDisposable
     {
         var nextIndex = GetNextIndex();
         _selectedIndex = nextIndex == -1 ? VisibleIndices.FirstOrDefault(0) : nextIndex;
-    }
-
-    private enum HuntTrainMobAttribute
-    {
-        Name, Position, LastSeen
     }
 
 }

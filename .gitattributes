@@ -1,0 +1,2 @@
+# Preserve the exact bytes of the pinned Daily Routines route data.
+HuntHelper/Data/DRSpawnPoints.json -text

@@ -15,7 +15,7 @@ public partial class HuntTrainUI
     internal bool NativePresentation { get; set; }
     private string? _nativePanel;
     private string? _nativePopup;
-    private bool _nativeLegacy;
+    private bool _focusTrainSettings;
     private List<HuntTrainMob>? _nativeClearRecords;
     private uint _nativeClearWorld;
     private string _nativeClearLabel = "";
@@ -54,7 +54,7 @@ public partial class HuntTrainUI
         if (_nativeVisitedWorlds.Add(world)) _versions.Select(world, null);
         var version = _versions.Selected(world, _mobList);
         ClampSelection();
-        var nativeVisible = _huntTrainWindowVisible && NativePresentation && !_nativeLegacy;
+        var nativeVisible = _huntTrainWindowVisible && NativePresentation;
         var rows = (nativeVisible ? VisibleIndices : Enumerable.Empty<int>()).Select(index =>
         {
             var mob = _mobList[index];
@@ -101,7 +101,7 @@ public partial class HuntTrainUI
         {
             case NativeTrainAction.Legacy:
                 CancelNativeClear();
-                _nativeLegacy = false; _config.UseNativeHuntWindows = false; _config.Save(); break;
+                _config.UseNativeHuntWindows = false; _config.Save(); break;
             case NativeTrainAction.Finder:
                 if (_patrolActive()) _stopPatrol(); else if (_navigation.OwnsMovement) _navigation.Stop(); else _openFinder();
                 break;
@@ -127,7 +127,10 @@ public partial class HuntTrainUI
                 _nativePopup = $"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup"; break;
             case NativeTrainAction.Export: _nativePanel = "导出"; break;
             case NativeTrainAction.Backups: _nativePanel = "备份与撤销"; break;
-            case NativeTrainAction.Settings: _nativePanel = "设置"; break;
+            case NativeTrainAction.Settings:
+                _nativePanel = "设置";
+                _focusTrainSettings = true;
+                break;
             case NativeTrainAction.ClearDead: ApplyTrainChange(() => _trainManager.RemoveRecords(VisibleMobs.Where(m => m.Dead))); break;
             case NativeTrainAction.Revive:
                 var count = _trainManager.RestoreRecords(VisibleMobs);
@@ -243,18 +246,15 @@ public partial class HuntTrainUI
             _trainManager.ImportFromIPC = false; _nativePanel = "导入";
             _nativePopup = $"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup";
         }
-        if (_nativeLegacy)
-        {
-            var desired = _huntTrainWindowVisible;
-            _huntTrainWindowVisible = true;
-            DrawClassicHuntTrainWindow();
-            _nativeLegacy = _huntTrainWindowVisible;
-            _huntTrainWindowVisible = desired;
-        }
         if (_nativePanel == null) return;
         var open = true;
+        if (_focusTrainSettings)
+        {
+            if (_nativePanel == "设置") ImGui.SetNextWindowFocus();
+            _focusTrainSettings = false;
+        }
         ImGui.SetNextWindowSize(new Vector2(420, 180), ImGuiCond.FirstUseEver);
-        if (ImGui.Begin($"狩猎车 · {_nativePanel}###NativeTrainTools{_rankLabel}", ref open, ImGuiWindowFlags.AlwaysAutoResize))
+        if (ImGui.Begin($"{(_isS ? "S 怪记录" : "狩猎车")} · {_nativePanel}###NativeTrainTools{_rankLabel}", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             if (_nativePopup != null) { ImGui.OpenPopup(_nativePopup); _nativePopup = null; }
             if (_nativePanel == "导出")
@@ -265,18 +265,7 @@ public partial class HuntTrainUI
                 ImGui.TextUnformatted(_copyText);
             }
             if (_nativePanel == "备份与撤销") DrawSnapshotSettings();
-            if (_nativePanel == "设置")
-            {
-                ImGui.TextUnformatted("主窗口样式");
-                if (ImGui.RadioButton("紧凑列表", !_settings.NativeTrainGroupByMap)) { _settings.NativeTrainGroupByMap = false; _config.Save(); }
-                ImGui.SameLine();
-                if (ImGui.RadioButton("地图分组", _settings.NativeTrainGroupByMap)) { _settings.NativeTrainGroupByMap = true; _config.Save(); }
-                var missing = _settings.HuntTrainShowMissingRoster;
-                if (ImGui.Checkbox("显示未发现占位（已有记录的版本）", ref missing)) { _settings.HuntTrainShowMissingRoster = missing; _config.Save(); }
-                DrawInstanceSettings();
-                ImGui.TextWrapped("拖动名称调整同地图车序，拖动标签调整顺序。空版本不显示占位。");
-                if (ImGui.Button("全部设置")) _nativeLegacy = true;
-            }
+            if (_nativePanel == "设置") DrawTrainSettings();
             if (_nativePanel == "导入" && ImGui.Button("重新读取剪贴板"))
             { _trainManager.Import(ImGui.GetClipboardText()); ImGui.OpenPopup($"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup"); }
             DrawImportWindowModal(); DrawRestoreModal();

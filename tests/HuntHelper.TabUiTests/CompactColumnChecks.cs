@@ -12,6 +12,7 @@ internal static class CompactColumnChecks
         float savedLocationWidth = 128;
         int saves = 0, rows = 4;
         float windowWidth = 700;
+        bool lastButtonFits = false;
         Vector2 handle = default;
         Vector2 locationHandle = default, locationHeader = default, monsterHeader = default;
         bool showLocation = false, columnMenuOpen = false;
@@ -23,7 +24,8 @@ internal static class CompactColumnChecks
             ImGui.SetNextWindowSize(new(windowWidth, 300));
             ImGui.Begin("CompactWidth", ImGuiWindowFlags.NoTitleBar | ImGuiWindowFlags.NoSavedSettings);
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 8));
-            ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3));
+            ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(3, 3));
+            ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 5));
             if (CompactTrainTable.Begin(210, resize.Width(savedWidth), showLocation ? resizeLocation.Width(savedLocationWidth) : null, 1, rows))
             {
                 int actionsColumn = showLocation ? 4 : 2;
@@ -58,16 +60,18 @@ internal static class CompactColumnChecks
                     ImGui.PushID(row);
                     ImGui.TableNextRow(ImGuiTableRowFlags.None, CompactTrainTable.RowHeight(1));
                     ImGui.TableSetColumnIndex(actionsColumn);
+                    float right = ImGui.GetCursorScreenPos().X + ImGui.GetContentRegionAvail().X;
                     ImGui.Button("传送", buttonSize); ImGui.SameLine();
                     ImGui.Button("移动", buttonSize); ImGui.SameLine();
                     ImGui.Button("坐标", buttonSize);
+                    lastButtonFits = ImGui.GetItemRectMax().X <= right + .5f;
                     ImGui.PopID();
                 }
                 ImGui.EndTable();
                 if (CompactTrainTable.LocationToggleRequested(openColumns, showLocation)) showLocation = !showLocation;
                 columnMenuOpen = ImGui.IsPopupOpen("CompactTrainColumns");
             }
-            ImGui.PopStyleVar(2);
+            ImGui.PopStyleVar(3);
             ImGui.End();
             ImGui.Render();
         }
@@ -102,7 +106,7 @@ internal static class CompactColumnChecks
         Check(saves == 1 && actionsX == initialActions + 52, "Escape restores saved width");
         Console.WriteLine("PASS Compact column long-press adjusts the actual table layout and saves only on release");
 
-        windowWidth = 510;
+        windowWidth = 458;
         Frame(); Frame();
         Check(scrollX <= 1 && Math.Abs(tableRight - deathRight) <= 5 && actionWidth < wideAction && actionWidth >= 50,
             $"buttons fit a narrower window, death {deathRight}, table {tableRight}, scroll X {scrollX}, action {actionWidth}");
@@ -110,9 +114,15 @@ internal static class CompactColumnChecks
         Frame(); Frame();
         Check(scrollY > 0 && scrollX <= 1 && Math.Abs(tableRight - deathRight - ImGui.GetStyle().ScrollbarSize) <= 5,
             $"only the vertical scrollbar takes space, death {deathRight}, table {tableRight}, scroll X {scrollX}");
-        windowWidth = 300;
+        windowWidth = 391;
+        savedWidth = 420;
         Frame(); Frame();
-        Check(scrollX > 0 && actionWidth >= 50, $"tiny windows keep the buttons usable, scroll X {scrollX}, action {actionWidth}");
+        Check(scrollX == 0 && lastButtonFits && saves == 1 && savedWidth == 420,
+            $"narrow window fits actions with a wide monster preference and hidden location, scroll X {scrollX}, action {actionWidth}");
+        windowWidth = 145;
+        Frame(); Frame();
+        Check(scrollX > 0, $"a viewport too small for action labels keeps horizontal access, scroll X {scrollX}");
+        savedWidth = 172;
         Console.WriteLine("PASS Compact table fills the available width, adapts its button size, and scrolls only when needed");
 
         windowWidth = 700;
@@ -126,8 +136,8 @@ internal static class CompactColumnChecks
         Mouse(false); Frame();
         Check(savedWidth == 172 && savedLocationWidth == 164 && saves == 2 && scrollX == 0 && Math.Abs(tableRight - deathRight) <= 5,
             "the location width saves independently and the table still reaches the right edge");
-        windowWidth = 515; rows = 20; Frame(); Frame();
-        Check(scrollY > 0 && scrollX == 0 && actionWidth >= 50 &&
+        windowWidth = 391; rows = 20; Frame(); Frame();
+        Check(scrollY > 0 && scrollX == 0 && lastButtonFits &&
             Math.Abs(tableRight - deathRight - ImGui.GetStyle().ScrollbarSize) <= 5,
             "narrower windows fit the location column together with all actions");
         windowWidth = 700; rows = 4; Frame(); Frame();

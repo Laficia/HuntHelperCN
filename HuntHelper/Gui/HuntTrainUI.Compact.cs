@@ -17,15 +17,18 @@ public partial class HuntTrainUI
     private readonly CompactTrainColumnResize _compactColumn = new();
     private readonly CompactTrainColumnResize _compactLocationColumn = new(defaultWidth: 128);
     private readonly CompactTrainToolbar _compactToolbar = new();
+    private bool _applyCompactWindowBounds;
+    private string CompactWindowTitle => _isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window";
 
     public void DrawHuntTrainWindow()
     {
-        if (!_huntTrainWindowVisible || _nativeLegacy)
+        if (!_huntTrainWindowVisible)
         {
             _compactColumn.Cancel();
             _compactLocationColumn.Cancel();
             _compactToolbar.Cancel();
-            if (_nativeLegacy && _huntTrainWindowVisible) DrawNativeDialogs();
+            if (_nativePanel != null) DrawNativeDialogs();
+            SaveCompactWindowBounds();
             return;
         }
         var scale = ImGuiHelpers.GlobalScale;
@@ -36,35 +39,16 @@ public partial class HuntTrainUI
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4 * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 5) * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 8) * scale);
-        if (HuntTrainWindowLayout.Begin(_isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
-            ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, scale))
+        var drawWindow = HuntTrainWindowLayout.Begin(CompactWindowTitle, ref _huntTrainWindowVisible,
+            _huntTrainWindowSize, _huntTrainWindowPos, scale, _applyCompactWindowBounds);
+        _applyCompactWindowBounds = false;
+        if (drawWindow)
         {
             _huntTrainWindowSize = ImGui.GetWindowSize(); _huntTrainWindowPos = ImGui.GetWindowPos();
-            var neutral = new TrainTheme(TrainButtonTone.Neutral);
-            if (!_isS)
-            {
-                var accent = new TrainTheme(TrainButtonTone.Accent);
-                if (accent.Button(_patrolActive() ? "停止找怪" : "找怪", new Vector2(88, 28) * scale)) { if (_patrolActive()) _stopPatrol(); else _openFinder(); }
-                ImGui.SameLine();
-            }
-            if (neutral.Button("宏", new Vector2(54, 28) * scale)) _openMacros?.Invoke();
-            if (ImGui.GetContentRegionAvail().X >= 100 * scale) { ImGui.SameLine(); if (neutral.Button("原生窗口", new Vector2(88, 28) * scale)) { _config.UseNativeHuntWindows = true; _config.Save(); } }
-            ImGui.SameLine();
-            if (ImGui.GetContentRegionAvail().X > 50 * scale) ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - 42 * scale);
-            if (neutral.Button("...", new Vector2(42, 28) * scale)) ImGui.OpenPopup("CompactTrainMore");
-            if (ImGui.BeginPopup("CompactTrainMore"))
-            {
-                if (ImGui.MenuItem("原生窗口")) { _config.UseNativeHuntWindows = true; _config.Save(); }
-                if (ImGui.MenuItem(_isS ? "A 怪狩猎车" : "S 怪记录")) _openOther?.Invoke();
-                ImGui.Separator();
-                if (ImGui.MenuItem("设置")) NativeDispatch(new(NativeTrainAction.Settings, _trainManager.SelectedWorldId));
-                if (_navigation.OwnsMovement && ImGui.MenuItem("停止移动")) { if (_patrolActive()) _stopPatrol(); else _navigation.Stop(); }
-                if (ImGui.MenuItem("完整设置")) _nativeLegacy = true;
-                ImGui.EndPopup();
-            }
+            DrawCompactHeader(scale);
             ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 5) * scale);
-            DrawWorldTabs(false);
-            DrawVersionTabs(false);
+            DrawWorldTabs();
+            DrawVersionTabs();
             ImGui.PopStyleVar();
             ImGui.Separator();
             DrawCompactRows(scale);
@@ -77,19 +61,88 @@ public partial class HuntTrainUI
             { ImGui.SameLine(); ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - ImGui.CalcTextSize(mode).X); ImGui.TextDisabled(mode); }
             var message = _trainManager.ActionError ?? (_trainActionMessage.Length > 0 ? _trainActionMessage : _automation.CrystalTravelStatus);
             if (message.Length > 0) ImGui.TextWrapped(message);
+            if (_trainManager.PersistenceError is { } error) ImGui.TextWrapped($"记录文件异常：{error}");
         }
         else { _compactColumn.Cancel(); _compactLocationColumn.Cancel(); _compactToolbar.Cancel(); }
         HuntTrainWindowLayout.End(); ImGui.PopStyleVar(5);
-        if (!_nativeLegacy) DrawNativeDialogs();
+        DrawNativeDialogs();
+        SaveCompactWindowBounds();
+    }
+
+    private void SaveCompactWindowBounds()
+    {
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) && (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
         { SaveSettings(); _config.Save(); _savedWindowSize = _huntTrainWindowSize; _savedWindowPos = _huntTrainWindowPos; }
+    }
+
+    private void DrawCompactHeader(float scale)
+    {
+        const ImGuiTableFlags flags = ImGuiTableFlags.NoPadOuterX | ImGuiTableFlags.NoPadInnerX;
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, Vector2.Zero);
+        if (!ImGui.BeginTable("CompactTrainHeader", 2, flags))
+        {
+            ImGui.PopStyleVar();
+            return;
+        }
+        var spacing = ImGui.GetStyle().ItemSpacing.X;
+        var height = 28 * scale;
+        ImGui.TableSetupColumn("##actions", ImGuiTableColumnFlags.WidthStretch);
+        ImGui.TableSetupColumn("##settings", ImGuiTableColumnFlags.WidthFixed, height + 6 * scale + spacing);
+        ImGui.TableNextRow();
+        ImGui.TableSetColumnIndex(0);
+
+        string finder = _patrolActive() ? "停止找怪" : _navigation.OwnsMovement ? "停止移动" : "找怪";
+        string otherRank = _isS ? "A 怪狩猎车" : "S 怪记录";
+        var neutral = new TrainTheme(TrainButtonTone.Neutral);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 5) * scale);
+        float MinWidth(string label) => MathF.Ceiling(ImGui.CalcTextSize(label).X + 2 * ImGui.GetStyle().FramePadding.X);
+        float finderMin = _isS ? 0 : MinWidth(finder);
+        float macroMin = MinWidth("宏");
+        float nativeMin = MinWidth("原生窗口");
+        float otherMin = MinWidth(otherRank);
+        float minimum = finderMin + macroMin + nativeMin + otherMin + (_isS ? 2 : 3) * spacing;
+        float preferred = (_isS ? 228 : 316) * scale + (_isS ? 2 : 3) * spacing;
+        float available = ImGui.GetContentRegionAvail().X;
+        float right = ImGui.GetCursorScreenPos().X + available;
+        float fraction = Math.Clamp((available - minimum) / Math.Max(1, preferred - minimum), 0, 1);
+        bool first = true;
+        bool Button(TrainTheme theme, string label, float min, float ideal)
+        {
+            float width = MathF.Floor(min + Math.Max(0, ideal * scale - min) * fraction);
+            if (!first && ImGui.GetItemRectMax().X + spacing + width <= right + .5f)
+                ImGui.SameLine();
+            first = false;
+            return theme.Button(label, new Vector2(width, height));
+        }
+
+        var world = _trainManager.SelectedWorldId;
+        if (!_isS && Button(new TrainTheme(TrainButtonTone.Accent), finder, finderMin, 88))
+            NativeDispatch(new(NativeTrainAction.Finder, world));
+        if (Button(neutral, "宏", macroMin, 54)) _openMacros?.Invoke();
+        if (Button(neutral, "原生窗口", nativeMin, 88))
+        {
+            _config.UseNativeHuntWindows = true;
+            _config.Save();
+        }
+        if (Button(neutral, otherRank, otherMin, 86)) _openOther?.Invoke();
+        ImGui.PopStyleVar();
+
+        ImGui.TableSetColumnIndex(1);
+        ImGui.SetCursorPosX(ImGui.GetCursorPosX() + spacing);
+        ImGui.PushFont(UiBuilder.IconFont);
+        var settingsClicked = neutral.Button(FontAwesomeIcon.Cog.ToIconString() + "###CompactTrainSettings", new Vector2(height + 6 * scale, height));
+        ImGui.PopFont();
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip("设置");
+        if (settingsClicked) NativeDispatch(new(NativeTrainAction.Settings, world));
+        ImGui.EndTable();
+        ImGui.PopStyleVar();
     }
 
     private void DrawCompactRows(float scale)
     {
         var visible = VisibleIndices; var mobs = visible.Select(i => _mobList[i]).ToList();
         var missing = _settings.HuntTrainShowMissingRoster && _rosterSnapshot != null ? _rosterSnapshot.Missing : Array.Empty<HuntRosterSlot>();
-        bool showStatus = _trainManager.ActionError != null || _trainActionMessage.Length > 0 || _automation.CrystalTravelStatus.Length > 0;
+        bool showStatus = _trainManager.ActionError != null || _trainActionMessage.Length > 0 || _automation.CrystalTravelStatus.Length > 0 || _trainManager.PersistenceError != null;
         float footerHeight = CompactTrainToolbar.Height(scale) + (showStatus ? 60 : 38) * scale;
         float height = Math.Max(42 * scale, ImGui.GetContentRegionAvail().Y - footerHeight);
         if (visible.Count == 0 && missing.Count == 0)
@@ -106,12 +159,13 @@ public partial class HuntTrainUI
         bool showLocation = _settings.CompactShowLocationColumn;
         float? locationWidth = showLocation ? _compactLocationColumn.Width(_settings.CompactLocationColumnWidth) : null;
         int actionColumn = showLocation ? 4 : 2;
-        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 3) * scale);
+        ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(3, 3) * scale);
+        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(4, 5) * scale);
         if (!CompactTrainTable.Begin(height, columnWidth, locationWidth, scale, visible.Count + missing.Count))
         {
             _compactColumn.Cancel();
             _compactLocationColumn.Cancel();
-            ImGui.PopStyleVar();
+            ImGui.PopStyleVar(2);
             return;
         }
         ImGui.TableNextRow(ImGuiTableRowFlags.Headers);
@@ -209,7 +263,7 @@ public partial class HuntTrainUI
             }
         }
         var reordered = _rowDrag.Finish(scale); ImGui.EndTable();
-        ImGui.PopStyleVar();
+        ImGui.PopStyleVar(2);
         if (CompactTrainTable.LocationToggleRequested(openColumns, showLocation))
         {
             _settings.CompactShowLocationColumn = !showLocation;

@@ -9,6 +9,8 @@ internal static class WindowResizeChecks
     private static Vector2 _resetMin, _resetMax;
     private static float _scale = 1;
     private static bool _visible = true;
+    private static bool _showSizeControls;
+    private static bool _applyBounds;
 
     public static void Run()
     {
@@ -25,13 +27,15 @@ internal static class WindowResizeChecks
         Console.WriteLine("PASS Compact minimum preserves usable width and height");
 
         var io = ImGui.GetIO();
-        Frame(); // Let the new compact layout settle before locating its controls.
+        _showSizeControls = true;
+        Frame(); Frame();
         var button = (_resetMin + _resetMax) / 2;
         io.AddMousePosEvent(button.X, button.Y); Frame();
         io.AddMouseButtonEvent(0, true); Frame();
         io.AddMouseButtonEvent(0, false); Frame(); Frame();
         Require(Vector2.Distance(_size, new Vector2(520, 300)) < 3, $"Default-size control failed: {_size}");
-        Console.WriteLine("PASS Real Restore default size control recovers a compact window");
+        Console.WriteLine("PASS Restoring size from a separate settings panel resizes the train window");
+        _showSizeControls = false;
 
         _scale = 1.5f; Frame(); Frame();
         Require(_size.X >= 360 && _size.Y >= 240 && _size.X < 930 && _size.Y <= 376,
@@ -48,13 +52,25 @@ internal static class WindowResizeChecks
     private static void Frame()
     {
         ImGui.NewFrame();
-        if (HuntTrainWindowLayout.Begin("TrainWindowResizeTest", ref _visible, _size, _position, _scale))
+        if (HuntTrainWindowLayout.Begin("TrainWindowResizeTest", ref _visible, _size, _position, _scale, _applyBounds))
         {
-            HuntTrainWindowLayout.DrawSizeControls(_scale);
-            _resetMin = ImGui.GetItemRectMin(); _resetMax = ImGui.GetItemRectMax();
             _size = ImGui.GetWindowSize(); _position = ImGui.GetWindowPos();
         }
+        _applyBounds = false;
         HuntTrainWindowLayout.End();
+        if (_showSizeControls)
+        {
+            ImGui.SetNextWindowPos(new(430, 8));
+            ImGui.SetNextWindowSize(new(440, 180));
+            if (ImGui.Begin("TrainWindowResizeSettingsTest"))
+            {
+                _applyBounds = HuntTrainWindowLayout.DrawSizeControls(_scale, ref _size, ref _position);
+                _resetMin = ImGui.GetItemRectMin();
+                _resetMax = ImGui.GetItemRectMax();
+                Require(ImGui.GetWindowSize() == new Vector2(440, 180), "Settings must keep its own dimensions");
+            }
+            ImGui.End();
+        }
         ImGui.Render();
     }
 

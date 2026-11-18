@@ -108,7 +108,9 @@ internal static class RecoveryChecks
     {
         var old=JsonConvert.DeserializeObject<HuntTrainMob>("{\"Name\":\"旧怪\",\"MobID\":1,\"TerritoryID\":134,\"MapID\":30,\"Position\":{\"X\":20,\"Y\":20},\"LastSeenUTC\":\"2026-10-24T10:00:00Z\"}")!;
         Check(old.Source==HuntRecordSource.Unknown && old.LastObservedUtc==null && old.SonarReceivedUtc==null);
-        Check(HuntRecordInfo.Describe(old).Contains("历史记录") && HuntRecordInfo.Describe(old).Contains("尚无确认时间"));
+        var tooltip = HuntRecordInfo.Describe(old);
+        Check(tooltip.Contains("历史记录") && tooltip.Contains("尚无确认时间") && tooltip.Contains("Sonar 接收"));
+        Check(!tooltip.Contains("导入时间") && !tooltip.Contains("兼容字段") && !tooltip.Contains("历史时间不推断"));
         Check(old.WithWorld(A).LastObservedUtc==null);
     }
     private static void ScanTimes()
