@@ -62,7 +62,7 @@ public partial class HuntTrainUI
             var teleportProblem = _automation.GetHuntTeleportProblem(mob);
             return new NativeTrainRow(NativeKey(mob), mob.TerritoryID, mob.Instance, MapHelpers.GetMapName(mob.TerritoryID),
                 mob.Name, false, mob.Dead, index == _selectedIndex, teleportProblem.Length == 0, reason.Length == 0,
-                reason, $"{mob.WorldName} · {MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n拖动怪物名称调整顺序",
+                reason, $"{mob.WorldName} · {MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n单击查看地图，拖动怪物名称调整顺序",
                 TeleportTooltip(mob, teleportProblem));
         }).ToList();
         if (rows.Count > 0 && _settings.HuntTrainShowMissingRoster && version is >= 2)
@@ -112,7 +112,7 @@ public partial class HuntTrainUI
                 if (uint.TryParse(request.Key, out var key)) _versions.Select(request.World, key == uint.MaxValue ? null : (int)key);
                 _trainActionMessage = ""; break;
             case NativeTrainAction.Select when mob != null:
-                _selectedIndex = index; _trainManager.SendTrainFlag(index, _openMap, _showInChat); break;
+                SelectRecordAndOpenMap(index); break;
             case NativeTrainAction.SelectOnly when mob != null: _selectedIndex = index; break;
             case NativeTrainAction.Map when mob != null: _trainManager.OpenMap(mob, true); break;
             case NativeTrainAction.Teleport when mob != null: TeleportRecord(mob, _openMap); break;

@@ -179,7 +179,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
         item.Name.OnClick = () => {
             if (Environment.TickCount64 < suppressClickUntil) return;
             if (item.Header && item.GroupKey != null) { if (!collapsed.Add(item.GroupKey)) collapsed.Remove(item.GroupKey); Layout(); }
-            // Real rows are selected by the release gesture; headers only expand/collapse.
+            // Real rows open their map pin on a release click; headers expand or collapse.
         };
         item.Teleport.OnClick = () => { if (item.Row != null) Send(NativeTrainAction.Teleport, item.Row.Key); };
         item.Move.OnClick = () => { if (item.Row != null) Send(NativeTrainAction.Move, item.Row.Key); };
@@ -399,7 +399,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
             NativeDragGeometry.Contains(mouse, pressNode.ScreenPosition, pressNode.Size, nativeScale)))
         {
             if (dragKind == "world" && uint.TryParse(dragKey, out var world)) dispatch(new(NativeTrainAction.World, world));
-            else dispatch(new(dragKind == "row" ? NativeTrainAction.SelectOnly : NativeTrainAction.Version, dragWorld, dragKey));
+            else dispatch(new(dragKind == "row" ? NativeTrainAction.Select : NativeTrainAction.Version, dragWorld, dragKey));
             return;
         }
         if (!press.Dragging) return;

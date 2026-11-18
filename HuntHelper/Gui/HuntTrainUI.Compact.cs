@@ -62,7 +62,11 @@ public partial class HuntTrainUI
                 if (ImGui.MenuItem("完整设置")) _nativeLegacy = true;
                 ImGui.EndPopup();
             }
-            DrawWorldTabs(false); ImGui.Separator(); DrawVersionTabs(false); ImGui.Separator();
+            ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 5) * scale);
+            DrawWorldTabs(false);
+            DrawVersionTabs(false);
+            ImGui.PopStyleVar();
+            ImGui.Separator();
             DrawCompactRows(scale);
             DrawCompactToolbar(scale);
             if (_trainManager.RecordTrain) ImGui.TextColored(TrainTheme.Color(ImGuiCol.CheckMark), "● 正在录制");
@@ -152,10 +156,10 @@ public partial class HuntTrainUI
             ImGui.SetCursorPosY(rowY + Math.Max(0, (buttonSize.Y - ImGui.GetTextLineHeight()) / 2));
             ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? mutedText : text);
             if (_rowDrag.Selectable(mob, mob.Name + " " + mob.Instance.GetInstanceGlyph(), _selectedIndex == index))
-                _selectedIndex = index;
+                SelectRecordAndOpenMap(index);
             ImGui.PopStyleColor();
             if (!_rowDrag.Dragging && ImGui.IsItemHovered())
-                ImGui.SetTooltip(MapHelpers.GetMapName(mob.TerritoryID) + "\n" + HuntRecordInfo.Describe(mob) + "\n拖动排序，右键查看更多操作");
+                ImGui.SetTooltip(MapHelpers.GetMapName(mob.TerritoryID) + "\n" + HuntRecordInfo.Describe(mob) + "\n单击查看地图，拖动排序，右键查看更多操作");
             if (ImGui.BeginPopupContextItem("CompactRowMenu"))
             {
                 if (ImGui.MenuItem("选择")) _selectedIndex = index;

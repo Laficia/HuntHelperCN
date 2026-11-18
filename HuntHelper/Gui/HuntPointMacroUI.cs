@@ -46,14 +46,12 @@ public sealed partial class HuntPointMacroUI
         ImGui.SetNextWindowSizeConstraints(new Vector2(300, 330), new Vector2(float.MaxValue));
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(14, 12) * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 6) * scale);
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .075f, .105f, .98f));
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.10f, .15f, .21f, 1));
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.10f, .15f, .21f, 1));
         if (ImGui.Begin("预设宏##HuntPointMacros", ref _open))
         {
-            if (ImGui.Button("变量说明", new Vector2(88, 28) * scale)) _showVariables = !_showVariables;
-            if (OpenNativeUi != null) { ImGui.SameLine(); if (ImGui.Button("原生窗口", new Vector2(88, 28) * scale)) OpenNativeUi(); }
-            if (_busy()) { if (ImGui.GetWindowContentRegionMax().X - ImGui.GetCursorPosX() - ImGui.GetItemRectSize().X >= 96 * scale) ImGui.SameLine(); if (ImGui.Button("取消发送", new Vector2(88, 28) * scale)) _cancel(); }
+            var neutral = new TrainTheme(TrainButtonTone.Neutral);
+            if (neutral.Button("变量说明", new Vector2(88, 28) * scale)) _showVariables = !_showVariables;
+            if (OpenNativeUi != null) { ImGui.SameLine(); if (neutral.Button("原生窗口", new Vector2(88, 28) * scale)) OpenNativeUi(); }
+            if (_busy()) { if (ImGui.GetWindowContentRegionMax().X - ImGui.GetCursorPosX() - ImGui.GetItemRectSize().X >= 96 * scale) ImGui.SameLine(); if (neutral.Button("取消发送", new Vector2(88, 28) * scale)) _cancel(); }
             ImGui.Separator();
             ItemBounds.Clear();
             var entries = _library.Entries;
@@ -73,7 +71,7 @@ public sealed partial class HuntPointMacroUI
         }
         else _drag.Cancel();
         ImGui.End();
-        ImGui.PopStyleColor(3); ImGui.PopStyleVar(2);
+        ImGui.PopStyleVar(2);
     }
 
     private void DrawCollection(float scale)
@@ -85,21 +83,18 @@ public sealed partial class HuntPointMacroUI
         var spacing = ImGui.GetStyle().ItemSpacing.X;
         var columns = Math.Max(1, (int)((available + spacing) / (145 * scale + spacing)));
         var width = Math.Min(175 * scale, (available - spacing * (columns - 1)) / columns);
+        var shortcutTheme = new TrainTheme(TrainButtonTone.Row);
         var n = 0;
         foreach (var id in _library.Collection.ToArray())
         {
             var entry = _library.Find(id); if (entry == null) continue;
             if (n++ % columns != 0) ImGui.SameLine();
-            ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.13f, .18f, .25f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.19f, .3f, .43f, 1));
-            ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.23f, .41f, .62f, 1));
-            var clicked = ImGui.Button($"##MacroCollection-{id}", new Vector2(width, 28 * scale));
-            ImGui.PopStyleColor(3);
+            var clicked = shortcutTheme.Button($"##MacroCollection-{id}", new Vector2(width, 28 * scale));
             Remember("collection:" + id); _drag.Register(id, true);
             var min = ImGui.GetItemRectMin(); var max = ImGui.GetItemRectMax();
             var draw = ImGui.GetWindowDrawList();
             draw.AddText(min + new Vector2(9, 6) * scale, ImGui.GetColorU32(ImGuiCol.TextDisabled), "::");
-            draw.AddText(min + new Vector2(24, 6) * scale, ImGui.GetColorU32(ImGuiCol.Text), Fit(entry.Name, width - 46 * scale));
+            draw.AddText(min + new Vector2(24, 6) * scale, shortcutTheme.LabelColor, Fit(entry.Name, width - 46 * scale));
             draw.AddText(new(max.X - 17 * scale, min.Y + 6 * scale), ImGui.GetColorU32(ImGuiCol.TextDisabled), ">");
             if (clicked && !_drag.SuppressClick)
             {
@@ -130,6 +125,8 @@ public sealed partial class HuntPointMacroUI
     {
         var startX = ImGui.GetCursorPosX();
         var right = ImGui.GetWindowContentRegionMax().X;
+        var accent = new TrainTheme(TrainButtonTone.Accent);
+        var neutral = new TrainTheme(TrainButtonTone.Neutral);
         var first = true;
         foreach (var entry in entries)
         {
@@ -137,11 +134,9 @@ public sealed partial class HuntPointMacroUI
             if (!first && ImGui.GetCursorPosX() + ImGui.GetItemRectSize().X + width + ImGui.GetStyle().ItemSpacing.X <= right)
                 ImGui.SameLine();
             else if (!first) ImGui.SetCursorPosX(startX);
-            var selected = entry.Id == _selected;
-            ImGui.PushStyleColor(ImGuiCol.Button, ImGui.GetColorU32(selected ? ImGuiCol.ButtonActive : ImGuiCol.Button));
-            var clicked = ImGui.Button(Fit(entry.Tab, width - ImGui.GetStyle().FramePadding.X * 2) + "###MacroPage-" + entry.Id,
+            var theme = entry.Id == _selected ? accent : neutral;
+            var clicked = theme.Button(Fit(entry.Tab, width - ImGui.GetStyle().FramePadding.X * 2) + "###MacroPage-" + entry.Id,
                 new Vector2(width, 28 * scale));
-            ImGui.PopStyleColor();
             Remember("tab:" + entry.Id); _drag.Register(entry.Id, false);
             if (clicked && !_drag.SuppressClick) _selected = entry.Id;
             if (ImGui.BeginPopupContextItem("MacroPageMenu-" + entry.Id))
@@ -155,7 +150,7 @@ public sealed partial class HuntPointMacroUI
         }
         var addWidth = ImGui.CalcTextSize("+").X + ImGui.GetStyle().FramePadding.X * 2;
         if (ImGui.GetCursorPosX() + ImGui.GetItemRectSize().X + addWidth + ImGui.GetStyle().ItemSpacing.X <= right) ImGui.SameLine();
-        if (ImGui.Button("+##AddMacroPage", new Vector2(28, 28) * scale)) { _selected = _library.Add().Id; _save(); _drag.Cancel(); _status = "已新增自定义宏"; }
+        if (neutral.Button("+##AddMacroPage", new Vector2(28, 28) * scale)) { _selected = _library.Add().Id; _save(); _drag.Cancel(); _status = "已新增自定义宏"; }
         Remember("add");
     }
 
@@ -181,7 +176,8 @@ public sealed partial class HuntPointMacroUI
             MutedWrapped("游戏命令：/ac /target /mount /mk /countdown /readycheck\n/wait 2 等待2秒；<pos> 玩家位置，<flag> 记录点位");
             if (ImGui.IsItemHovered()) ImGui.SetTooltip("普通游戏命令交由游戏解析。/micon、/merror、/mlock 等需要宏栏上下文，当前预设宏会在发送前提示；不直接当作聊天发送。");
         }
-        if (ImGui.Button("保存宏", new Vector2(88, 28) * scale))
+        var accent = new TrainTheme(TrainButtonTone.Accent);
+        if (accent.Button("保存宏", new Vector2(88, 28) * scale))
         {
             if (_library.Save(entry.Id, name, text)) _save();
             _drafts.Remove(entry.Id); _status = "已保存「" + _library.Find(entry.Id)!.Name + "」";
@@ -200,14 +196,14 @@ public sealed partial class HuntPointMacroUI
         if (ImGui.BeginPopupModal("删除自定义宏##ConfirmMacroDelete", ImGuiWindowFlags.AlwaysAutoResize))
         {
             ImGui.TextUnformatted("删除「" + _library.Find(_delete)?.Name + "」及其集合按钮？");
-            if (ImGui.Button("删除"))
+            if (new TrainTheme(TrainButtonTone.Accent).Button("删除"))
             {
                 if (_library.Delete(_delete)) _save();
                 _drafts.Remove(_delete); if (_selected == _delete) _selected = "a";
                 _delete = null; _drag.Cancel(); ImGui.CloseCurrentPopup();
             }
             ImGui.SameLine();
-            if (ImGui.Button("取消")) { _delete = null; ImGui.CloseCurrentPopup(); }
+            if (new TrainTheme(TrainButtonTone.Neutral).Button("取消")) { _delete = null; ImGui.CloseCurrentPopup(); }
             ImGui.EndPopup();
         }
     }

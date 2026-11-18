@@ -97,12 +97,6 @@ public sealed class HuntFinderPreviewUI
         ImGui.SetNextWindowPos(viewport.WorkPos + new Vector2(18, 24) * scale, ImGuiCond.FirstUseEver);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, minimum);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowRounding, 7 * scale);
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .075f, .105f, .97f));
-        ImGui.PushStyleColor(ImGuiCol.TitleBg, new Vector4(.075f, .105f, .145f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.10f, .16f, .21f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new Vector4(.38f, .70f, .85f, .5f));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, Cyan);
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, Cyan);
         try
         {
             var expanded = ImGui.Begin(WindowTitle, ImGuiWindowFlags.NoScrollbar |
@@ -120,21 +114,21 @@ public sealed class HuntFinderPreviewUI
             }
             finally { ImGui.End(); }
         }
-        finally { ImGui.PopStyleColor(6); ImGui.PopStyleVar(2); }
+        finally { ImGui.PopStyleVar(2); }
     }
 
     private void DrawContents(DRPatrolPreview preview, ImTextureID? texture, float scale)
     {
         var location = $"{preview.MapName} · {preview.WorldName}" + (preview.Instance > 0 ? $" · {preview.Instance}线" : "");
-        ImGui.TextColored(new Vector4(.89f, .94f, .98f, 1), Fit(location, ImGui.GetContentRegionAvail().X));
+        ImGui.TextUnformatted(Fit(location, ImGui.GetContentRegionAvail().X));
         if (ImGui.IsItemHovered()) ImGui.SetTooltip(location);
         var completed = preview.Points.Count(point => point.Covered || point.Passed);
         PatrolledPointCount = completed;
-        ImGui.TextColored(new Vector4(.62f, .73f, .80f, 1), $"已巡查 {completed}/{preview.Points.Count}  ·  A怪 {preview.FoundA}");
+        ImGui.TextDisabled($"已巡查 {completed}/{preview.Points.Count}  ·  A怪 {preview.FoundA}");
         var progressStart = ImGui.GetCursorScreenPos();
         var progressWidth = Math.Max(1, ImGui.GetContentRegionAvail().X);
         var draw = ImGui.GetWindowDrawList();
-        draw.AddRectFilled(progressStart, progressStart + new Vector2(progressWidth, 3 * scale), Color(new(.15f, .22f, .27f, 1)), 2 * scale);
+        draw.AddRectFilled(progressStart, progressStart + new Vector2(progressWidth, 3 * scale), ImGui.GetColorU32(ImGuiCol.FrameBg), 2 * scale);
         if (preview.Points.Count > 0 && completed > 0)
             draw.AddRectFilled(progressStart, progressStart + new Vector2(progressWidth * completed / preview.Points.Count, 3 * scale), Color(Covered), 2 * scale);
         ImGui.Dummy(new Vector2(0, 7 * scale));
@@ -165,14 +159,14 @@ public sealed class HuntFinderPreviewUI
         var status = StateLabel(preview.State);
         if (preview.PathStatus.Contains("终点距")) status += " · 路线未达目标";
         if (string.IsNullOrWhiteSpace(status)) status = StateLabel(preview.State);
-        ImGui.TextColored(new Vector4(.60f, .69f, .76f, 1), Fit(status, ImGui.GetContentRegionAvail().X));
+        ImGui.TextDisabled(Fit(status, ImGui.GetContentRegionAvail().X));
         if (ImGui.IsItemHovered()) ImGui.SetTooltip($"{StateLabel(preview.State)}\n{preview.Status}\n{preview.PathStatus}");
     }
 
     private void DrawCanvas(DRPatrolPreview preview, ImTextureID? texture, float scale, ImDrawListPtr draw,
         Vector2 minimum, Vector2 maximum, float side)
     {
-        draw.AddRectFilled(minimum, maximum, Color(new(.075f, .10f, .13f, 1)));
+        draw.AddRectFilled(minimum, maximum, ImGui.GetColorU32(ImGuiCol.FrameBg));
         draw.PushClipRect(minimum, maximum, true);
         try
         {
@@ -180,14 +174,14 @@ public sealed class HuntFinderPreviewUI
                 draw.AddImage(image, minimum, maximum, Vector2.Zero, Vector2.One, Color(new(.94f, .97f, 1, .94f)));
             else
             {
-                var grid = Color(new(.24f, .35f, .40f, .32f));
+                var grid = ImGui.GetColorU32(ImGuiCol.Separator);
                 for (var index = 1; index < 8; index++)
                 {
                     var offset = side * index / 8;
                     draw.AddLine(minimum + new Vector2(offset, 0), minimum + new Vector2(offset, side), grid);
                     draw.AddLine(minimum + new Vector2(0, offset), minimum + new Vector2(side, offset), grid);
                 }
-                draw.AddText(minimum + new Vector2(9 * scale), Color(new(.60f, .70f, .76f, 1)), "底图加载中");
+                draw.AddText(minimum + new Vector2(9 * scale), ImGui.GetColorU32(ImGuiCol.TextDisabled), "底图加载中");
             }
             bool Project(Vector3 point, out Vector2 projected) => HuntFinderPreviewProjection.TryProject(point, preview.MapScale, minimum, side, out projected);
             if (Project(preview.Player, out var player))
@@ -236,7 +230,7 @@ public sealed class HuntFinderPreviewUI
             }
         }
         finally { draw.PopClipRect(); }
-        draw.AddRect(minimum, maximum, Color(new(.27f, .40f, .47f, .8f)), 0, ImDrawFlags.None, 1 * scale);
+        draw.AddRect(minimum, maximum, ImGui.GetColorU32(ImGuiCol.Border), 0, ImDrawFlags.None, 1 * scale);
     }
 
     private static void Legend(Vector4 color, string text, float scale)

@@ -20,16 +20,15 @@ public sealed partial class HuntFinderUI
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(14, 12) * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 6) * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4 * scale);
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .075f, .105f, .98f));
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.10f, .15f, .21f, 1));
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.10f, .15f, .21f, 1));
         if (ImGui.Begin("A 怪找怪##HuntFinder", ref _open, ImGuiWindowFlags.NoScrollbar | ImGuiWindowFlags.NoScrollWithMouse))
         {
+            var accent = new TrainTheme(TrainButtonTone.Accent);
+            var neutral = new TrainTheme(TrainButtonTone.Neutral);
             var start = false;
-            if (ImGui.Button(_automation.Session.Active ? "停止找怪" : "开始找怪", new Vector2(96, 28) * scale))
+            if (accent.Button(_automation.Session.Active ? "停止找怪" : "开始找怪", new Vector2(96, 28) * scale))
             { if (_automation.Session.Active) _automation.Session.Stop(); else start = true; }
-            ImGui.SameLine(); if (ImGui.Button("设置", new Vector2(64, 28) * scale)) _compactOptions = !_compactOptions;
-            if (OpenNativeUi != null) { ImGui.SameLine(); if (ImGui.Button("原生窗口", new Vector2(88, 28) * scale)) OpenNativeUi(); }
+            ImGui.SameLine(); if (neutral.Button("设置", new Vector2(64, 28) * scale)) _compactOptions = !_compactOptions;
+            if (OpenNativeUi != null) { ImGui.SameLine(); if (neutral.Button("原生窗口", new Vector2(88, 28) * scale)) OpenNativeUi(); }
             ImGui.Separator();
             if (ImGui.BeginChild("FinderSettings", new Vector2(0, -30 * scale), false)) DrawCompactFinder(scale);
             ImGui.EndChild();
@@ -39,7 +38,7 @@ public sealed partial class HuntFinderUI
             ImGui.TextUnformatted(status);
             if (ImGui.IsItemHovered()) ImGui.SetTooltip(status);
         }
-        ImGui.End(); ImGui.PopStyleColor(3); ImGui.PopStyleVar(3);
+        ImGui.End(); ImGui.PopStyleVar(3);
     }
 
     private void DrawCompactFinder(float scale)
@@ -64,8 +63,9 @@ public sealed partial class HuntFinderUI
             ImGui.EndCombo();
         }
         var visible = maps.Where(m => _expansion < 0 || m.Expansion == _expansion).ToList();
-        if (ImGui.Button("全选本版本", new Vector2(100, 28) * scale)) foreach (var map in visible) _selectedMaps.Add(map.TerritoryId);
-        ImGui.SameLine(); if (ImGui.Button("清空", new Vector2(60, 28) * scale)) _selectedMaps.Clear();
+        var neutral = new TrainTheme(TrainButtonTone.Neutral);
+        if (neutral.Button("全选本版本", new Vector2(100, 28) * scale)) foreach (var map in visible) _selectedMaps.Add(map.TerritoryId);
+        ImGui.SameLine(); if (neutral.Button("清空", new Vector2(60, 28) * scale)) _selectedMaps.Clear();
         ImGui.SameLine(); ImGui.TextDisabled($"已选 {_selectedMaps.Count} 张");
         var height = Math.Clamp(ImGui.GetContentRegionAvail().Y - 8 * scale, 120 * scale, 240 * scale);
         if (ImGui.BeginChild("FinderMaps", new Vector2(0, height), true))

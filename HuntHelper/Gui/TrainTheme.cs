@@ -22,6 +22,7 @@ internal readonly struct TrainTheme
     }
 
     internal static unsafe Vector4 Color(ImGuiCol color) => *ImGui.GetStyleColorVec4(color);
+    internal uint LabelColor => ImGui.GetColorU32(text);
 
     internal static uint DragColor(float alpha)
     {

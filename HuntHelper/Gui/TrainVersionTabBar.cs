@@ -25,19 +25,17 @@ public sealed class TrainVersionTabBar
         var byId = groups.ToDictionary(g => Key(g.Version));
         var orderChanged = WorldTabOrder.Synchronize(order, groups.Select(g => Key(g.Version)));
         if (groups.Count == 0) { _drag.EndFrame(); return result with { OrderChanged = orderChanged }; }
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 6 * scale);
-        ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(11, 5) * scale);
-        var height = ImGui.GetFrameHeight() + ImGui.GetStyle().ScrollbarSize + 4 * scale;
-        if (ImGui.BeginChild("TrainVersionTabs", new Vector2(0, height), false, ImGuiWindowFlags.HorizontalScrollbar))
+        if (TrainTabStrip.Begin("TrainVersionTabs", groups.Select(g => g.DisplayLabel), scale, out var height))
         {
             var accent = new TrainTheme(TrainButtonTone.Accent);
             var neutral = new TrainTheme(TrainButtonTone.Neutral);
             foreach (var id in order.ToArray())
             {
                 var group = byId[id];
+                var label = group.DisplayLabel;
                 if (_bounds.Count > 0) ImGui.SameLine();
                 var theme = group.Version == selected ? accent : neutral;
-                var clicked = theme.Button($"{group.DisplayLabel}###Version{group.Version?.ToString() ?? "All"}");
+                var clicked = theme.Button($"{label}###Version{group.Version?.ToString() ?? "All"}", new(TrainTabStrip.ButtonWidth(label), height));
                 _drag.RegisterItem(id);
                 if (clicked && !_drag.Dragging)
                     result = new TrainVersionTabAction(true, group.Version);
@@ -58,8 +56,7 @@ public sealed class TrainVersionTabBar
             }
             orderChanged |= _drag.Finish(order, _bounds.Select(b => (Key(b.Version), b.Min, b.Max)), scale);
         }
-        ImGui.EndChild();
-        ImGui.PopStyleVar(2);
+        TrainTabStrip.End();
         _drag.EndFrame();
         return result with { OrderChanged = orderChanged };
     }

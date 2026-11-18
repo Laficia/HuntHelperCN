@@ -190,12 +190,6 @@ public partial class HuntTrainUI : IDisposable
         ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(8, 8));
         ImGui.PushStyleVar(ImGuiStyleVar.ScrollbarSize, 10);
         ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(6, 4));
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .07f, .1f, .97f));
-        ImGui.PushStyleColor(ImGuiCol.TitleBg, new Vector4(.07f, .1f, .15f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.1f, .17f, .26f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TableHeaderBg, new Vector4(.11f, .16f, .23f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TableRowBg, new Vector4(.08f, .105f, .15f, .65f));
-        ImGui.PushStyleColor(ImGuiCol.TableRowBgAlt, new Vector4(.105f, .135f, .18f, .65f));
 
         if (HuntTrainWindowLayout.Begin(_isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
             ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, ImGuiHelpers.GlobalScale))
@@ -419,7 +413,6 @@ public partial class HuntTrainUI : IDisposable
 
         }
         HuntTrainWindowLayout.End();
-        ImGui.PopStyleColor(6);
         ImGui.PopStyleVar(3); // itemspacing,  scrollbar sizing, window padding
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) &&
             (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
@@ -624,11 +617,11 @@ public partial class HuntTrainUI : IDisposable
             ImGui.PushID(n);
             ImGui.TableNextRow();
             ImGui.TableNextColumn();
-            ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? _deadTextColour : Vector4.One);
+            ImGui.PushStyleColor(ImGuiCol.Text, TrainTheme.Color(mob.Dead ? ImGuiCol.TextDisabled : ImGuiCol.Text));
             if (_rowDrag.Selectable(mob, $"{mob.Name} {mob.Instance.GetInstanceGlyph()}", n == _selectedIndex))
             {
-                _selectedIndex = n;
-                _trainManager.SendTrainFlag(n, _openMap, _showInChat);
+                SelectRecordAndOpenMap(n);
+                _trainManager.SendTrainFlag(n, openMap: false, showInChat: _showInChat);
                 if (_teleportMe && CanTeleport(mob)) _teleportManager.TeleportToHunt(mob);
             }
             ImGui.PopStyleColor();
@@ -644,7 +637,11 @@ public partial class HuntTrainUI : IDisposable
             }
             ImGui.TableNextColumn();
             HuntRosterPresentation.Status(true, mob.Dead, ImGuiHelpers.GlobalScale);
-            if (_showMapName) { ImGui.TableNextColumn(); ImGui.TextUnformatted(MapHelpers.GetMapName(mob.TerritoryID)); }
+            if (_showMapName)
+            {
+                ImGui.TableNextColumn();
+                if (ImGui.Selectable(MapHelpers.GetMapName(mob.TerritoryID) + "##location")) _trainManager.OpenMap(mob, true);
+            }
             ImGui.TableNextColumn();
             if (_showTeleButtons)
             {
@@ -703,6 +700,12 @@ public partial class HuntTrainUI : IDisposable
     }
 
     private bool CanTeleport(HuntTrainMob mob) => mob.WorldID != 0 && mob.WorldID == _trainManager.CurrentWorldId;
+
+    private void SelectRecordAndOpenMap(int index)
+    {
+        _selectedIndex = index;
+        _trainManager.OpenMap(_mobList[index], true);
+    }
 
     private string TeleportTooltip(HuntTrainMob mob, string problem) => problem.Length != 0 ? problem :
         CanTeleport(mob) ? "传送至最近的已解锁水晶" : $"通过 DR 前往「{mob.WorldName}」，到服后传送至最近的已解锁水晶";
@@ -844,7 +847,7 @@ public partial class HuntTrainUI : IDisposable
                         ImGui.PushStyleColor(ImGuiCol.Text,
                             !_trainManager.ContainsMob(m)
                                 ? new Vector4(0.1647f, 1f, 0.647f, 1f) //greenish
-                                : new Vector4(0.51f, 0.51f, 0.51f, 1f)); //grey
+                                : TrainTheme.Color(ImGuiCol.TextDisabled));
                                                                          // : new Vector4(1f, 0.345f, 0.345f, 1f)); //redish
                         ImGui.TableNextColumn();
                         ImGui.TextUnformatted($"[{m.WorldName}] {m.Name}{m.Instance.GetInstanceGlyph()}");

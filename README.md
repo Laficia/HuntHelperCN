@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.28）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.29）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -10,6 +10,13 @@
 - 使用 `Dalamud.NET.Sdk/15.0.0`、`DalamudPackager/15.0.0` 和 `net10.0-windows`，平台为 x64。
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
+
+## 紧凑标签与地图标注（1.0.0.29）
+
+- 原版的服务器和版本标签各占一行，超出窗口宽度时独立横向滚动。
+- 原版预设宏、找怪、相关弹窗及 DR 路线预览随卫月主题切换。
+- 在 HHT 和 HHS 中点击怪物名称或地点可查看该记录的地图标注。按住怪物名称拖动时调整车序。
+
 
 ## 原版窗口跟随卫月主题（1.0.0.28）
 

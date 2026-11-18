@@ -12,7 +12,7 @@ public static class HuntRosterPresentation
 
     public static void Summary(string world, int version, int recorded, string rankLabel = "A")
     {
-        ImGui.TextColored(new Vector4(.84f, .91f, 1, 1), $"{world}  /  {version}{rankLabel}");
+        ImGui.TextUnformatted($"{world}  /  {version}{rankLabel}");
         ImGui.TextColored(FoundColor, $"已录入 {recorded}");
         ImGui.Spacing();
     }
@@ -20,7 +20,7 @@ public static class HuntRosterPresentation
     public static void Status(bool found, bool dead, float scale)
     {
         var text = found ? dead ? "已死亡" : "已发现" : "未发现";
-        var color = found ? dead ? new Vector4(.6f, .65f, .72f, 1) : FoundColor : MissingColor;
+        var color = found ? dead ? TrainTheme.Color(ImGuiCol.TextDisabled) : FoundColor : MissingColor;
         var background = new Vector4(color.X, color.Y, color.Z, .13f);
         var padding = new Vector2(5, 2) * scale;
         var position = ImGui.GetCursorScreenPos();

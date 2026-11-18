@@ -35,6 +35,7 @@
     <Compile Include="..\..\HuntHelper\Gui\CompactTrainTable.cs" Link="Production\CompactTrainTable.cs" />
     <Compile Include="..\..\HuntHelper\Gui\CompactTrainToolbar.cs" Link="Production\CompactTrainToolbar.cs" />
     <Compile Include="..\..\HuntHelper\Gui\TrainTheme.cs" Link="Production\TrainTheme.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\TrainTabStrip.cs" Link="Production\TrainTabStrip.cs" />
     <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainModel.cs" Link="Production\NativeTrainModel.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\WorldTabOrder.cs" Link="Production\WorldTabOrder.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\Models\HuntTrainWorld.cs" Link="Production\HuntTrainWorld.cs" />

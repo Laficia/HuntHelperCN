@@ -22,24 +22,22 @@ public sealed class WorldTabBar
         uint? selection = null;
         uint? deletion = null;
         var changed = WorldTabOrder.Synchronize(order, worlds.Select(w => w.WorldID));
-        var byId = worlds.ToDictionary(w => w.WorldID);
+        var labels = worlds.ToDictionary(w => w.WorldID, w => $"{w.WorldName} ({w.Count})");
         _bounds.Clear();
         if (worlds.Count == 0) { _drag.EndFrame(); return new(null, null, changed); }
 
         // Buttons avoid the native tab bar's cached display order. No drag/drop payload
         // is used, so ImGui cannot add its yellow drop target or floating preview.
-        ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4 * scale);
-        var height = ImGui.GetFrameHeight() + ImGui.GetStyle().ScrollbarSize + 4 * scale;
-        if (ImGui.BeginChild("HuntTrainServerTabs", new Vector2(0, height), false, ImGuiWindowFlags.HorizontalScrollbar))
+        if (TrainTabStrip.Begin("HuntTrainServerTabs", labels.Values, scale, out var height))
         {
             var accent = new TrainTheme(TrainButtonTone.Accent);
             var neutral = new TrainTheme(TrainButtonTone.Neutral);
             foreach (var worldId in order.ToArray())
             {
-                var world = byId[worldId];
+                var label = labels[worldId];
                 if (_bounds.Count != 0) ImGui.SameLine();
                 var theme = worldId == selected ? accent : neutral;
-                var clicked = theme.Button($"{world.WorldName} ({world.Count})###Server{worldId}");
+                var clicked = theme.Button($"{label}###Server{worldId}", new(TrainTabStrip.ButtonWidth(label), height));
                 var min = ImGui.GetItemRectMin();
                 var max = ImGui.GetItemRectMax();
                 _bounds.Add(new(worldId, min, max, ImGui.IsMouseHoveringRect(min, max)));
@@ -61,8 +59,7 @@ public sealed class WorldTabBar
 
             changed |= _drag.Finish(order, _bounds.Select(b => (b.WorldId, b.Min, b.Max)), scale);
         }
-        ImGui.EndChild();
-        ImGui.PopStyleVar();
+        TrainTabStrip.End();
         _drag.EndFrame();
         return new(selection, deletion, changed);
     }
