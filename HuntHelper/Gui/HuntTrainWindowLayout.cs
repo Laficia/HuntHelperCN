@@ -23,17 +23,12 @@ public static class HuntTrainWindowLayout
         ImGui.SetNextWindowSizeConstraints(MinimumSize(scale), MaximumSize(scale));
         ImGui.SetNextWindowPos(savedPosition, ImGuiCond.FirstUseEver);
         ImGui.PushStyleVar(ImGuiStyleVar.WindowMinSize, MinimumSize(scale));
-        // Make the native resize corner visible even if another theme hides resize grips.
-        ImGui.PushStyleColor(ImGuiCol.ResizeGrip, new Vector4(.35f, .60f, .85f, .60f));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripHovered, new Vector4(.40f, .70f, 1, .90f));
-        ImGui.PushStyleColor(ImGuiCol.ResizeGripActive, new Vector4(.45f, .75f, 1, 1));
         return ImGui.Begin(title, ref visible, ImGuiWindowFlags.None);
     }
 
     public static void End()
     {
         ImGui.End();
-        ImGui.PopStyleColor(3);
         ImGui.PopStyleVar();
     }
 

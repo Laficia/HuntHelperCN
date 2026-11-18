@@ -58,6 +58,7 @@ internal static unsafe class Program
             RowDragChecks.Run();
             CompactColumnChecks.Run();
             CompactToolbarChecks.Run();
+            TrainThemeChecks.Run();
             PointMacroUiChecks.Run();
             NativeMacroChecks.Run();
             if (args.Contains("--render-point-macros")) PointMacroUiChecks.RenderPreview();

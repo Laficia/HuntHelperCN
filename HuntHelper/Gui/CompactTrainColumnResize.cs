@@ -47,11 +47,11 @@ internal sealed class CompactTrainColumnResize(float defaultWidth = 120f)
         if (hovered && !pressedAt.HasValue) ImGui.SetTooltip($"长按左键并左右拖动，调整{columnName}列宽");
         var min = ImGui.GetItemRectMin();
         var max = ImGui.GetItemRectMax();
-        var color = new Vector4(.35f, .65f, 1f, previewWidth.HasValue || hovered ? .9f : .36f);
+        var color = TrainTheme.DragColor(previewWidth.HasValue || hovered ? .9f : .65f);
         var draw = ImGui.GetWindowDrawList();
         float x = (min.X + max.X) / 2;
-        draw.AddLine(new(x - 2 * scale, min.Y + 3 * scale), new(x - 2 * scale, max.Y - 3 * scale), ImGui.GetColorU32(color), scale);
-        draw.AddLine(new(x + 2 * scale, min.Y + 3 * scale), new(x + 2 * scale, max.Y - 3 * scale), ImGui.GetColorU32(color), scale);
+        draw.AddLine(new(x - 2 * scale, min.Y + 3 * scale), new(x - 2 * scale, max.Y - 3 * scale), color, scale);
+        draw.AddLine(new(x + 2 * scale, min.Y + 3 * scale), new(x + 2 * scale, max.Y - 3 * scale), color, scale);
         return changed;
     }
 

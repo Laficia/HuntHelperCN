@@ -48,11 +48,11 @@ internal sealed class HuntRowDragGesture<T> where T : class
             {
                 if (ReferenceEquals(source, target.Row) || !ImGui.IsMouseHoveringRect(target.Min, target.Max)) continue;
                 var after = ImGui.GetMousePos().Y >= (target.Min.Y + target.Max.Y) / 2;
-                var blue = ImGui.GetColorU32(new Vector4(.35f, .65f, 1f, .65f));
+                var cue = TrainTheme.DragColor(.65f);
                 var draw = ImGui.GetWindowDrawList();
-                draw.AddRect(target.Min, target.Max, blue, 4 * scale);
+                draw.AddRect(target.Min, target.Max, cue, 4 * scale);
                 var y = after ? target.Max.Y : target.Min.Y;
-                draw.AddLine(new(target.Min.X, y), new(target.Max.X, y), blue, 2 * scale);
+                draw.AddLine(new(target.Min.X, y), new(target.Max.X, y), cue, 2 * scale);
                 if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                 {
                     var order = _rows.ToList();

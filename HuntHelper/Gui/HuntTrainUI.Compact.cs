@@ -36,30 +36,22 @@ public partial class HuntTrainUI
         ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 4 * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(8, 5) * scale);
         ImGui.PushStyleVar(ImGuiStyleVar.CellPadding, new Vector2(4, 8) * scale);
-        ImGui.PushStyleColor(ImGuiCol.WindowBg, new Vector4(.055f, .075f, .105f, .98f));
-        ImGui.PushStyleColor(ImGuiCol.TitleBg, new Vector4(.075f, .11f, .16f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TitleBgActive, new Vector4(.10f, .15f, .21f, 1));
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.10f, .15f, .21f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.17f, .28f, .39f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.20f, .37f, .51f, 1));
-        ImGui.PushStyleColor(ImGuiCol.TableHeaderBg, new Vector4(.055f, .075f, .105f, 1));
-        ImGui.PushStyleColor(ImGuiCol.Header, new Vector4(.13f, .23f, .33f, .6f));
-        ImGui.PushStyleColor(ImGuiCol.HeaderHovered, new Vector4(.17f, .28f, .39f, .5f));
         if (HuntTrainWindowLayout.Begin(_isS ? "S怪记录##SRankWindow" : $"{GuiResources.HuntTrainGuiText["MainWindowTitle"]}##Window",
             ref _huntTrainWindowVisible, _huntTrainWindowSize, _huntTrainWindowPos, scale))
         {
             _huntTrainWindowSize = ImGui.GetWindowSize(); _huntTrainWindowPos = ImGui.GetWindowPos();
+            var neutral = new TrainTheme(TrainButtonTone.Neutral);
             if (!_isS)
             {
-                ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.17f, .35f, .50f, 1));
-                if (ImGui.Button(_patrolActive() ? "停止找怪" : "找怪", new Vector2(88, 28) * scale)) { if (_patrolActive()) _stopPatrol(); else _openFinder(); }
-                ImGui.PopStyleColor(); ImGui.SameLine();
+                var accent = new TrainTheme(TrainButtonTone.Accent);
+                if (accent.Button(_patrolActive() ? "停止找怪" : "找怪", new Vector2(88, 28) * scale)) { if (_patrolActive()) _stopPatrol(); else _openFinder(); }
+                ImGui.SameLine();
             }
-            if (ImGui.Button("宏", new Vector2(54, 28) * scale)) _openMacros?.Invoke();
-            if (ImGui.GetContentRegionAvail().X >= 100 * scale) { ImGui.SameLine(); if (ImGui.Button("原生窗口", new Vector2(88, 28) * scale)) { _config.UseNativeHuntWindows = true; _config.Save(); } }
+            if (neutral.Button("宏", new Vector2(54, 28) * scale)) _openMacros?.Invoke();
+            if (ImGui.GetContentRegionAvail().X >= 100 * scale) { ImGui.SameLine(); if (neutral.Button("原生窗口", new Vector2(88, 28) * scale)) { _config.UseNativeHuntWindows = true; _config.Save(); } }
             ImGui.SameLine();
             if (ImGui.GetContentRegionAvail().X > 50 * scale) ImGui.SetCursorPosX(ImGui.GetWindowContentRegionMax().X - 42 * scale);
-            if (ImGui.Button("...", new Vector2(42, 28) * scale)) ImGui.OpenPopup("CompactTrainMore");
+            if (neutral.Button("...", new Vector2(42, 28) * scale)) ImGui.OpenPopup("CompactTrainMore");
             if (ImGui.BeginPopup("CompactTrainMore"))
             {
                 if (ImGui.MenuItem("原生窗口")) { _config.UseNativeHuntWindows = true; _config.Save(); }
@@ -73,8 +65,8 @@ public partial class HuntTrainUI
             DrawWorldTabs(false); ImGui.Separator(); DrawVersionTabs(false); ImGui.Separator();
             DrawCompactRows(scale);
             DrawCompactToolbar(scale);
-            var color = _trainManager.RecordTrain ? new Vector4(.3f, .8f, .76f, 1) : new Vector4(.57f, .66f, .75f, 1);
-            ImGui.TextColored(color, _trainManager.RecordTrain ? "● 正在录制" : "○ 录制关闭");
+            if (_trainManager.RecordTrain) ImGui.TextColored(TrainTheme.Color(ImGuiCol.CheckMark), "● 正在录制");
+            else ImGui.TextDisabled("○ 录制关闭");
             if (ImGui.IsItemHovered()) ImGui.SetTooltip($"当前区服：{_trainManager.GetCurrentWorld().WorldName}\n已录入 {VisibleMobs.Count} 条\n{_relayStatus?.Invoke()}\n{_navigation.LastMessage}\n{_macros?.Status}");
             var mode = _config.HuntFinderRouteMode == Managers.Automation.PatrolRouteMode.DRCoverage ? "DR 巡航" : "预设点位";
             if (ImGui.GetWindowContentRegionMax().X - ImGui.GetCursorPosX() > 170 * scale)
@@ -83,7 +75,7 @@ public partial class HuntTrainUI
             if (message.Length > 0) ImGui.TextWrapped(message);
         }
         else { _compactColumn.Cancel(); _compactLocationColumn.Cancel(); _compactToolbar.Cancel(); }
-        HuntTrainWindowLayout.End(); ImGui.PopStyleColor(9); ImGui.PopStyleVar(5);
+        HuntTrainWindowLayout.End(); ImGui.PopStyleVar(5);
         if (!_nativeLegacy) DrawNativeDialogs();
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left) && (_huntTrainWindowSize != _savedWindowSize || _huntTrainWindowPos != _savedWindowPos))
         { SaveSettings(); _config.Save(); _savedWindowSize = _huntTrainWindowSize; _savedWindowPos = _huntTrainWindowPos; }
@@ -142,6 +134,10 @@ public partial class HuntTrainUI
         }
         ImGui.TableSetColumnIndex(actionColumn);
         var buttonSize = CompactTrainTable.ActionButtonSize(scale);
+        var rowAction = new TrainTheme(TrainButtonTone.Row);
+        var text = TrainTheme.Color(ImGuiCol.Text);
+        var mutedText = TrainTheme.Color(ImGuiCol.TextDisabled);
+        var locationText = Vector4.Lerp(text, mutedText, .33f);
         ImGui.TableHeader("操作");
         openColumns |= ImGui.IsItemClicked(ImGuiMouseButton.Right);
         ImGui.TableSetColumnIndex(actionColumn + 1); ImGui.TableHeader("死亡");
@@ -154,7 +150,7 @@ public partial class HuntTrainUI
             ImGui.TableNextRow(ImGuiTableRowFlags.None, rowHeight); ImGui.TableSetColumnIndex(0);
             var rowY = ImGui.GetCursorPosY();
             ImGui.SetCursorPosY(rowY + Math.Max(0, (buttonSize.Y - ImGui.GetTextLineHeight()) / 2));
-            ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? new Vector4(.42f, .48f, .53f, 1) : new Vector4(.91f, .94f, .97f, 1));
+            ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? mutedText : text);
             if (_rowDrag.Selectable(mob, mob.Name + " " + mob.Instance.GetInstanceGlyph(), _selectedIndex == index))
                 _selectedIndex = index;
             ImGui.PopStyleColor();
@@ -174,7 +170,7 @@ public partial class HuntTrainUI
                 ImGui.TableSetColumnIndex(2);
                 ImGui.SetCursorPosY(rowY + Math.Max(0, (buttonSize.Y - ImGui.GetTextLineHeight()) / 2));
                 var map = MapHelpers.GetMapName(mob.TerritoryID);
-                ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? new Vector4(.42f, .48f, .53f, 1) : new Vector4(.66f, .75f, .85f, 1));
+                ImGui.PushStyleColor(ImGuiCol.Text, mob.Dead ? mutedText : locationText);
                 if (ImGui.Selectable(map + "##location")) _trainManager.OpenMap(mob, true);
                 ImGui.PopStyleColor();
                 openColumns |= ImGui.IsItemClicked(ImGuiMouseButton.Right);
@@ -182,14 +178,14 @@ public partial class HuntTrainUI
             }
             ImGui.TableSetColumnIndex(actionColumn);
             var teleportProblem = _automation.GetHuntTeleportProblem(mob);
-            if (DrawCompactAction("传送", buttonSize, teleportProblem.Length == 0, TeleportTooltip(mob, teleportProblem)))
+            if (DrawCompactAction(rowAction, "传送", buttonSize, teleportProblem.Length == 0, TeleportTooltip(mob, teleportProblem)))
                 TeleportRecord(mob, false);
             ImGui.SameLine();
             var reason = GetMoveProblem(mob);
-            if (DrawCompactAction("移动", buttonSize, reason.Length == 0, reason.Length == 0 ? "使用 vnavmesh 前往该点位" : reason))
+            if (DrawCompactAction(rowAction, "移动", buttonSize, reason.Length == 0, reason.Length == 0 ? "使用 vnavmesh 前往该点位" : reason))
                 _navigation.TryMoveTo(mob);
             ImGui.SameLine();
-            if (DrawCompactAction("坐标", buttonSize, !mob.Dead, "发送点位预设宏")) _macros?.Send(mob, _rankLabel);
+            if (DrawCompactAction(rowAction, "坐标", buttonSize, !mob.Dead, "发送点位预设宏")) _macros?.Send(mob, _rankLabel);
             ImGui.TableSetColumnIndex(actionColumn + 1);
             ImGui.SetCursorPosY(rowY + Math.Max(0, (buttonSize.Y - ImGui.GetFrameHeight()) / 2));
             var dead = mob.Dead;
@@ -223,12 +219,8 @@ public partial class HuntTrainUI
     private void DrawCompactToolbar(float scale)
     {
         ImGui.Separator();
-        ImGui.PushStyleColor(ImGuiCol.Button, new Vector4(.22f, .39f, .63f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonHovered, new Vector4(.29f, .49f, .74f, 1));
-        ImGui.PushStyleColor(ImGuiCol.ButtonActive, new Vector4(.19f, .34f, .55f, 1));
         var order = _settings.HuntTrainToolbarOrder ??= new();
         var clicked = _compactToolbar.Draw(order, scale, DrawCompactToolIcon, out var reordered);
-        ImGui.PopStyleColor(3);
         ImGui.Separator();
         if (reordered) _config.Save();
         if (clicked is not { } action) return;
@@ -249,20 +241,19 @@ public partial class HuntTrainUI
             NativeTrainAction.Export => (FontAwesomeIcon.SignOutAlt, "导出\n选择要复制到剪贴板的车序范围。"),
             _ => (FontAwesomeIcon.SignInAlt, "导入\n从剪贴板读取狩猎车序代码。"),
         };
+        var theme = new TrainTheme(TrainButtonTone.Accent);
         ImGui.PushFont(UiBuilder.IconFont);
-        var clicked = ImGui.Button($"{icon.ToIconString()}###CompactTrainTool{(uint)action}", size);
+        var clicked = theme.Button($"{icon.ToIconString()}###CompactTrainTool{(uint)action}", size);
         ImGui.PopFont();
         if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) ImGuiUtil.ImGui_HoveredToolTip(description);
         return clicked;
     }
 
-    private static bool DrawCompactAction(string label, Vector2 size, bool enabled, string hint)
+    private static bool DrawCompactAction(TrainTheme theme, string label, Vector2 size, bool enabled, string hint)
     {
-        ImGui.PushStyleColor(ImGuiCol.Button, enabled ? new Vector4(.16f, .29f, .42f, 1) : new Vector4(.10f, .15f, .21f, 1));
         ImGui.BeginDisabled(!enabled);
-        var clicked = ImGui.Button(label, size);
+        var clicked = theme.Button(label, size);
         ImGui.EndDisabled();
-        ImGui.PopStyleColor();
         if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled)) ImGui.SetTooltip(hint);
         return clicked;
     }

@@ -36,7 +36,7 @@ internal sealed class TabDragGesture(bool grabOnHold = false)
                 {
                     if (target.Id == source || !ImGui.IsMouseHoveringRect(target.Min, target.Max)) continue;
                     ImGui.GetWindowDrawList().AddRect(target.Min, target.Max,
-                        ImGui.GetColorU32(new Vector4(.35f, .65f, 1f, .65f)), 4 * scale);
+                        TrainTheme.DragColor(.65f), 4 * scale);
                     if (ImGui.IsMouseReleased(ImGuiMouseButton.Left))
                         changed |= WorldTabOrder.MoveRelative(order, source, target.Id,
                             ImGui.GetMousePos().X >= (target.Min.X + target.Max.X) / 2);

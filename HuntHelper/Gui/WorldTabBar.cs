@@ -32,14 +32,14 @@ public sealed class WorldTabBar
         var height = ImGui.GetFrameHeight() + ImGui.GetStyle().ScrollbarSize + 4 * scale;
         if (ImGui.BeginChild("HuntTrainServerTabs", new Vector2(0, height), false, ImGuiWindowFlags.HorizontalScrollbar))
         {
+            var accent = new TrainTheme(TrainButtonTone.Accent);
+            var neutral = new TrainTheme(TrainButtonTone.Neutral);
             foreach (var worldId in order.ToArray())
             {
                 var world = byId[worldId];
                 if (_bounds.Count != 0) ImGui.SameLine();
-                var color = ImGui.GetColorU32(worldId == selected ? ImGuiCol.ButtonActive : ImGuiCol.Button);
-                ImGui.PushStyleColor(ImGuiCol.Button, color);
-                var clicked = ImGui.Button($"{world.WorldName} ({world.Count})###Server{worldId}");
-                ImGui.PopStyleColor();
+                var theme = worldId == selected ? accent : neutral;
+                var clicked = theme.Button($"{world.WorldName} ({world.Count})###Server{worldId}");
                 var min = ImGui.GetItemRectMin();
                 var max = ImGui.GetItemRectMax();
                 _bounds.Add(new(worldId, min, max, ImGui.IsMouseHoveringRect(min, max)));
