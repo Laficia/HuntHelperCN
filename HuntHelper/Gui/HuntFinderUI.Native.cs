@@ -87,7 +87,7 @@ public sealed partial class HuntFinderUI
     {
         if (request.Key == "close") { _open = false; return; }
         if (request.Key == "settings") { _compactOptions = !_compactOptions; return; }
-        if (request.Key == "legacy") { _config.UseNativeHuntWindows = false; _config.Save(); return; }
+        if (request.Key == "legacy") { _config.SetNativeHuntWindows(false); return; }
         if (request.Key == "start") { if (_automation.Session.Active) _automation.Session.Stop(); else { RefreshNativeWorlds(); StartPatrol(); } return; }
         if (request.Key == "monitor") { _config.HuntDeathMonitoring = request.Value == "True"; _config.Save(); return; }
         if (_automation.Session.Active) return;

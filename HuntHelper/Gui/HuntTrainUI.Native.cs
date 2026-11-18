@@ -85,6 +85,12 @@ public partial class HuntTrainUI
     internal void NativeDispatch(NativeTrainRequest request)
     {
         if (request.Action == NativeTrainAction.Close) { CancelNativeClear(); _huntTrainWindowVisible = false; return; }
+        if (request.Action == NativeTrainAction.Legacy)
+        {
+            CancelNativeClear();
+            _config.SetNativeHuntWindows(false);
+            return;
+        }
         if (request.Action is NativeTrainAction.ConfirmClear or NativeTrainAction.CancelClear)
         {
             if (_nativeClearRecords == null || request.Key != _nativeClearToken) return;
@@ -99,9 +105,6 @@ public partial class HuntTrainUI
         var mob = index >= 0 ? _mobList[index] : null;
         switch (request.Action)
         {
-            case NativeTrainAction.Legacy:
-                CancelNativeClear();
-                _config.UseNativeHuntWindows = false; _config.Save(); break;
             case NativeTrainAction.Finder:
                 if (_patrolActive()) _stopPatrol(); else if (_navigation.OwnsMovement) _navigation.Stop(); else _openFinder();
                 break;

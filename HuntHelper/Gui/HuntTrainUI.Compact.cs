@@ -120,10 +120,7 @@ public partial class HuntTrainUI
             NativeDispatch(new(NativeTrainAction.Finder, world));
         if (Button(neutral, "宏", macroMin, 54)) _openMacros?.Invoke();
         if (Button(neutral, "原生窗口", nativeMin, 88))
-        {
-            _config.UseNativeHuntWindows = true;
-            _config.Save();
-        }
+            _config.SetNativeHuntWindows(true);
         if (Button(neutral, otherRank, otherMin, 86)) _openOther?.Invoke();
         ImGui.PopStyleVar();
 

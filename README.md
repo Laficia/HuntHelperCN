@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.30）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.31）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -10,6 +10,10 @@
 - 使用 `Dalamud.NET.Sdk/15.0.0`、`DalamudPackager/15.0.0` 和 `net10.0-windows`，平台为 x64。
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
+
+## 窗口风格记忆（1.0.0.31）
+
+首次安装默认使用原版窗口。原版和原生风格的切换会立即保存，关闭重开、重载和更新后继续使用上次的选择。
 
 ## 原版齿轮与窄窗布局（1.0.0.30）
 

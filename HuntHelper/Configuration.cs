@@ -12,7 +12,8 @@ namespace HuntHelper
     public class Configuration : HuntTrainSettings, IPluginConfiguration
     {
         public int Version { get; set; } = 0;
-        public bool UseNativeHuntWindows { get; set; } = true;
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool UseNativeHuntWindows { get; private set; }
         public Vector2 NativeFinderWindowSize { get; set; } = new(600, 540);
         public Vector2 NativeMacroWindowSize { get; set; } = new(640, 560);
         public Utilities.HuntPointMacroSettings PointMacros { get; set; } = new();
@@ -197,6 +198,13 @@ namespace HuntHelper
         public void Save()
         {
             this._pluginInterface!.SavePluginConfig(this);
+        }
+
+        internal void SetNativeHuntWindows(bool useNative)
+        {
+            if (UseNativeHuntWindows == useNative) return;
+            UseNativeHuntWindows = useNative;
+            Save();
         }
 
         public void SaveMainMapPreset(int windowSize, float windowOpacity, float mapOpacity, bool useMap, Vector2 winPos, int presetNumber)

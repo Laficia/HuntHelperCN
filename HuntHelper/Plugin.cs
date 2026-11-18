@@ -150,7 +150,7 @@ namespace HuntHelper
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, commandManager, SRankManager);
             HuntFinderUI = new HuntFinderUI(Automation, Configuration);
-            HuntFinderUI.OpenNativeUi = () => { Configuration.UseNativeHuntWindows = true; Configuration.Save(); };
+            HuntFinderUI.OpenNativeUi = () => Configuration.SetNativeHuntWindows(true);
             Configuration.PointMacros ??= new();
             if (Configuration.PointMacros.UpgradeLegacyDefaults()) Configuration.Save();
             PointMacros = new HuntPointMacroManager(Configuration, playerState, clientState, framework);
@@ -167,9 +167,8 @@ namespace HuntHelper
                 ()=>Automation.Session.Stop(),mob=>HuntManager.GetSRankVersion(mob.MobID),HuntManager.SRankRoster,
                 ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
                 ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true, PointMacros, () => PointMacroUI.Open("S"));
-            HuntTrainUI.NativePresentation = SRankUI.NativePresentation = true;
-            PointMacroUI.OpenNativeUi = () => { Configuration.UseNativeHuntWindows = true; Configuration.Save(); };
-            PointMacroUI.OpenLegacyUi = () => { Configuration.UseNativeHuntWindows = false; Configuration.Save(); };
+            PointMacroUI.OpenNativeUi = () => Configuration.SetNativeHuntWindows(true);
+            PointMacroUI.OpenLegacyUi = () => Configuration.SetNativeHuntWindows(false);
             NativeTrains = new NativeTrainRuntime(pluginInterface, framework, pluginLog,
                 Configuration.NativeTrainWindowSize, Configuration.SRankTrain.NativeTrainWindowSize,
                 Configuration.NativeFinderWindowSize, Configuration.NativeMacroWindowSize,
@@ -307,8 +306,14 @@ namespace HuntHelper
         {
             switch (args.Trim().ToLowerInvariant())
             {
-                case "native": Configuration.UseNativeHuntWindows = true; Configuration.Save(); HuntTrainUI.HuntTrainWindowVisible = true; break;
-                case "legacy": case "original": Configuration.UseNativeHuntWindows = false; Configuration.Save(); HuntTrainUI.HuntTrainWindowVisible = true; break;
+                case "native":
+                    Configuration.SetNativeHuntWindows(true);
+                    OpenHuntTrainUI();
+                    break;
+                case "legacy": case "original":
+                    Configuration.SetNativeHuntWindows(false);
+                    OpenHuntTrainUI();
+                    break;
                 case "finder": HuntFinderUI.Open(); break;
                 case "macro": PointMacroUI.Open("A"); break;
                 default: HuntTrainUI.HuntTrainWindowVisible = !HuntTrainUI.HuntTrainWindowVisible; break;

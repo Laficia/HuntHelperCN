@@ -61,6 +61,7 @@ internal static class Program
             ("invalid sharing leaves the supplied fallback intact", Sync(InvalidSharing)),
             ("navigation requires same world/map/instance", Sync(NavigationLocations)),
             ("navigation coordinate inverse and invalid inputs", Sync(NavigationCoordinates)),
+            ("hunt windows default to original and remember each style after config reload", Sync(HuntWindowStylePersistence)),
             ("legacy invisible map settings repair once without erasing preferences", Sync(MapVisibilityMigration)),
             ("map cache survives upgrades without replacing valid current images", Sync(MapCacheMigration)),
             ("server tab drag/menu order survives configuration reload", Sync(ServerTabOrder)),
@@ -436,6 +437,35 @@ internal static class Program
 
     // Transport fixtures satisfy the downloader's JPEG marker check; image decoding is outside this harness.
     private static readonly byte[] Jpeg = [0xff, 0xd8, 0xff, 0xe0, 0, 2, 0xff, 0xd9];
+
+    private static void HuntWindowStylePersistence()
+    {
+        True(!new Configuration().UseNativeHuntWindows);
+        True(!JsonConvert.DeserializeObject<Configuration>("{}")!.UseNativeHuntWindows);
+        True(JsonConvert.DeserializeObject<Configuration>("""{"UseNativeHuntWindows":true}""")!.UseNativeHuntWindows);
+        True(!JsonConvert.DeserializeObject<Configuration>("""{"UseNativeHuntWindows":false}""")!.UseNativeHuntWindows);
+
+        var store = new HuntWindowConfigStore();
+        var firstUse = new Configuration();
+        firstUse.Initialize(store);
+        firstUse.SetNativeHuntWindows(true);
+
+        var afterUpdate = JsonConvert.DeserializeObject<Configuration>(store.Json)!;
+        True(afterUpdate.UseNativeHuntWindows);
+        afterUpdate.Initialize(store);
+        afterUpdate.SetNativeHuntWindows(false);
+
+        Equal(false, Newtonsoft.Json.Linq.JObject.Parse(store.Json).Value<bool?>("UseNativeHuntWindows"));
+        True(!JsonConvert.DeserializeObject<Configuration>(store.Json)!.UseNativeHuntWindows);
+    }
+
+    private sealed class HuntWindowConfigStore : Dalamud.Plugin.IDalamudPluginInterface
+    {
+        public string Json { get; private set; } = "{}";
+
+        public void SavePluginConfig(Dalamud.Configuration.IPluginConfiguration config) =>
+            Json = JsonConvert.SerializeObject(config, new JsonSerializerSettings { DefaultValueHandling = DefaultValueHandling.Ignore });
+    }
 
     private static void MapVisibilityMigration()
     {
