@@ -51,11 +51,10 @@ public sealed class TrainVersionFilter
     public void Select(uint world, int? version) => _selectedByWorld[world] = version;
     public void Forget(uint world) => _selectedByWorld.Remove(world);
 
-    public List<int> VisibleIndices(uint world, IReadOnlyList<HuntTrainMob> records)
-    {
-        var selected = Selected(world, records);
-        return Enumerable.Range(0, records.Count).Where(i => selected == null || Category(records[i]) == selected).ToList();
-    }
+    public List<int> VisibleIndices(uint world, IReadOnlyList<HuntTrainMob> records) => IndicesForVersion(Selected(world, records), records);
+
+    public List<int> IndicesForVersion(int? version, IReadOnlyList<HuntTrainMob> records) =>
+        Enumerable.Range(0, records.Count).Where(i => version == null || Category(records[i]) == version).ToList();
 
     public static int Clamp(int selected, IReadOnlyList<int> visible) => visible.Contains(selected) ? selected : visible.FirstOrDefault(0);
 

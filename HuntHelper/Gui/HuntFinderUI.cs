@@ -47,6 +47,7 @@ public sealed partial class HuntFinderUI
 
     private void StartPatrol()
     {
+        if (_automation.CrystalTravelPending) { _feedback = _automation.CrystalTravelStatus; return; }
         var current = _automation.Context.Territory;
         var routes = _automation.GetMaps(_options.RouteMode).Where(m => _selectedMaps.Contains(m.TerritoryId))
             .OrderByDescending(m => m.TerritoryId == current).ThenBy(m => m.Expansion).ThenBy(m => m.TerritoryId);

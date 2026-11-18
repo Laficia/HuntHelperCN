@@ -44,6 +44,17 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     private IReadOnlyList<PatrolRoute>? _coverageMaps;
     public string CoverageDataError { get; private set; } = string.Empty;
     private readonly DRWorldTravel _worldTravel;
+    private readonly HuntCrystalTravel _crystalTravel;
+    private IReadOnlyDictionary<uint, HuntTrainWorld> _teleportWorlds = new Dictionary<uint, HuntTrainWorld>();
+    private uint _teleportCatalogWorld;
+    private long _retryTeleportCatalogAt;
+    private readonly Dictionary<uint, bool> _huntCrystalAvailability = new();
+    private readonly Dictionary<uint, string> _huntWorldAvailability = new();
+    private HashSet<uint> _huntUnlockedCrystals = new();
+    private uint _huntAvailabilityWorld;
+    private long _nextHuntAvailabilityRefresh;
+    public bool CrystalTravelPending => _crystalTravel.Busy;
+    public string CrystalTravelStatus => _crystalTravel.Status;
     public string WorldTravelError => _worldTravel.Error;
     public bool WorldTravelBusy => _worldTravel.Busy;
     public string WorldVisitProblem(HuntTrainWorld world) => _worldTravel.VisitProblem(world);
@@ -100,6 +111,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
             () => { var c = Context; return (c.World, c.LoggedIn && c.Ready); },
             () => _condition[ConditionFlag.WaitingToVisitOtherWorld] || _condition[ConditionFlag.ReadyingVisitOtherWorld],
             () => _trains.GetCurrentWorld().DataCenterName);
+        _crystalTravel = new(_worldTravel, SendHuntCrystal);
         _sTrains = sTrains;
         if (_sTrains != null) _sTrains.ManualDeadStateChanged += _sDeaths.ManualChange;
         Session = new(this);
@@ -253,6 +265,19 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         if (_disposed || Environment.TickCount64 < _nextTick) return;
         var now = Environment.TickCount64; _nextTick = now + 250;
+        if (_crystalTravel.Busy)
+        {
+            try
+            {
+                var context = Context;
+                _crystalTravel.Tick(context.World, context.LoggedIn && context.Ready, !context.InCombat && !context.Dead, now);
+            }
+            catch (Exception ex)
+            {
+                _crystalTravel.Cancel("跨服传送出现异常，请检查 DR 跨服状态");
+                PluginLog.Warning(ex, "Hunt crystal travel failed");
+            }
+        }
         try
         {
             if (Session.Active && _coverageRange.Active && (_coverageRange.ChangedExternally || ReadCoverageRange() != 2))
@@ -288,6 +313,114 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         return _data.GetExcelSheet<Aetheryte>().Where(a => a.Territory.RowId == territory && a.IsAetheryte && unlocked.Contains(a.RowId))
             .Select(a => new PatrolCrystal(a.RowId, a.PlaceName.ValueNullable?.Name.ToString() ?? $"水晶 {a.RowId}",
                 positions.TryGetValue(a.RowId, out var position) && position.X > 1 && position.Y > 1 ? position : null)).ToList();
+    }
+
+    public string GetHuntTeleportProblem(HuntTrainMob mob)
+    {
+        var problem = GetHuntTravelContextProblem(mob, out var currentWorld);
+        if (problem.Length != 0) return problem;
+
+        // Rendering multiple rows must share the same native aetheryte list and
+        // DR preflight. Recheck live state separately when a button is clicked.
+        var now = Environment.TickCount64;
+        if (currentWorld != _huntAvailabilityWorld || now >= _nextHuntAvailabilityRefresh)
+        {
+            _huntUnlockedCrystals = ReadUnlockedCrystals();
+            _huntCrystalAvailability.Clear();
+            _huntWorldAvailability.Clear();
+            _huntAvailabilityWorld = currentWorld;
+            _nextHuntAvailabilityRefresh = now + 1000;
+        }
+
+        if (!_huntCrystalAvailability.TryGetValue(mob.TerritoryID, out var hasCrystal))
+        {
+            hasCrystal = TeleportManager.GetPatrolCrystals(mob.TerritoryID).Any(a => _huntUnlockedCrystals.Contains(a.AetheryteID)) ||
+                         FindFallbackHuntCrystal(mob.TerritoryID, _huntUnlockedCrystals) != 0;
+            _huntCrystalAvailability[mob.TerritoryID] = hasCrystal;
+        }
+        if (!hasCrystal) return "该地图没有已解锁的可用水晶";
+        if (mob.WorldID == currentWorld) return string.Empty;
+
+        if (!_huntWorldAvailability.TryGetValue(mob.WorldID, out problem))
+            _huntWorldAvailability[mob.WorldID] = problem = GetHuntWorldProblem(currentWorld, mob.WorldID, out _);
+        return problem;
+    }
+
+    private string GetHuntTravelContextProblem(HuntTrainMob mob, out uint currentWorld)
+    {
+        currentWorld = 0;
+        if (mob.Dead) return "该怪物已标记死亡";
+        if (mob.WorldID == 0) return "该记录未标注服务器";
+        if (_crystalTravel.Busy) return _crystalTravel.Status;
+        if (Session.Active) return "请先停止找怪";
+        if (_navigation.OwnsMovement) return "请先停止移动";
+
+        var context = Context;
+        if (!context.LoggedIn || !context.Ready || context.InCombat || context.Dead || context.World == 0 || _worldTravel.Busy)
+            return "角色当前无法传送，请等待加载或当前操作完成";
+        currentWorld = context.World;
+        return string.Empty;
+    }
+
+    private HashSet<uint> ReadUnlockedCrystals() => _aetherytes.Select(a => a.AetheryteId).ToHashSet();
+
+    private uint FindFallbackHuntCrystal(uint territory, HashSet<uint> unlocked)
+    {
+        var sheet = _data.GetExcelSheet<Aetheryte>();
+        uint crystal = 0;
+        foreach (uint id in unlocked)
+        {
+            if ((crystal == 0 || id < crystal) && sheet.GetRowOrDefault(id) is { } row && row.IsAetheryte && row.Territory.RowId == territory)
+                crystal = id;
+        }
+        return crystal;
+    }
+
+    private string GetHuntWorldProblem(uint currentWorld, uint targetWorld, out HuntTrainWorld? destinationWorld)
+    {
+        destinationWorld = null;
+        if (currentWorld == targetWorld) return string.Empty;
+        if (_teleportCatalogWorld != currentWorld || _teleportWorlds.Count == 0 && Environment.TickCount64 >= _retryTeleportCatalogAt)
+        {
+            _teleportWorlds = MapHelpers.GetImportableWorlds(currentWorld).ToDictionary(world => world.WorldID);
+            _teleportCatalogWorld = currentWorld;
+            _retryTeleportCatalogAt = Environment.TickCount64 + 2000;
+        }
+        if (!_teleportWorlds.TryGetValue(targetWorld, out destinationWorld)) return "该记录的服务器无法访问";
+        return _worldTravel.VisitProblem(destinationWorld);
+    }
+
+    public bool TryHuntTeleport(HuntTrainMob mob, out string error)
+    {
+        error = GetHuntTravelContextProblem(mob, out var currentWorld);
+        if (error.Length != 0) return false;
+        var unlocked = ReadUnlockedCrystals();
+        var crystal = TeleportManager.GetPatrolCrystals(mob.TerritoryID)
+            .Where(a => unlocked.Contains(a.AetheryteID))
+            .OrderBy(a => Vector2.DistanceSquared(a.Position, mob.Position)).FirstOrDefault().AetheryteID;
+        if (crystal == 0) crystal = FindFallbackHuntCrystal(mob.TerritoryID, unlocked);
+        if (crystal == 0) { error = "该地图没有已解锁的可用水晶"; return false; }
+        error = GetHuntWorldProblem(currentWorld, mob.WorldID, out var destinationWorld);
+        if (error.Length != 0) return false;
+        var accepted = destinationWorld == null
+            ? _crystalTravel.Send(crystal, _trains.GetCurrentWorld().WorldName)
+            : _crystalTravel.Begin(destinationWorld, crystal, Environment.TickCount64);
+        if (!accepted) error = _crystalTravel.Status;
+        return accepted;
+    }
+
+    private unsafe bool SendHuntCrystal(uint crystal)
+    {
+        try
+        {
+            var telepo = Telepo.Instance();
+            return telepo != null && _aetherytes.Any(a => a.AetheryteId == crystal) && telepo->Teleport(crystal, 0);
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "Hunt crystal teleport failed");
+            return false;
+        }
     }
 
     private float MapScale(PatrolRoute route) => _data.GetExcelSheet<Lumina.Excel.Sheets.Map>().GetRowOrDefault(route.MapId)?.SizeFactor ?? 0;
@@ -400,6 +533,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         _disposed = true;
         _preview = null;
+        _crystalTravel.Cancel("插件已卸载");
         Session.Stop("插件已卸载");
         EndCoverage();
         _gameConfig.SystemChanged -= OnSystemConfigChanged;

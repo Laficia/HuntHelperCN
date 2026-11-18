@@ -65,5 +65,34 @@ internal static class DRWorldTravelChecks
             f.Travel.ReleaseOwnedRequest(); Check(!f.Travel.Busy && f.Commands.Count == 1);
             Check(f.Plugin.At("DailyRoutines.UnloadModule").Calls == 0 && f.Plugin.At("Lifestream.Abort").Calls == 0);
         });
+        run("Hunt teleport crosses to the recorded server, waits for stable arrival and sends its crystal once", () => {
+            var f = new Fixture();
+            var crystals = new List<uint>();
+            var teleport = new HuntCrystalTravel(f.Travel, crystal => { crystals.Add(crystal); return true; });
+            void Tick(bool canTeleport = true) => teleport.Tick(f.World, f.Ready, canTeleport, f.Now);
+            Check(teleport.Begin(World, 207, f.Now) && !teleport.Begin(World, 208, f.Now));
+            Tick();
+            f.World = 103; f.Now += 5000; Tick();
+            f.World = 102; f.Ready = false; f.Now += 5000; Tick();
+            f.Ready = true; Tick(); f.Now += 1500; Tick();
+            Check(teleport.Busy && crystals.Count == 0);
+            f.Ready = false; Tick(); f.Ready = true; Tick();
+            f.Now += 2500; Tick(false);
+            Check(teleport.Busy && crystals.Count == 0);
+            Tick(); Tick();
+            Check(!teleport.Busy && f.Commands.Count == 1 && crystals.SequenceEqual(new uint[] { 207 }));
+        });
+        run("Refused, timed out and cancelled hunt world visits never start a crystal teleport", () => {
+            var f = new Fixture { Accept = false };
+            var teleport = new HuntCrystalTravel(f.Travel, _ => throw new Exception("Unexpected crystal teleport"));
+            Check(!teleport.Begin(World, 207, f.Now) && !teleport.Busy && teleport.Status.Length > 0);
+            f.Accept = true; Check(teleport.Begin(World, 207, f.Now));
+            f.Now += 600000; teleport.Tick(f.World, f.Ready, true, f.Now);
+            Check(!teleport.Busy && !f.Travel.Busy && teleport.Status.Contains("超时"));
+            Check(teleport.Begin(World, 207, f.Now));
+            teleport.Cancel("卸载");
+            f.World = World.WorldID; f.Now += 3000; teleport.Tick(f.World, f.Ready, true, f.Now);
+            Check(!teleport.Busy && teleport.Status == "卸载");
+        });
     }
 }

@@ -6,18 +6,22 @@ using System.Numerics;
 namespace HuntHelper.Gui;
 
 /// <summary>Shared server/version tab drag: blue outline, horizontal cursor, no native yellow target.</summary>
-internal sealed class TabDragGesture
+internal sealed class TabDragGesture(bool grabOnHold = false)
 {
+    private const double HoldSeconds = .35;
     private uint? _source;
     private uint? _pressed;
     private double _pressedAt;
+    private bool _cancelled;
     public bool Dragging => _source.HasValue;
+    public bool SuppressClick => Dragging || _cancelled ||
+        (grabOnHold && _pressed.HasValue && ImGui.GetTime() - _pressedAt >= HoldSeconds);
     public void RegisterItem(uint id)
     {
-        if (ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
+        if (!_cancelled && ImGui.IsItemActive() && ImGui.IsMouseDown(ImGuiMouseButton.Left))
         {
             if (_pressed != id) { _pressed = id; _pressedAt = ImGui.GetTime(); }
-            if (ImGui.GetTime() - _pressedAt >= .35 && ImGui.IsMouseDragging(ImGuiMouseButton.Left)) _source = id;
+            if (ImGui.GetTime() - _pressedAt >= HoldSeconds && (grabOnHold || ImGui.IsMouseDragging(ImGuiMouseButton.Left))) _source = id;
         }
     }
 
@@ -26,7 +30,7 @@ internal sealed class TabDragGesture
         var changed = false;
         if (_source is { } source)
         {
-            ImGui.SetMouseCursor(ImGuiMouseCursor.ResizeEw);
+            ImGui.SetMouseCursor(grabOnHold ? ImGuiMouseCursor.ResizeAll : ImGuiMouseCursor.ResizeEw);
             if (ImGui.IsWindowHovered(ImGuiHoveredFlags.AllowWhenBlockedByActiveItem))
                 foreach (var target in tabs)
                 {
@@ -42,5 +46,16 @@ internal sealed class TabDragGesture
         return changed;
     }
 
-    public void EndFrame() { if (!ImGui.IsMouseDown(ImGuiMouseButton.Left)) _source = _pressed = null; }
+    public void Cancel()
+    {
+        _cancelled |= _pressed.HasValue;
+        _source = null;
+    }
+
+    public void EndFrame()
+    {
+        if (ImGui.IsMouseDown(ImGuiMouseButton.Left)) return;
+        _source = _pressed = null;
+        _cancelled = false;
+    }
 }

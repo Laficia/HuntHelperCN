@@ -159,11 +159,11 @@ namespace HuntHelper
                 rank => (rank == "S" ? SRankUI : HuntTrainUI)?.SelectedMacroMob is { } mob
                     ? $"使用当前选中怪物：{mob.WorldName} · {mob.Name}（{(rank == "S" ? "HHS" : "HHT")}）"
                     : $"来源 {(rank == "S" ? "HHS" : "HHT")} 暂无选中怪物；可发送不含怪物变量的文字宏");
-            HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, HuntFinderUI.Open, () => Automation.Session.Active,
+            HuntTrainUI = new HuntTrainUI(TrainManager, Configuration, NavigationManager, Automation, HuntFinderUI.Open, () => Automation.Session.Active,
                 () => Automation.Session.Stop(), mob => HuntManager.GetARankVersion(mob.MobID), HuntManager.ARankRoster,
                 () => { var c = Automation.Context; return (c.World, c.Territory, c.Instance, c.Ready && c.LoggedIn); },
                 relayStatus:()=>SonarRecorder.AStatus,openOther:()=>{if(SRankUI is { } ui) ui.HuntTrainWindowVisible=true;}, macros: PointMacros, openMacros: () => PointMacroUI.Open("A"));
-            SRankUI = new HuntTrainUI(SRankManager,Configuration,NavigationManager,()=>{},()=>Automation.Session.Active,
+            SRankUI = new HuntTrainUI(SRankManager,Configuration,NavigationManager,Automation,()=>{},()=>Automation.Session.Active,
                 ()=>Automation.Session.Stop(),mob=>HuntManager.GetSRankVersion(mob.MobID),HuntManager.SRankRoster,
                 ()=>{var c=Automation.Context;return(c.World,c.Territory,c.Instance,c.Ready&&c.LoggedIn);},"S",
                 ()=>SonarRecorder.SStatus,()=>HuntTrainUI.HuntTrainWindowVisible=true, PointMacros, () => PointMacroUI.Open("S"));

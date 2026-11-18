@@ -5,6 +5,10 @@ public class HuntTrainSettings
 {
         #region Hunt Train Window
         public Vector2 HuntTrainWindowSize { get; set; } = new Vector2(520, 300);
+        public float CompactMonsterColumnWidth { get; set; } = 120f;
+        public bool CompactShowLocationColumn { get; set; } = true;
+        public float CompactLocationColumnWidth { get; set; } = 128f;
+        public List<uint> HuntTrainToolbarOrder { get; set; } = new();
         public Vector2 NativeTrainWindowSize { get; set; } = new Vector2(540, 520);
         public bool NativeTrainGroupByMap { get; set; } = false;
         public bool NativeVersionOrderInitialized { get; set; } = false;

@@ -8,7 +8,7 @@ namespace HuntHelper.Gui.Native;
 // Native event handlers only enqueue commands; they never mutate train storage.
 internal sealed record NativeTrainTab(uint Id, string Text, bool Selected);
 internal sealed record NativeTrainRow(string Key, uint Territory, uint Instance, string Map, string Name,
-    bool Missing, bool Dead, bool Selected, bool CanTeleport, bool CanMove, string MoveReason, string Tooltip);
+    bool Missing, bool Dead, bool Selected, bool CanTeleport, bool CanMove, string MoveReason, string Tooltip, string TeleportTooltip = "");
 internal sealed record NativeTrainGroup(uint Territory, uint Instance, string Title, IReadOnlyList<NativeTrainRow> Rows);
 internal sealed record NativeTrainSnapshot(bool Visible, string Rank, uint World, string CurrentWorld,
     bool Recording, bool Patrol, bool Moving, bool GroupByMap, string Status,

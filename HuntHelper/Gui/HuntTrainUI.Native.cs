@@ -54,13 +54,16 @@ public partial class HuntTrainUI
         if (_nativeVisitedWorlds.Add(world)) _versions.Select(world, null);
         var version = _versions.Selected(world, _mobList);
         ClampSelection();
-        var rows = VisibleIndices.Select(index =>
+        var nativeVisible = _huntTrainWindowVisible && NativePresentation && !_nativeLegacy;
+        var rows = (nativeVisible ? VisibleIndices : Enumerable.Empty<int>()).Select(index =>
         {
             var mob = _mobList[index];
-            var reason = _navigation.GetDisabledReason(mob);
+            var reason = GetMoveProblem(mob);
+            var teleportProblem = _automation.GetHuntTeleportProblem(mob);
             return new NativeTrainRow(NativeKey(mob), mob.TerritoryID, mob.Instance, MapHelpers.GetMapName(mob.TerritoryID),
-                mob.Name, false, mob.Dead, index == _selectedIndex, CanTeleport(mob), reason.Length == 0 && !_patrolActive(),
-                reason, $"{mob.WorldName} · {MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n拖动怪物名称调整顺序");
+                mob.Name, false, mob.Dead, index == _selectedIndex, teleportProblem.Length == 0, reason.Length == 0,
+                reason, $"{mob.WorldName} · {MapHelpers.GetMapName(mob.TerritoryID)} ({mob.Position.X:0.0}, {mob.Position.Y:0.0})\n{HuntRecordInfo.Describe(mob)}\n拖动怪物名称调整顺序",
+                TeleportTooltip(mob, teleportProblem));
         }).ToList();
         if (rows.Count > 0 && _settings.HuntTrainShowMissingRoster && version is >= 2)
         {
@@ -69,9 +72,9 @@ public partial class HuntTrainUI
                 slot.TerritoryId == 0 ? "地图待识别" : MapHelpers.GetMapName(slot.TerritoryId), slot.Entry.Name,
                 true, false, false, false, false, "尚未发现", "该服务器、该分线尚无此怪记录")));
         }
-        var status = new[] { _trainActionMessage, _trainManager.ActionError, _relayStatus?.Invoke(), _macros?.Status, _navigation.LastMessage }
+        var status = new[] { _relayStatus?.Invoke(), _macros?.Status, _navigation.LastMessage, _automation.CrystalTravelStatus, _trainActionMessage, _trainManager.ActionError }
             .LastOrDefault(message => !string.IsNullOrWhiteSpace(message)) ?? "";
-        return new(_huntTrainWindowVisible && NativePresentation && !_nativeLegacy, _rankLabel, world, current.WorldName, _trainManager.RecordTrain,
+        return new(nativeVisible, _rankLabel, world, current.WorldName, _trainManager.RecordTrain,
             _patrolActive(), _navigation.OwnsMovement, _settings.NativeTrainGroupByMap, status,
             worldOrder.Select(id => worlds.First(w => w.WorldID == id)).Select(w => new NativeTrainTab(w.WorldID, $"{w.WorldName} ({w.Count})", w.WorldID == world)).ToArray(),
             versionOrder.Select(id => groups.First(g => VersionKey(g.Version) == id)).Select(g => new NativeTrainTab(VersionKey(g.Version), g.DisplayLabel, g.Version == version)).ToArray(), rows,
@@ -112,9 +115,9 @@ public partial class HuntTrainUI
                 _selectedIndex = index; _trainManager.SendTrainFlag(index, _openMap, _showInChat); break;
             case NativeTrainAction.SelectOnly when mob != null: _selectedIndex = index; break;
             case NativeTrainAction.Map when mob != null: _trainManager.OpenMap(mob, true); break;
-            case NativeTrainAction.Teleport when mob != null && CanTeleport(mob):
-                _teleportManager.TeleportToHunt(mob); _trainManager.OpenMap(mob, _openMap); break;
-            case NativeTrainAction.Move when mob != null && !_patrolActive(): _navigation.TryMoveTo(mob); break;
+            case NativeTrainAction.Teleport when mob != null: TeleportRecord(mob, _openMap); break;
+            case NativeTrainAction.Move when mob != null && GetMoveProblem(mob).Length == 0:
+                _navigation.TryMoveTo(mob); break;
             case NativeTrainAction.Coordinates when mob != null: _selectedIndex = index; _macros?.Send(mob, _rankLabel); break;
             case NativeTrainAction.Dead when mob != null:
                 _trainManager.SetDead(index, request.Value); if (mob.Dead && index == _selectedIndex) SelectNext(); break;
@@ -136,9 +139,8 @@ public partial class HuntTrainUI
             case NativeTrainAction.ClearVersion:
                 if (uint.TryParse(request.Key, out var clearVersion))
                 {
-                    if (!_versions.Groups(_mobList).Any(g => (g.Version.HasValue ? (uint)g.Version.Value : uint.MaxValue) == clearVersion)) break;
-                    _versions.Select(request.World, clearVersion == uint.MaxValue ? null : (int)clearVersion);
-                    RequestNativeClear();
+                    var group = _versions.Groups(_mobList).Find(g => (g.Version.HasValue ? (uint)g.Version.Value : uint.MaxValue) == clearVersion);
+                    if (group.Count > 0) ClearVersionTab(group.Version);
                 }
                 break;
             case NativeTrainAction.RowUp when mob != null:

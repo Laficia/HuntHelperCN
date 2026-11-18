@@ -1,6 +1,6 @@
 # 狩猎助手Hunt Helper
 
-> **使用说明：** [中文完整使用手册（适用1.0.0.26）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
+> **使用说明：** [中文完整使用手册（适用1.0.0.27）](USER_GUIDE.zh-CN.md) · [安装与更新](USER_GUIDE.zh-CN.md#install) · [A/S录制与Sonar](USER_GUIDE.zh-CN.md#sonar) · [自动巡点](USER_GUIDE.zh-CN.md#finder) · [常见问题](USER_GUIDE.zh-CN.md#faq)
 
 本地定制分支：`codex/custom-optimizations`。基于上游 `img02/HuntHelper` 的 `0c07d87`。
 
@@ -10,6 +10,14 @@
 - 使用 `Dalamud.NET.Sdk/15.0.0`、`DalamudPackager/15.0.0` 和 `net10.0-windows`，平台为 x64。
 - 玩家信息、聊天事件、区域切换事件和 FATE 状态保留上游 API 15 接口。
 - 国服客户端默认加载 `simplified chinese.json`；保留上游中文计数规则与地图数据。
+
+## 狩猎车性能与布局（1.0.0.27）
+
+- 修复打开狩猎车时传送检查重复查询导致的掉帧。列表共享检查结果，点击传送时重新核验。
+- 名单「传送」可通过 DR 快捷跨服前往目标服务器，再使用最近的已解锁水晶。跨大区需启用 DCTravelerX。
+- 原版列表随窗口宽度调整，地点列可右键显示或隐藏，支持独立拖动列宽。录制等操作集中在底部，蓝色图标支持长按排序与悬停说明。
+- 版本标签可右键直接清空该服该版本的记录，删除前自动备份。
+
 
 ## 原生窗口与清理记录（1.0.0.26）
 

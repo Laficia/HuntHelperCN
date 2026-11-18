@@ -14,6 +14,7 @@ internal static class VersionTabChecks
         ("next hunt and selection stay within the visible version", Commands),
         ("removal and revival affect only visible records in the selected server", Mutations),
         ("deleting a version in the current server pauses recording", Pause),
+        ("clear a different version by its tab without changing selection or affecting other servers", ClearClickedVersion),
         ("bulk revival reports affected records and preserves other versions and servers", RestoreCount)
     ];
     private static HuntTrainMob Mob(uint id, uint world = 101) => new($"Monster {id}",id,134,30,1,"Map",
@@ -79,6 +80,24 @@ internal static class VersionTabChecks
         manager.AddMob(Mob(701));manager.AddMob(Mob(601));manager.RecordTrain=true;
         manager.RemoveRecords(new[]{manager.HuntTrain[0]},pauseRecording:true);
         Check(!manager.RecordTrain && manager.HuntTrain.Single().MobID==601);
+    }
+
+    private static void ClearClickedVersion()
+    {
+        using var directory = new TemporaryDirectory();
+        var world = new HuntTrainWorld(101, "A", "", 0);
+        using var manager = new TrainManager(null!, null!, Path.Combine(directory.Path, "train.json"), () => world);
+        manager.AddMob(Mob(701)); manager.AddMob(Mob(301)); manager.AddMob(Mob(302));
+        world = new(102, "B", "", 0); manager.AddMob(Mob(301));
+        manager.SelectWorld(101);
+        var filter = Filter();
+        filter.Select(101, 7);
+        var captured = filter.IndicesForVersion(3, manager.HuntTrain).Select(i => manager.HuntTrain[i]).ToArray();
+        Check(captured.Length == 2 && filter.Selected(101, manager.HuntTrain) == 7);
+        manager.RemoveRecords(captured, pauseRecording: true);
+        Check(manager.GetTrainRecords(101).Select(m => m.MobID).SequenceEqual(new uint[] { 701 }) &&
+            manager.GetTrainRecords(102).Single().MobID == 301 && filter.Selected(101, manager.HuntTrain) == 7 &&
+            filter.Groups(manager.HuntTrain).All(g => g.Version != 3));
     }
     private static void RestoreCount()
     {

@@ -284,7 +284,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
                 {
                     var actionX = listWidth - 212;
                     Place(item.Teleport, actionX, rowY, 58); item.Teleport.IsEnabled = row.CanTeleport;
-                    item.Teleport.TextTooltip = row.CanTeleport ? "正常水晶传送" : "仅可传送当前所在区服的记录";
+                    item.Teleport.TextTooltip = row.TeleportTooltip;
                     Place(item.Move, actionX + 60, rowY, 58); item.Move.IsEnabled = row.CanMove;
                     item.Move.TextTooltip = row.MoveReason.Length == 0 ? "通过 vnavmesh 前往该点位" : row.MoveReason;
                     Place(item.Coordinates, actionX + 120, rowY, 58);

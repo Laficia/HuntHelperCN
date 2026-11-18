@@ -56,6 +56,8 @@ internal static unsafe class Program
             RosterPresentationChecks.Run();
             SnapshotPopupChecks.Run();
             RowDragChecks.Run();
+            CompactColumnChecks.Run();
+            CompactToolbarChecks.Run();
             PointMacroUiChecks.Run();
             NativeMacroChecks.Run();
             if (args.Contains("--render-point-macros")) PointMacroUiChecks.RenderPreview();

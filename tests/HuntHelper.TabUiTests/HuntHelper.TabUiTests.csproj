@@ -31,6 +31,10 @@
     <Compile Include="..\..\HuntHelper\Gui\HuntRosterPresentation.cs" Link="Production\HuntRosterPresentation.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\TrainVersionGroup.cs" Link="Production\TrainVersionGroup.cs" />
     <Compile Include="..\..\HuntHelper\Gui\HuntTrainWindowLayout.cs" Link="Production\HuntTrainWindowLayout.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\CompactTrainColumnResize.cs" Link="Production\CompactTrainColumnResize.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\CompactTrainTable.cs" Link="Production\CompactTrainTable.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\CompactTrainToolbar.cs" Link="Production\CompactTrainToolbar.cs" />
+    <Compile Include="..\..\HuntHelper\Gui\Native\NativeTrainModel.cs" Link="Production\NativeTrainModel.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\WorldTabOrder.cs" Link="Production\WorldTabOrder.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\Models\HuntTrainWorld.cs" Link="Production\HuntTrainWorld.cs" />
   </ItemGroup>

@@ -86,7 +86,8 @@ public partial class HuntTrainUI : IDisposable
     private bool _importUpdateTime = true;
     private IReadOnlyList<HuntTrainWorld>? _importWorldCatalog;
 
-    private TeleportManager _teleportManager;
+    private readonly TeleportManager _teleportManager = new();
+    private readonly Managers.Automation.HuntAutomationManager _automation;
 
     public bool HuntTrainWindowVisible
     {
@@ -94,7 +95,7 @@ public partial class HuntTrainUI : IDisposable
         set => _huntTrainWindowVisible = value;
     }
 
-    public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation,
+    public HuntTrainUI(TrainManager trainManager, Configuration config, NavigationManager navigation, Managers.Automation.HuntAutomationManager automation,
         Action openFinder, Func<bool> patrolActive, Action stopPatrol, Func<HuntTrainMob, int?> aRankVersion,
         IReadOnlyList<HuntRosterEntry> roster, Func<(uint World, uint Territory, uint Instance, bool Ready)> location,
         string rankLabel = "A", Func<string>? relayStatus = null, Action? openOther = null, HuntPointMacroManager? macros = null, Action? openMacros = null)
@@ -105,6 +106,7 @@ public partial class HuntTrainUI : IDisposable
         _trainManager = trainManager;
         _trainManager.RecordInserted += OnRecordInserted;
         _navigation = navigation;
+        _automation = automation;
         _openFinder = openFinder; _patrolActive = patrolActive; _stopPatrol = stopPatrol;
         _roster = new HuntRoster(roster);
         _instances = new HuntInstanceLayout(_settings.HuntTrainMapInstanceCounts ??= new());
@@ -114,7 +116,6 @@ public partial class HuntTrainUI : IDisposable
         _config = config;
         _importedTrain = _trainManager.ImportedTrain;
         LoadSettings();
-        _teleportManager = new TeleportManager();
     }
 
     public void Draw()
@@ -512,9 +513,12 @@ public partial class HuntTrainUI : IDisposable
         var world = _trainManager.SelectedWorldId;
         if (!_settings.HuntTrainVersionTabOrders.TryGetValue(world, out var order))
             _settings.HuntTrainVersionTabOrders[world] = order = new();
-        var action = _versionTabs.Draw(_versions.Groups(_mobList), _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale, order);
+        var groups = _versions.Groups(_mobList);
+        var action = _versionTabs.Draw(groups, _versions.Selected(world, _mobList), ImGuiHelpers.GlobalScale, order);
         if (action.OrderChanged) _config.Save();
         if (action.Changed) { _versions.Select(world, action.Version); _trainActionMessage = string.Empty; }
+        if (action.ClearVersion is { } clearVersion && groups.Find(g => g.Version == clearVersion) is { Count: > 0 } target)
+            ClearVersionTab(target.Version);
         var version = _versions.Selected(world, _mobList);
         _rosterSnapshot = null;
         if (version is >= 2)
@@ -528,6 +532,21 @@ public partial class HuntTrainUI : IDisposable
             if (showSummary && recorded == 0 && !_trainManager.RecordTrain && !_patrolActive())
                 ImGui.TextWrapped(_isS ? "开启下方录制后，附近 S 怪和 Sonar 定位消息会录入此模块。" : "开启下方记录或使用找怪扫描，发现后会自动标出。");
         }
+        ClampSelection();
+    }
+
+    private void ClearVersionTab(int? version) =>
+        ClearDisplayedRecords(_versions.IndicesForVersion(version, _mobList).Select(i => _mobList[i]).ToList());
+
+    private void ClearDisplayedRecords(IReadOnlyList<HuntTrainMob> records)
+    {
+        if (records.Count == 0) return;
+        var before = _mobList.Count;
+        var stopNavigation = records.Any(_navigation.IsMovingTo);
+        _trainManager.RemoveRecords(records, pauseRecording: true);
+        var removed = before - _mobList.Count;
+        if (removed > 0 && stopNavigation) _navigation.Stop();
+        _trainActionMessage = _trainManager.ActionError ?? $"已清除 {removed} 条记录，可在备份与撤销中恢复";
         ClampSelection();
     }
 
@@ -629,20 +648,16 @@ public partial class HuntTrainUI : IDisposable
             ImGui.TableNextColumn();
             if (_showTeleButtons)
             {
-                var canTeleport = CanTeleport(mob);
-                ImGui.BeginDisabled(!canTeleport);
-                if (ImGui.Button($"{GuiResources.HuntTrainGuiText["TeleportButton"]}##teleport"))
-                {
-                    _teleportManager.TeleportToHunt(mob);
-                    _trainManager.OpenMap(mob, _openMap);
-                }
+                var teleportReason = _automation.GetHuntTeleportProblem(mob);
+                ImGui.BeginDisabled(teleportReason.Length != 0);
+                if (ImGui.Button($"{GuiResources.HuntTrainGuiText["TeleportButton"]}##teleport")) TeleportRecord(mob, _openMap);
                 ImGui.EndDisabled();
                 if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
-                    ImGui.SetTooltip(canTeleport ? "传送到该地图的最近水晶" : "请先切换到记录对应区服；传送不会跨服");
+                    ImGui.SetTooltip(TeleportTooltip(mob, teleportReason));
                 ImGui.SameLine();
             }
-            var reason = _navigation.GetDisabledReason(mob);
-            ImGui.BeginDisabled(reason.Length != 0 || _patrolActive());
+            var reason = GetMoveProblem(mob);
+            ImGui.BeginDisabled(reason.Length != 0);
             if (ImGui.Button("移动")) _navigation.TryMoveTo(mob);
             ImGui.EndDisabled();
             if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
@@ -689,9 +704,27 @@ public partial class HuntTrainUI : IDisposable
 
     private bool CanTeleport(HuntTrainMob mob) => mob.WorldID != 0 && mob.WorldID == _trainManager.CurrentWorldId;
 
+    private string TeleportTooltip(HuntTrainMob mob, string problem) => problem.Length != 0 ? problem :
+        CanTeleport(mob) ? "传送至最近的已解锁水晶" : $"通过 DR 前往「{mob.WorldName}」，到服后传送至最近的已解锁水晶";
+
+    private void TeleportRecord(HuntTrainMob mob, bool openMap)
+    {
+        var accepted = _automation.TryHuntTeleport(mob, out var error);
+        _trainActionMessage = error;
+        if (accepted && openMap) _trainManager.OpenMap(mob, true);
+    }
+
+    private string GetMoveProblem(HuntTrainMob mob)
+    {
+        if (_automation.CrystalTravelPending) return _automation.CrystalTravelStatus;
+        if (_patrolActive()) return "请先停止找怪";
+        return _navigation.GetDisabledReason(mob);
+    }
+
     private void DrawNavigationStatus()
     {
         if (_trainActionMessage.Length != 0) ImGui.TextWrapped(_trainActionMessage);
+        else if (_automation.CrystalTravelStatus.Length != 0) ImGui.TextWrapped(_automation.CrystalTravelStatus);
         if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
         if (_relayStatus?.Invoke() is { Length: > 0 } relayMessage) ImGui.TextWrapped(relayMessage);
         if (_macros?.Status is { Length: > 0 } macroStatus) ImGui.TextWrapped(macroStatus);

@@ -7,7 +7,7 @@ using System.Numerics;
 namespace HuntHelper.Gui;
 
 internal readonly record struct TrainVersionTabBounds(int? Version, string Label, Vector2 Min, Vector2 Max);
-public readonly record struct TrainVersionTabAction(bool Changed, int? Version, bool OrderChanged = false);
+public readonly record struct TrainVersionTabAction(bool Changed, int? Version, bool OrderChanged = false, int? ClearVersion = null);
 
 public sealed class TrainVersionTabBar
 {
@@ -51,6 +51,11 @@ public sealed class TrainVersionTabBar
                     if (ImGui.MenuItem("选择")) result = new(true, group.Version);
                     if (ImGui.MenuItem("向左移动", enabled: index > 0)) orderChanged |= WorldTabOrder.MoveBy(order, id, -1);
                     if (ImGui.MenuItem("向右移动", enabled: index + 1 < order.Count)) orderChanged |= WorldTabOrder.MoveBy(order, id, 1);
+                    if (group.Version.HasValue)
+                    {
+                        ImGui.Separator();
+                        if (ImGui.MenuItem("清空此标签", enabled: group.Count > 0)) result = result with { ClearVersion = group.Version };
+                    }
                     ImGui.EndPopup();
                 }
             }
