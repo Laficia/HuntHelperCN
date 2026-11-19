@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Numerics;
+using System.Text;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using KamiToolKit.BaseTypes;
 using KamiToolKit.Classes;
@@ -13,9 +14,15 @@ namespace HuntHelper.Gui.Native;
 /// <summary>Shared native form for finder and macro editor. Native events enqueue model requests.</summary>
 internal sealed class NativeFormWindow : NativePersistentAddon
 {
-    private sealed class MacroInput : TextInputNode
+    private sealed class FormInput(bool multiline) : TextInputNode(multiline)
     {
-        internal MacroInput() : base(true) { MaxCharacters = 6000; MaxBytes = 24000; MaxLines = 255; ShowLimitText = false; }
+        internal unsafe string ReadText() => Encoding.UTF8.GetString(Component->RawString.AsSpan());
+
+        internal unsafe void Focus(AtkUnitBase* addon)
+        {
+            if (addon == null || !IsVisible || !IsEnabled || IsFocused) return;
+            AtkStage.Instance()->AtkInputManager->SetFocus(FocusNode, addon, 0);
+        }
     }
     private sealed class Field
     {
@@ -25,7 +32,9 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         internal CheckboxNode? Check;
         internal NumericInputNode? Number;
         internal StringDropDownNode? Choice;
-        internal TextInputNode? Input;
+        internal FormInput? Input;
+        internal string? InputKey;
+        internal string LastInput = "";
         internal NativeScrollViewport? List;
         internal NativeTrainText? DropZone;
         internal readonly List<CheckboxNode> Checks = new();
@@ -48,6 +57,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     private bool setup, dragDone, dragging, resizing, closeMenu;
     private Vector2 startMouse, startSize, mousePosition, lastSize;
     private string dragId = "";
+    private string? focusInputKey;
     private long suppressClickUntil, menuOpenedAt, lastScroll;
     private float scrollRemainder;
 
@@ -57,7 +67,27 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     internal void Apply(NativeFormSnapshot value)
     { snapshot = value; if (setup && pointer == null) Layout(); }
     private void Send(string key, string value = "", string target = "", bool after = true)
-    { if (Environment.TickCount64 >= suppressClickUntil) dispatch(new(key, value, target, after)); }
+    {
+        if (Environment.TickCount64 < suppressClickUntil) return;
+        FlushInputs();
+        dispatch(new(key, value, target, after));
+    }
+
+    private void FlushInputs(bool focusedOnly = false)
+    {
+        foreach (var field in fields.Values)
+            if (field.Used && field.Input != null && (!focusedOnly || field.Input.IsFocused))
+                FlushInput(field);
+    }
+
+    private void FlushInput(Field field)
+    {
+        if (field.Binding || field.Input == null || field.InputKey != field.Row.Key) return;
+        var text = field.Input.ReadText();
+        if (text == field.LastInput) return;
+        field.LastInput = text;
+        dispatch(new(field.Row.Key, text));
+    }
 
     private static TextNode Text(NodeBase parent)
     {
@@ -102,6 +132,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
             if (data != null && data->MouseData.ButtonId == 0) BeginPointer(resize, "", new(data->MouseData.PosX, data->MouseData.PosY), true);
         }); resize.AttachNode(this);
         cue = new ColorImageNode { IsVisible = false }; cue.AttachNode(this);
+        AddCloseLockButton();
         setup = true; Layout();
     }
 
@@ -126,9 +157,21 @@ internal sealed class NativeFormWindow : NativePersistentAddon
                     if (index >= 0 && index < (field.Row.Choices?.Count ?? 0)) Send(field.Row.Key, field.Row.Choices![index].Id);
                 }; break;
             case NativeFormKind.Input: case NativeFormKind.Multiline:
-                field.Input = row.Kind == NativeFormKind.Multiline ? new MacroInput() : new TextInputNode { MaxCharacters = 180, MaxBytes = 720, ShowLimitText = false };
+                var multiline = row.Kind == NativeFormKind.Multiline;
+                field.Input = new FormInput(multiline) {
+                    MaxCharacters = multiline ? 6000 : 180, MaxBytes = multiline ? 24000u : 720u,
+                    MaxLines = multiline ? (byte)255 : (byte)1, ShowLimitText = false, AutoSelectAll = false };
                 field.Input.CurrentTextNode.FontSize = 13; field.Input.AttachNode(field.Root);
-                field.Input.OnInputReceived = text => { if (!field.Binding) dispatch(new(field.Row.Key, text.ToString())); }; break;
+                field.Input.OnInputReceived = _ => FlushInput(field);
+                field.Input.OnUnfocused = () => FlushInput(field);
+                unsafe
+                {
+                    field.Input.CollisionNode.AddEvent(AtkEventType.MouseDown, (_, _, _, _, data) =>
+                    {
+                        if (data != null && data->MouseData.ButtonId == 0) field.Input.Focus(InternalAddon);
+                    });
+                }
+                break;
             case NativeFormKind.CheckList:
                 field.List = new NativeScrollViewport { AutoHideScrollBar = true, ScrollSpeed = 30 }; field.List.AttachNode(field.Root); break;
             case NativeFormKind.Collection:
@@ -173,8 +216,15 @@ internal sealed class NativeFormWindow : NativePersistentAddon
                 var multi = row.Kind == NativeFormKind.Multiline;
                 Place(field.Label, 2, 0, multi ? width : 90, multi ? 22 : 28);
                 Place(field.Input!, multi ? 0 : 96, multi ? 24 : 0, multi ? width : width - 96, multi ? 120 : 28);
-                if (!field.Input!.IsFocused && field.Input.String.ToString() != row.Value) field.Input.String = row.Value;
-                field.Input.IsEnabled = row.Enabled; field.Input.TextTooltip = row.Tooltip;
+                // Periodic snapshots may predate today's keystrokes. Bind once per page,
+                // then leave the native editor in control of its text and caret.
+                if (field.InputKey != row.Key)
+                {
+                    field.Input!.String = row.Value;
+                    field.InputKey = row.Key;
+                    field.LastInput = field.Input.ReadText();
+                }
+                field.Input!.IsEnabled = row.Enabled; field.Input.TextTooltip = row.Tooltip;
                 height = multi ? 150 : 28; break;
             case NativeFormKind.CheckList:
                 var columns = width >= 440 ? 2 : 1;
@@ -237,9 +287,10 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         field.Root.Size = new(width, MathF.Max(28, height)); field.Binding = false; return MathF.Max(28, height);
     }
 
-    private void Layout()
+    private unsafe void Layout()
     {
         if (!setup || scroll == null || body == null) return;
+        UpdateCloseLockButton();
         body.Position = ContentStartPosition;
         var width = MathF.Max(16, Size.X - ContentStartPosition.X * 2);
         while (toolbar.Count < snapshot.Toolbar.Count) toolbar.Add(Button(body));
@@ -256,8 +307,11 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         var top = bounds.ScrollTop;
         var viewport = bounds.ScrollHeight;
         Place(scroll, 0, top, width, viewport);
+        FlushInputs();
         foreach (var field in fields.Values) field.Used = false;
         dragTargets.Clear(); float y = 0;
+        FormInput? focusInput = null;
+        float focusRowY = 0;
         foreach (var row in snapshot.Rows)
         {
             // Reuse the two native editor controls across pages instead of retaining
@@ -266,11 +320,20 @@ internal sealed class NativeFormWindow : NativePersistentAddon
             var field = fields.GetValueOrDefault(poolKey) ?? Create(row, poolKey);
             if (field.Row.Key != row.Key) field.Input?.ClearFocus();
             field.Row = row;
-            Place(field.Root, 0, y, width - 14); y += Render(field, width - 14) + 4;
+            if (row.Key == focusInputKey) { focusInput = field.Input; focusRowY = y; }
+            field.Root.Position = new(0, y);
+            field.Root.IsVisible = true;
+            y += Render(field, width - 14) + 4;
         }
         foreach (var field in fields.Values.Where(f => !f.Used))
         { field.Input?.ClearFocus(); field.Root.IsVisible = false; }
         scroll.ContentNode.Size = new(width - 14, MathF.Max(viewport, y)); scroll.RecalculateSizes();
+        if (focusInput != null)
+        {
+            scroll.ScrollBarNode.ScrollPosition = Math.Clamp((int)focusRowY, 0, scroll.ScrollBarNode.ScrollMaxPosition);
+            focusInput.Focus(InternalAddon);
+            focusInputKey = null;
+        }
         float statusX = 0;
         primaryAction!.IsVisible = snapshot.PrimaryAction != null;
         if (snapshot.PrimaryAction is { } action)
@@ -306,7 +369,13 @@ internal sealed class NativeFormWindow : NativePersistentAddon
         {
             var button = menuButtons[i]; button.IsVisible = i < choices.Count; if (i >= choices.Count) continue;
             var choice = choices[i]; Place(button, 6, 6 + i * 32, 164); button.String = choice.Label;
-            button.OnClick = () => { HideMenu(); dispatch(new(choice.Key, id)); };
+            button.OnClick = () =>
+            {
+                HideMenu();
+                FlushInputs();
+                if (choice.Key == "edit") focusInputKey = "text:" + id;
+                dispatch(new(choice.Key, id));
+            };
         }
         if (menuPointer != null) return;
         menuPointer = new ViewportEventListener((_, _, _, _, data) => {
@@ -355,6 +424,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     protected override unsafe void OnUpdate(AtkUnitBase* addon)
     {
         base.OnUpdate(addon); if (dragDone) EndPointer(); if (setup && Size != lastSize) Layout();
+        if (setup && IsOpen) FlushInputs(focusedOnly: true);
         if (closeMenu) { if (menu != null) menu.IsVisible = false; menuPointer?.Dispose(); menuPointer = null; closeMenu = false; }
         if (pointer != null && dragging && !resizing && scroll != null && InternalAddon != null)
         {
@@ -367,6 +437,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     protected override unsafe void OnHide(AtkUnitBase* addon)
     {
         EndPointer(); menuPointer?.Dispose(); menuPointer = null;
+        FlushInputs();
         foreach (var field in fields.Values) field.Input?.ClearFocus();
         saveSize(Size); base.OnHide(addon);
     }
@@ -374,6 +445,7 @@ internal sealed class NativeFormWindow : NativePersistentAddon
     {
         setup = false; EndPointer(); menuPointer?.Dispose(); menuPointer = null;
         fields.Clear(); toolbar.Clear(); dragTargets.Clear(); menuButtons.Clear(); body = null; scroll = null; menu = null; menuBackground = null; cue = null; primaryAction = null;
+        focusInputKey = null;
         base.OnFinalize(addon);
     }
 }

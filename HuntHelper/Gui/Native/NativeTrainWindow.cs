@@ -35,7 +35,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
     private NativeTrainSnapshot? snapshot;
     private ResNode? body;
     private ScrollingNode<ResNode>? scroll;
-    private TextNode? worldLabel, footer, empty;
+    private TextNode? worldLabel, footer, emptyTitle, emptyHint;
     private TextButtonNode? finder, recording, macros, more, current, legacy;
     private TextureButtonNode? resize;
     private bool showTools, setup, dragDone;
@@ -93,8 +93,9 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
             tools.Add(Button(body, label, () => Send(action)));
         scroll = new ScrollingNode<ResNode> { AutoHideScrollBar = true, ScrollSpeed = 34 };
         scroll.AttachNode(body);
-        empty = Label(scroll.ContentNode, snapshot?.Rank == "S" ? "暂无 S 怪记录\n开启录制后，可扫描附近 S 怪或录入 Sonar 定位。" : "暂无记录\n开启录制，或点击找怪开始扫描。", 14);
-        empty.AddTextFlags(TextFlags.MultiLine);
+        var sRank = snapshot?.Rank == "S";
+        emptyTitle = Label(scroll.ContentNode, sRank ? "暂无 S 怪记录" : "暂无记录");
+        emptyHint = Label(scroll.ContentNode, sRank ? "开启录制以记录 S 怪或 Sonar 定位" : "开启录制，或点击「找怪」");
         footer = Label(body, "", 12);
         footer.AddTextFlags(TextFlags.MultiLine);
         resize = new TextureButtonNode {
@@ -105,6 +106,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
         resize.AttachNode(this);
         dropCue = new ColorImageNode { IsVisible = false };
         dropCue.AttachNode(this);
+        AddCloseLockButton();
         setup = true; Layout();
     }
 
@@ -124,7 +126,10 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
 
     private static void Place(NodeBase node, float x, float y, float width, float height = 28)
     {
-        node.Position = new(x, y); node.Size = new(MathF.Max(16, width), height); node.IsVisible = true;
+        var size = new Vector2(MathF.Max(16, width), height);
+        node.Position = new(x, y);
+        if (node.Size != size) node.Size = size;
+        node.IsVisible = true;
         // Native buttons own their label positions through their timelines. Overriding
         // those positions here would make the label jump back when hover begins.
         if (node is NativeTrainText text) text.Arrange();
@@ -203,6 +208,7 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
 
     private void Layout()
     {
+        UpdateCloseLockButton();
         if (!setup || snapshot == null || body == null || scroll == null) return;
         body.Position = ContentStartPosition;
         var width = MathF.Max(310, Size.X - ContentStartPosition.X * 2);
@@ -298,8 +304,12 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
             rowY += 8;
         }
         for (int i = used; i < items.Count; i++) items[i].Hide();
-        empty!.IsVisible = used == 0;
-        if (used == 0) Place(empty, 12, 18, listWidth - 24, 70);
+        emptyTitle!.IsVisible = emptyHint!.IsVisible = used == 0;
+        if (used == 0)
+        {
+            Place(emptyTitle, 12, 14, listWidth - 24, 22);
+            Place(emptyHint, 12, 36, listWidth - 24, 22);
+        }
         content.Size = new(listWidth, MathF.Max(rowY, height)); scroll.RecalculateSizes();
         Place(footer!, 2, y + height + 5, width - 10, 32);
         var state = snapshot.Patrol ? "找怪中" : snapshot.Recording ? "录制中" : "录制关闭";
@@ -452,6 +462,6 @@ internal sealed class NativeTrainWindow : NativePersistentAddon
     {
         setup = false; EndPointer(); worldButtons.Clear(); versionButtons.Clear(); tools.Clear(); items.Clear(); tabKeys.Clear();
         contextPointer?.Dispose(); contextPointer = null; contextButtons.Clear(); contextPanel = null; contextBackground = null; dropCue = null;
-        body = null; scroll = null; resize = null; base.OnFinalize(addon);
+        body = null; scroll = null; resize = null; emptyTitle = null; emptyHint = null; base.OnFinalize(addon);
     }
 }

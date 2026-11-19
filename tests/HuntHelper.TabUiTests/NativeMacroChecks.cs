@@ -34,6 +34,11 @@ internal static class NativeMacroChecks
         ui.NativeDispatch(new("text:" + custom, "未保存草稿")); ui.NativeDispatch(new("legacy"));
         Check(legacy == 1 && ui.NativeSnapshot().Rows.Single(r => r.Key == "text:" + custom).Value == "未保存草稿");
         Console.WriteLine("PASS Native to legacy presentation switching retains the unsaved editor draft");
+        ui.NativeDispatch(new("pages", "a"));
+        ui.NativeDispatch(new("edit", custom));
+        Check(ui.NativeSnapshot().Rows.Single(r => r.Key == "text:" + custom).Value == "未保存草稿");
+        Check(settings.Custom.Single().Text == "/echo 自定义");
+        Console.WriteLine("PASS Native Edit reopens the correct draft and leaves the saved macro intact");
         ui.NativeDispatch(new("delete", "a")); ui.NativeDispatch(new("delete-confirm")); Check(settings.Collection.Contains("a"));
         ui.NativeDispatch(new("delete", custom)); Check(settings.Custom.Count == 1);
         ui.NativeDispatch(new("delete-cancel")); Check(settings.Custom.Count == 1);

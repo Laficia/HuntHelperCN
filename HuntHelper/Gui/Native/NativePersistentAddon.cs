@@ -5,16 +5,21 @@ using KamiToolKit.BaseTypes;
 namespace HuntHelper.Gui.Native;
 
 /// <summary>Game hides do not overwrite the user's open/closed preference.</summary>
-internal abstract class NativePersistentAddon(Action userClose, Func<bool> canInteract) : NativeAddon
+internal abstract partial class NativePersistentAddon(Action userClose, Func<bool> canInteract) : NativeAddon
 {
     private readonly NativeWindowLifetime lifetime = new();
     private bool disposing;
+    internal bool CloseLocked { get; private set; }
+    protected void ToggleCloseLock() => CloseLocked = !CloseLocked;
+
+    partial void ArrangeCloseLock();
+    partial void ClearCloseLockButton();
 
     public override unsafe void Close()
     {
         // KamiToolKit routes the title close button and Escape through this virtual method.
         // Native zone-change Hide calls bypass it and must never become a user close.
-        if (InternalAddon == null) return;
+        if (InternalAddon == null || CloseLocked) return;
         if (lifetime.BeginClose() && !disposing && canInteract()) userClose();
         base.Close();
     }
@@ -28,7 +33,7 @@ internal abstract class NativePersistentAddon(Action userClose, Func<bool> canIn
     internal unsafe void SyncVisibility(bool wanted, bool ready)
     {
         if (disposing) return;
-        if (lifetime.DismissedWhileReady(ready, IsOpen)) { userClose(); base.Close(); return; }
+        if (!CloseLocked && lifetime.DismissedWhileReady(ready, IsOpen)) { userClose(); base.Close(); return; }
         switch (lifetime.Evaluate(wanted, ready, InternalAddon != null, IsOpen))
         {
             case NativeWindowAction.Close: CloseFromModel(); break;
@@ -42,11 +47,13 @@ internal abstract class NativePersistentAddon(Action userClose, Func<bool> canIn
     { lifetime.Setup(); base.OnSetup(addon, values); }
     protected override unsafe void OnHide(AtkUnitBase* addon)
     {
-        if (lifetime.Hidden(!disposing && canInteract())) userClose();
+        if (lifetime.Hidden(!CloseLocked && !disposing && canInteract())) userClose();
         base.OnHide(addon);
     }
     protected override unsafe void OnFinalize(AtkUnitBase* addon)
-    { lifetime.Finalized(); base.OnFinalize(addon); }
+    { ClearCloseLockButton(); lifetime.Finalized(); base.OnFinalize(addon); }
+
+    protected void UpdateCloseLockButton() => ArrangeCloseLock();
 
     public override void Dispose()
     { disposing = true; CloseFromModel(); base.Dispose(); }

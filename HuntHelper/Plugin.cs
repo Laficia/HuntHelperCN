@@ -192,7 +192,7 @@ namespace HuntHelper
             CommandManager.AddHandler(MapWindowPresetOneSave, new CommandInfo(SavePresetOneCommand) { HelpMessage = GuiResources.PluginText["/hh1save helpmessage"] });
             CommandManager.AddHandler(MapWindowPresetTwoSave, new CommandInfo(SavePresetTwoCommand) { HelpMessage = GuiResources.PluginText["/hh2save helpmessage"] });
             CommandManager.AddHandler(HuntTrainWindowCommand, new CommandInfo(HuntTrainCommand) { HelpMessage = GuiResources.PluginText["/hht helpmessage"] });
-            CommandManager.AddHandler(SRankWindowCommand,new CommandInfo((_,__)=>SRankUI.HuntTrainWindowVisible=!SRankUI.HuntTrainWindowVisible){HelpMessage="打开独立S怪记录窗口"});
+            CommandManager.AddHandler(SRankWindowCommand, new CommandInfo((_, _) => ToggleHuntTrainUI(SRankUI, sRank: true)) { HelpMessage = "打开独立S怪记录窗口" });
             CommandManager.AddHandler("/hhsn",new CommandInfo((_,__)=>SRankUI.GetNextMobCommand()){HelpMessage="发送当前S怪标签中的下一只坐标到聊天"});
             CommandManager.AddHandler("/hhsna",new CommandInfo((_,__)=>SRankUI.GetNextMobNearestAetheryte()){HelpMessage="发送下一只S怪的最近水晶坐标到聊天"});
             CommandManager.AddHandler(NextHuntInTrainCommand, new CommandInfo(GetNextMobCommand) { HelpMessage = GuiResources.PluginText["/hhn helpmessage"] });
@@ -270,6 +270,12 @@ namespace HuntHelper
 
         private void OpenHuntTrainUI() => HuntTrainUI.HuntTrainWindowVisible = true;
 
+        private void ToggleHuntTrainUI(HuntTrainUI window, bool sRank = false)
+        {
+            if (window.HuntTrainWindowVisible && Configuration.UseNativeHuntWindows && NativeTrains.IsTrainCloseLocked(sRank)) return;
+            window.HuntTrainWindowVisible = !window.HuntTrainWindowVisible;
+        }
+
         private void ScanHuntTrain()
         {
             var now = Environment.TickCount64;
@@ -316,7 +322,7 @@ namespace HuntHelper
                     break;
                 case "finder": HuntFinderUI.Open(); break;
                 case "macro": PointMacroUI.Open("A"); break;
-                default: HuntTrainUI.HuntTrainWindowVisible = !HuntTrainUI.HuntTrainWindowVisible; break;
+                default: ToggleHuntTrainUI(HuntTrainUI); break;
             }
         }
         //gets next available hunt in the recorded train

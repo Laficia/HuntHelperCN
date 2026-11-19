@@ -43,6 +43,7 @@ internal sealed class NativeTrainRuntime : IDisposable
     private int theme = -1;
     private Vector4 textColor, buttonColor;
     internal bool Failed { get; private set; }
+    internal bool IsTrainCloseLocked(bool sRank) => !Failed && (sRank ? s : a).Window?.CloseLocked == true;
 
     internal NativeTrainRuntime(IDalamudPluginInterface pi, IFramework framework, IPluginLog log, Vector2 aSize, Vector2 sSize, Vector2 finderSize, Vector2 macroSize, Func<bool> canShow)
     {

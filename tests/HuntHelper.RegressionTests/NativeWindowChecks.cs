@@ -11,6 +11,7 @@ internal static class NativeWindowChecks
         ("native Hide2 dismissal is not mistaken for a recoverable loading hide", DirectSoftHide),
         ("native adapter recognizes toolkit-bypassing close and keeps the other window open", AdapterClose),
         ("native adapter distinguishes zoning model close and disposal from user dismissal", AdapterModel),
+        ("native close lock blocks Escape, direct hide and soft dismissal until unlocked", CloseLock),
         ("native soft-hidden allocated windows use Show instead of a no-op Open", SoftHide),
         ("native close and reopen animations cannot repeatedly close or allocate", Animations),
         ("native form body scrolling and fixed start footer stay within the same window", FormBounds),
@@ -94,7 +95,33 @@ internal static class NativeWindowChecks
             Check(bounds.FooterY + 36 <= bounds.Body.Y);
         }
     }
-    private sealed class Probe(Action closed, Func<bool> ready) : NativePersistentAddon(closed, ready) { }
+    private sealed class Probe(Action closed, Func<bool> ready) : NativePersistentAddon(closed, ready)
+    {
+        internal void ToggleLock() => ToggleCloseLock();
+    }
+
+    private static void CloseLock()
+    {
+        var closes = 0;
+        using var target = new Probe(() => closes++, () => true);
+        target.SyncVisibility(true, true);
+        target.SyncVisibility(true, true);
+        target.ToggleLock();
+        target.Close();
+        Check(target.IsOpen && closes == 0);
+        target.NativeSoftHide();
+        target.SyncVisibility(true, true);
+        Check(target.IsOpen && closes == 0);
+        target.NativeHide();
+        target.SyncVisibility(true, true);
+        Check(target.IsOpen && target.CloseLocked && closes == 0);
+        target.SyncVisibility(false, true);
+        Check(!target.IsOpen && closes == 0);
+        target.SyncVisibility(true, true);
+        target.ToggleLock();
+        target.Close();
+        Check(!target.IsOpen && closes == 1);
+    }
     private static void AdapterClose()
     {
         var ready = true; var closes = 0; var otherCloses = 0;
