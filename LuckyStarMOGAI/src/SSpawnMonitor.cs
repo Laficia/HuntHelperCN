@@ -56,16 +56,17 @@ public sealed class SSpawnMonitor : IDisposable
         LastStop="";nextLocalCheck=0;
     }
     public void Disarm(){Volatile.Write(ref active,null);while(pending.TryDequeue(out _)){};}
-    public string? Check(FarmContext context,Func<IReadOnlyList<FarmMob>> mobs)
+    public string? Check(FarmContext context,Func<IReadOnlyList<FarmMob>> mobs,bool recovering=false)
     {
         var state=Volatile.Read(ref active);
         if(state==null)return null;
-        // Retain arrivals during a cave fade and confirm identity after it finishes.
-        if(!context.Ready || !context.LoggedIn || context.Loading || context.Scope!=state.Watch.Scope)return null;
+        var inOriginalScene=context.Ready && context.LoggedIn && !context.Loading && context.Scope==state.Watch.Scope;
+        // During recovery, only explicit Sonar reports can describe the original map while away from it.
+        if(!inOriginalScene && !(recovering && context.LoggedIn && context.Scope.World==state.Watch.Scope.World))return null;
         var now=DateTimeOffset.UtcNow;
         while(pending.TryDequeue(out var signal))
-            if(SSpawnStopRules.ShouldStop(state.Watch,signal,context,now))return Confirm(state,signal.Source);
-        if(Environment.TickCount64<nextLocalCheck)return null;
+            if(SSpawnStopRules.MatchesWatch(state.Watch,signal,now))return Confirm(state,signal.Source);
+        if(!inOriginalScene || Environment.TickCount64<nextLocalCheck)return null;
         nextLocalCheck=Environment.TickCount64+200;
         if(mobs().Any(m=>m.NameId==state.Watch.NameId && m.Hp>0))
         {

@@ -25,8 +25,10 @@ public static class SSpawnStopRules
     public static string Clean(string value)=>string.Concat(value.Normalize(NormalizationForm.FormKC).Where(c=>!char.IsControl(c) && c is not (>= '\ue000' and <= '\uf8ff'))).Trim();
 
     public static bool ShouldStop(SSpawnWatch? watch,SSpawnSignal signal,FarmContext current,DateTimeOffset now)
-        => watch!=null && watch.RunId>0 && watch.MapId!=0 && watch.Scope.World!=0 && SupportedTarget(watch.Scope.Territory,watch.NameId) &&
-           current.Ready && current.LoggedIn && !current.Loading && current.Scope==watch.Scope &&
+        => watch!=null && current.Ready && current.LoggedIn && !current.Loading && current.Scope==watch.Scope && MatchesWatch(watch,signal,now);
+
+    internal static bool MatchesWatch(SSpawnWatch watch,SSpawnSignal signal,DateTimeOffset now)
+        => watch.RunId>0 && watch.MapId!=0 && watch.Scope.World!=0 && SupportedTarget(watch.Scope.Territory,watch.NameId) &&
            signal.RunId==watch.RunId && signal.Scope==watch.Scope && signal.NameId==watch.NameId &&
            signal.ObservedAt>=watch.StartedAt && signal.ObservedAt<=now.AddSeconds(1) && now-signal.ObservedAt<=TimeSpan.FromSeconds(30);
 

@@ -12,6 +12,8 @@ public static class RubyCaves
         new(322.373f,-117.657f,-313.739f),new(324.685f,-116.836f,-310.965f),6903732,6903733);
     public static bool InTamamizu(Vector3 position)=>Vector3.Distance(position,Tamamizu.ScanPoint)<95 &&
         position.Y is > -135 and < -105;
+    public static bool CanStartPatrol(FarmContext context) => context.Diving || InTamamizu(context.Position) ||
+        (context.Position.Y <= -100 && System.Array.Exists(All, cave => Vector3.Distance(cave.Interior, context.Position) < 170));
     public static readonly RubyCave[] All =
     [
         new("采贝洞",new(15,14.5f),new(-275.106f,-163.5312f,-291.4856f),new(-244.1555f,-146.1256f,-263.9228f),new(-316.75f,-167.75f,-342.25f),

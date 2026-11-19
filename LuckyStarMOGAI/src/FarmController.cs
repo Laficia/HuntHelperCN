@@ -2,6 +2,7 @@
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
+using ECommons;
 using ECommons.DalamudServices;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
@@ -17,6 +18,11 @@ public sealed unsafe class FarmController : IDisposable
 {
     private readonly GameFarmHost host = new();
     private readonly SSpawnMonitor sSpawn = new();
+    private readonly GameDeathRecovery gameRecovery = new();
+    private sealed record RecoveryPlan(FarmProfile Profile, Vector3[] Points, FarmScope Scope, int FarmIndex);
+    private RecoveryPlan? recoveryPlan;
+    private FarmDeathRecovery? recovery;
+    private FarmCheckpoint? recoveryCheckpoint;
     public FarmSession Session { get; }
     public RubyPatrol Ruby { get; }
     public LegacyFarmController Legacy { get; }
@@ -24,10 +30,10 @@ public sealed unsafe class FarmController : IDisposable
     private bool legacyMode;
     private FarmScope legacyScope;
     private static readonly Dictionary<uint,int> NoLegacyDeaths = [];
-    public bool IsRunning => Session.Running || Ruby.Running || Legacy.IsRunning;
+    public bool IsRunning => recovery != null || Session.Running || Ruby.Running || Legacy.IsRunning;
     private string cleanupError="";
     public bool CleanupFailed=>cleanupError.Length>0;
-    public string State => (legacyMode ? Legacy.State : rubyMode ? Ruby.State : Session.State)+(cleanupError.Length>0?"；"+cleanupError:"");
+    public string State => (recovery?.State ?? (legacyMode ? Legacy.State : rubyMode ? Ruby.State : Session.State))+(cleanupError.Length>0?"；"+cleanupError:"");
     public bool ShowingRuby => rubyMode;
     public IReadOnlyDictionary<uint,int> Deaths => legacyMode ? NoLegacyDeaths : rubyMode ? Ruby.Deaths : Session.Deaths;
     public FarmProfile? ActiveProfile { get; private set; }
@@ -41,26 +47,49 @@ public sealed unsafe class FarmController : IDisposable
     {
         var c=host.Context;
         return JsonSerializer.Serialize(new{Running=IsRunning,State,Version=typeof(FarmController).Assembly.GetName().Version?.ToString(),
-            Phase=legacyMode?"OriginalPatrol":rubyMode?Ruby.Phase.ToString():"Farm",Ruby.CaveIndex,Ruby.CompletedVisits,Rotation=Plugin.Configuration.Rotation.ToString(),CombatStatus,
+            Phase=recovery!=null?"DeathRecovery":legacyMode?"OriginalPatrol":rubyMode?Ruby.Phase.ToString():"Farm",Ruby.CaveIndex,Ruby.CompletedVisits,Rotation=Plugin.Configuration.Rotation.ToString(),CombatStatus,
             Position=new{c.Position.X,c.Position.Y,c.Position.Z},c.Scope,SessionScope=legacyMode?legacyScope:rubyMode?Ruby.BoundScope:Session.BoundScope,
             FarmIndex=Plugin.Configuration.SelectedFarm,Names=ActiveProfile?.Names,
             c.Mounted,c.Flying,c.Diving,c.Combat,c.Ready,EngageDistance=host.EngageDistance,Deaths,SStop=sSpawn.Diagnostics,Navigation=legacyMode?LegacyDiagnostics():rubyMode?Ruby.NavigationDiagnostics:Session.NavigationDiagnostics});
     }
     public void Stop(string reason = "已停止")
     {
+        var wasRecovering=recovery!=null;
+        recovery=null;
+        recoveryPlan=null;
+        recoveryCheckpoint=null;
         sSpawn.Disarm();
+        if(wasRecovering && legacyMode)
+            cleanupError=reason=="已停止" ? "" : reason;
+        else
+        {
+            StopFarm(reason);
+            if(legacyMode && reason!="已停止")cleanupError=reason;
+        }
+    }
+    private bool StopFarm(string reason)
+    {
+        var stopped=true;
         try { if(legacyMode)Legacy.Stop();else try { Session.Stop(reason); } finally { Ruby.Stop(reason); } }
-        catch (Exception ex) { Svc.Log.Error(ex, "LuckyStarMOGAI stop failed"); }
+        catch (Exception ex) { stopped=false;Svc.Log.Error(ex, "LuckyStarMOGAI stop failed"); }
         finally { EndRotation(); }
-        if(legacyMode && reason!="已停止")cleanupError=reason;
+        return stopped && !CleanupFailed;
     }
     public bool Start(FarmProfile profile, IEnumerable<Vector3> points,FarmCheckpoint? checkpoint=null)
     {
         if(IsRunning) return false;
+        var context=host.Context;
+        var plan=new RecoveryPlan(profile,points.ToArray(),context.Scope,Plugin.Configuration.SelectedFarm);
+        return StartFarm(plan,checkpoint,false);
+    }
+    private bool StartFarm(RecoveryPlan plan,FarmCheckpoint? checkpoint,bool resuming)
+    {
+        var profile=plan.Profile;
+        recoveryPlan=null;
         rubyMode=profile.Ground;
         legacyMode=!rubyMode;
         cleanupError="";
-        try{sSpawn.Arm(profile,host.Context);}
+        try{if(!resuming)sSpawn.Arm(profile,host.Context);}
         catch(Exception ex){Stop("S怪检测未能确认服务器／地图："+ex.Message);return false;}
         if(legacyMode)
         {
@@ -75,7 +104,8 @@ public sealed unsafe class FarmController : IDisposable
                     host.Rotation.Begin(Plugin.Configuration.Rotation,Plugin.Configuration.AllowRotationStart);
                     Legacy.SetRotationCallbacks(host.Rotation.SetCombat,FocusLegacyTarget);
                 }
-                Legacy.Start(points.Select(p=>(p.X,p.Y,p.Z)).ToList());
+                Legacy.Start(plan.Points.Select(p=>(p.X,p.Y,p.Z)).ToList());
+                recoveryPlan=plan;
                 return true;
             }
             catch(Exception ex){Stop();cleanupError="启动失败："+ex.Message;Svc.Log.Error(ex,"LuckyStarMOGAI original patrol start failed");return false;}
@@ -91,10 +121,11 @@ public sealed unsafe class FarmController : IDisposable
             if(checkpoint!=null && (checkpoint.Scope.Territory!=profile.Territory || !checkpoint.Matches(host.Context.Scope,Plugin.Configuration.SelectedFarm,profile.Names,DateTimeOffset.UtcNow)))
                 throw new InvalidOperationException("进度记录已过期，或服务器、地图、分线、农怪项目已变化");
             var error=CombatAvailability;if(error.Length>0)throw new InvalidOperationException(error);
-            var started=rubyMode ? Ruby.Start(profile,Plugin.Configuration.RubyCaves,Environment.TickCount64) : Session.Start(profile, points, Environment.TickCount64);
+            var started=rubyMode ? Ruby.Start(profile,Plugin.Configuration.RubyCaves,Environment.TickCount64) : Session.Start(profile, plan.Points, Environment.TickCount64);
             if(!started){sSpawn.Disarm();return false;}
             if(checkpoint!=null)Progress.RestoreDeaths(checkpoint.Deaths);
             host.Rotation.Begin(Plugin.Configuration.Rotation,Plugin.Configuration.AllowRotationStart);
+            recoveryPlan=plan;
             return true;
         }
         catch (Exception ex) { Stop("启动失败："+ex.Message); Svc.Log.Error(ex, "LuckyStarMOGAI start failed"); return false; }
@@ -109,12 +140,30 @@ public sealed unsafe class FarmController : IDisposable
     private void Update(IFramework framework)
     {
         if(!IsRunning){if(legacyMode)Legacy.Tick(framework);return;}
+        FarmContext? observedContext=null;
         try
         {
-            if(sSpawn.Check(host.Context,()=>{host.BeginTick();return host.Mobs;}) is { } spawned)
+            var context=host.Context;
+            observedContext=context;
+            if(sSpawn.Check(context,()=>{host.BeginTick();return host.Mobs;},recovery!=null) is { } spawned)
             {Stop(spawned);Notify(spawned);return;}
         }
         catch(Exception ex){Svc.Log.Warning(ex,"LuckyStarMOGAI S-spawn observation skipped");}
+        if(recovery is { } currentRecovery && recoveryPlan is { } pendingPlan)
+        {
+            if(observedContext is { } context)TickRecovery(currentRecovery,pendingPlan,context);
+            else
+            {
+                Stop("无法读取复活或传送状态，农怪已停止");
+                Notify(State);
+            }
+            return;
+        }
+        if(recoveryPlan is { } plan && observedContext is { } observed && FarmDeathRecovery.CanBegin(observed,plan.Scope))
+        {
+            BeginRecovery(plan);
+            return;
+        }
         if(legacyMode)
         {
             // Keep the original per-frame movement; only the requested stop check precedes it.
@@ -146,6 +195,50 @@ public sealed unsafe class FarmController : IDisposable
             else if(!IsRunning && State.StartsWith("发现"))Notify(State);
         }
         catch(Exception ex){Svc.Log.Error(ex,"LuckyStarMOGAI notification failed");}
+    }
+    private void BeginRecovery(RecoveryPlan plan)
+    {
+        recoveryCheckpoint=rubyMode ? new(plan.Scope,plan.FarmIndex,plan.Profile.Names,new Dictionary<uint,int>(Deaths),DateTimeOffset.UtcNow) : null;
+        if(!StopFarm("已死亡，准备返回复活点"))
+        {
+            Stop("导航或循环未能释放，农怪已停止");
+            return;
+        }
+        host.ClearTarget();
+        cleanupError="";
+        gameRecovery.Reset();
+        recovery=new(plan.Scope,Environment.TickCount64);
+    }
+    private void TickRecovery(FarmDeathRecovery currentRecovery,RecoveryPlan plan,FarmContext context)
+    {
+        try
+        {
+            if(context.Ready && !context.Dead && GenericHelpers.IsOccupied())
+                context=context with { Busy=true };
+            var result=currentRecovery.Tick(context,Environment.TickCount64,
+                !plan.Profile.Ground || RubyCaves.CanStartPatrol(context),gameRecovery.TryReturnHome,
+                ()=>gameRecovery.TryTeleport(plan.Scope.Territory),
+                ()=>host.NavigationReady && host.MovementAllowed && !host.NavigationBusy);
+            if(result==RecoveryAction.Waiting)return;
+            if(result==RecoveryAction.Failed)
+            {
+                Stop(currentRecovery.State);
+                Notify(currentRecovery.State);
+                return;
+            }
+
+            recovery=null;
+            var checkpoint=recoveryCheckpoint;
+            recoveryCheckpoint=null;
+            if(StartFarm(plan,checkpoint,true))Notify("已复活并返回原农怪地图，继续农怪");
+            else Notify("死亡恢复后无法继续农怪："+State);
+        }
+        catch(Exception ex)
+        {
+            Stop("死亡恢复失败，农怪已停止");
+            Svc.Log.Error(ex,"LuckyStarMOGAI death recovery failed");
+            Notify(State);
+        }
     }
     public static string MobName(uint name)
     {

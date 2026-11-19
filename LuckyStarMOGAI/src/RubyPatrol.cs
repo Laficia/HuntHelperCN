@@ -46,7 +46,7 @@ public sealed class RubyPatrol(IFarmHost host)
             !host.NavigationReady || !host.MovementAllowed ? "请等待国服 vnavmesh 网格就绪并允许移动" :
             host.NavigationBusy ? "请先停止其他导航任务" :
             profile.Names.Length == 0 ? "请至少勾选一种小怪" :
-            !c.Diving && !RubyCaves.InTamamizu(c.Position) && (c.Position.Y > -100 || !RubyCaves.All.Any(a=>Vector3.Distance(a.Interior,c.Position)<170)) ? "当前位置不在农怪洞穴或玉水村；请先到玉水村，或在红玉海下潜后开始" : null;
+            !RubyCaves.CanStartPatrol(c) ? "当前位置不在农怪洞穴或玉水村；请先到玉水村，或在红玉海下潜后开始" : null;
         _caves = Enumerable.Range(0,3).Where(i=>i<caves.Length && caves[i]).ToArray();
         if (_caves.Length == 0) reason = "请至少选择一个洞穴";
         if (reason != null) { State=reason; return false; }

@@ -4,7 +4,7 @@ using System.Linq;
 
 namespace LuckyStar;
 
-/// <summary>A short-lived, scope-checked handoff for an explicitly requested developer reload.</summary>
+/// <summary>A short-lived, scope-checked handoff for death recovery or an explicitly requested developer reload.</summary>
 public sealed record FarmCheckpoint(FarmScope Scope,int FarmIndex,uint[] Names,Dictionary<uint,int> Deaths,DateTimeOffset CapturedAt)
 {
     public bool Matches(FarmScope scope,int farmIndex,uint[] names,DateTimeOffset now)=>
