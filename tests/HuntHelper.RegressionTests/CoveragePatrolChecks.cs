@@ -10,9 +10,12 @@ internal static class CoveragePatrolChecks
 {
     public static readonly (string Name, Action Run)[] Tests =
     [
-        ("DR point data is the exact pinned resource with all 47 maps and 924 three-dimensional points", PinnedData),
+        ("DR patrol preserves pinned geometry and order after filtering 49 B-only-for-patrol locations and one Ruby Sea detour", PinnedData),
         ("DR points retain server-independent territory metadata and A-only rank filtering", PointMetadata),
         ("DR scan crystal blacklist excludes Ruby Sea underwater entry while normal crystal teleport remains available", RubyCrystalBlacklist),
+        ("Ruby Sea departure covers both crystal-side A points before a short surface sweep", RubyDeparture),
+        ("Ruby Sea confirms ferry arrival before covering the southern A points and flying northeast", RubyFerry),
+        ("Ruby Sea returns to normal coverage if ferry transit does not arrive", RubyFerryFallback),
         ("DR malformed partial duplicate and non-finite data fails without substituting presets", InvalidData),
         ("missing DR data cannot silently become a valid empty or preset route set", MissingData),
         ("DR observation waits before covering multiple spawn points without inventing discoveries", ObserveMultiple),
@@ -40,28 +43,145 @@ internal static class CoveragePatrolChecks
     private static void Check(bool condition, string message = "DR coverage assertion failed")
     { if (!condition) throw new Exception(message); }
 
-    private static List<PatrolRoute> Metadata() => JObject.Parse(Data).Properties().Select((p, i) =>
-        new PatrolRoute { TerritoryId = uint.Parse(p.Name), MapId = uint.Parse(p.Name) + 1000,
-            Name = "测试区域" + p.Name, Expansion = i % 6 }).Reverse().ToList();
+    private static List<PatrolRoute> Metadata() => JArray.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "SpawnPointData.json")))
+        .Select((map, i) =>
+        {
+            var id = map.Value<uint>("MapID");
+            return new PatrolRoute
+            {
+                TerritoryId = id, MapId = id + 1000, Name = "测试区域" + id, Expansion = i % 6,
+                MapScale = id is >= 397 and <= 402 ? 95 : 100,
+                Points = ((JArray)map["Positions"]!).Select(point => new PatrolPoint
+                {
+                    MapPosition = new Vector2(point.Value<float>("X"), point.Value<float>("Y")),
+                    ForA = point.Value<bool>("A"), ForB = point.Value<bool>("B")
+                }).ToList()
+            };
+        }).Reverse().ToList();
 
     private static void PinnedData()
     {
         var hash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(DataPath)));
         Check(hash == "046BB96522F172FF76AED7AC57078B160E59BE8C02073123C91BA5F10C58E428", "DR resource differs from the user-selected commit");
         Check(DRPatrolRoutes.TryLoad(DataPath, Metadata(), out var routes, out var error), error);
-        Check(routes.Count == 47 && routes.Sum(r => r.Points.Count) == 924);
+        Check(routes.Count == 47 && routes.Sum(r => r.Points.Count) == 874);
         Check(routes.All(r => r.Points.All(p => p.Position.HasValue && p.ForA && !p.ForB)));
+        // Zero-based source indices audited against SpawnPointData.json, excluding the separate Ruby Sea detour.
+        var nonASpawns = new Dictionary<uint, int[]>
+        {
+            [137] = [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31], [398] = [16, 17, 18, 19],
+            [612] = [15, 16, 17, 18, 19], [613] = [8, 9, 10, 11, 12], [614] = [8, 9, 10, 11, 12, 13],
+            [620] = [17], [621] = [14, 15, 16, 17, 18], [815] = [17],
+            [1187] = [2, 4], [1188] = [6], [1189] = [0, 1], [1190] = [1], [1191] = [4, 6], [1192] = [3, 7, 8],
+        };
         foreach (var property in JObject.Parse(Data).Properties())
         {
             var route = routes.Single(r => r.TerritoryId == uint.Parse(property.Name));
-            var expected = ((JArray)property.Value).Select(p => p["Position"]!.ToObject<Vector3>()).ToList();
-            Check(route.Points.Select(p => p.Position!.Value).SequenceEqual(expected), "DR point coordinates or order were changed");
+            var excluded = nonASpawns.GetValueOrDefault(route.TerritoryId) ?? Array.Empty<int>();
+            var original = ((JArray)property.Value).Select(p => p["Position"]!.ToObject<Vector3>());
+            var expected = original.Where((_, index) => !excluded.Contains(index) && (route.TerritoryId != 613 || index != 2));
+            Check(route.Points.Select(p => p.Position!.Value).SequenceEqual(expected), $"Unexpected DR patrol points for {route.TerritoryId}");
         }
+    }
+
+    private static PatrolRoute RubyRoute()
+    {
+        Check(DRPatrolRoutes.TryParse(Data, Metadata(), out var routes, out var error), error);
+        return routes.Single(route => route.TerritoryId == 613);
+    }
+
+    private static void RubyFerry()
+    {
+        var route = RubyRoute();
+        var ferry = new Vector3(102.43f, .28f, -550.96f);
+        var host = new Host { Ferry = ferry };
+        host.Context = host.Context with { Territory = 613, Map = route.MapId, Position = ferry - Vector3.UnitZ * 20 };
+        var (_, session) = Start(route, host: host);
+        var now = Until(session, () => host.FerryApproaches == 1);
+        Check(session.State == PatrolState.Moving && host.Navigating && host.FerryBoardings == 0);
+        Check(session.GetDRPreview(host.Context) is { Target: not null, SpawnTarget: null });
+        host.Context = host.Context with { Position = ferry };
+        session.Tick(now + 100);
+        Check(host.FerryBoardings == 1 && !host.Navigating && session.State == PatrolState.Teleporting);
+        session.Tick(now + 600);
+        Check(session.State == PatrolState.Teleporting && session.CompletedPoints == 2 && host.FerryBoardings == 1);
+        host.Context = host.Context with { Ready = false };
+        session.Tick(now + 1000);
+        host.Context = host.Context with { Ready = true, Position = new(562.32f, .94f, 841.25f) };
+        session.Tick(now + 1100);
+        Check(session.State == PatrolState.Scanning && session.CompletedPoints == 2);
+        now = Until(session, () => host.Moves == 1, now + 1200);
+        Check(session.CompletedPoints == 3 && session.PointIndex is 2 or 7);
+        while (session.PointIndex is 2 or 3 or 7 && host.Moves < 4)
+        {
+            host.Context = host.Context with { Position = host.Target };
+            var moves = host.Moves;
+            now = Until(session, () => host.Moves > moves, now + 100);
+        }
+        var snapshot = session.GetDRPreview(host.Context);
+        Check(session.PointIndex == 6 && host.Teleports == 0);
+        Check(snapshot is not null && new[] { 2, 3, 4, 5, 7 }.All(index => snapshot.Points[index].Covered));
+        session.Stop();
+        Check(!host.Navigating && host.Ends == 1);
+    }
+
+    private static void RubyDeparture()
+    {
+        var route = RubyRoute();
+        var ferry = new Vector3(102.43f, .28f, -550.96f);
+        var crystal = new Vector3(84.6f, 3.03f, -589.19f);
+        var host = new Host { Ferry = ferry, SweepAvailable = true };
+        host.Context = host.Context with { Territory = 613, Map = route.MapId, Position = crystal };
+        var (_, session) = Start(route, host: host);
+        var now = Until(session, () => host.Sweeps == 1);
+        var preview = session.GetDRPreview(host.Context)!;
+        Check(new[] { 4, 5 }.All(index => preview.Points[index].Covered) && session.CompletedPoints == 2);
+        Check(host.Target.X < crystal.X && host.Target.Z > crystal.Z && host.Target.Y > crystal.Y);
+        Check(Vector3.Distance(crystal, host.Target) < 125 &&
+            DRCoveragePlanner.DistanceSquared(host.Target, new(-349, -170, -379)) <= 390 * 390);
+        host.Context = host.Context with { Position = host.Target };
+        session.Tick(now + 100);
+        Check(session.State == PatrolState.Scanning && host.FerryApproaches == 0 && !host.Navigating);
+        host.Ferry = null;
+        now = Until(session, () => host.FerryApproaches == 1, now + 200);
+        Check(host.Target == ferry);
+        host.Ferry = ferry;
+        host.CanBoardRubySeaFerry = false;
+        host.RubySeaFerryAirborne = true;
+        host.Context = host.Context with { Position = ferry + Vector3.UnitY };
+        session.Tick(now + 100);
+        Check(host.FerryBoardings == 0 && host.Navigating);
+        host.Navigating = false;
+        session.Tick(now + 200);
+        Check(host.FerryLandings == 1 && host.FerryBoardings == 0 && host.FerryDismounts == 0);
+        host.RubySeaFerryAirborne = false;
+        session.Tick(now + 300);
+        Check(host.FerryDismounts == 1 && host.FerryBoardings == 0);
+        host.CanBoardRubySeaFerry = true;
+        session.Tick(now + 400);
+        Check(host.FerryBoardings == 1 && host.Sweeps == 1 && session.State == PatrolState.Teleporting);
+        session.Stop();
+    }
+
+    private static void RubyFerryFallback()
+    {
+        var route = RubyRoute();
+        var ferry = new Vector3(102.43f, .28f, -550.96f);
+        var host = new Host { Ferry = ferry };
+        host.Context = host.Context with { Territory = 613, Map = route.MapId, Position = ferry };
+        var (_, session) = Start(route, host: host);
+        var boarded = Until(session, () => host.FerryBoardings == 1);
+        session.Tick(boarded + 18000);
+        Check(session.Active && session.State == PatrolState.Scanning && session.CompletedPoints == 2);
+        Until(session, () => host.Moves > 0, boarded + 18100, boarded + 30000);
+        Check(host.FerryBoardings == 1 && session.PointIndex is not (2 or 3 or 7));
+        session.Stop();
     }
 
     private static void PointMetadata()
     {
         var maps = Metadata();
+        var pointCounts = maps.Select(map => map.Points.Count).ToArray();
         Check(DRPatrolRoutes.TryParse(Data, maps, out var routes, out var error), error);
         foreach (var route in routes)
         {
@@ -69,7 +189,7 @@ internal static class CoveragePatrolChecks
             Check(route.MapId == metadata.MapId && route.Name == metadata.Name && route.Expansion == metadata.Expansion);
             Check(!ReferenceEquals(route, metadata) && !ReferenceEquals(route.Points, metadata.Points));
         }
-        Check(maps.All(m => m.Points.Count == 0), "Loading DR points mutated the existing preset maps");
+        Check(maps.Select(map => map.Points.Count).SequenceEqual(pointCounts), "Loading DR points mutated the existing preset maps");
     }
 
     private static void RubyCrystalBlacklist()
@@ -383,6 +503,11 @@ internal static class CoveragePatrolChecks
         public bool WorldTravelBusy { get; set; }
         public bool RangeAvailable = true, DestinationAvailable = true, MountReady = true;
         public int Begins, Ends, Moves, Teleports, Stops, Queries;
+        public int FerryApproaches, FerryBoardings, Sweeps, FerryLandings, FerryDismounts;
+        public bool SweepAvailable;
+        public bool CanBoardRubySeaFerry { get; set; } = true;
+        public bool RubySeaFerryAirborne { get; set; }
+        public Vector3? Ferry;
         public List<uint> Changes = new(), ScannedWorlds = new();
         public Vector3 Target;
         public bool BeginCoveragePath(PatrolRoute route, Vector3 destination)
@@ -398,6 +523,18 @@ internal static class CoveragePatrolChecks
         public void EndCoverage() => Ends++;
         public bool TryCoverageDestination(Vector3 candidate, out Vector3 destination) { Queries++; destination = candidate; return DestinationAvailable; }
         public IReadOnlyList<PatrolCoverageCrystal> CoverageCrystals(PatrolRoute route) => Crystals;
+        public Vector3? FindRubySeaFerry() => Ferry;
+        public bool StartRubySeaSweep(PatrolRoute route, Vector3 position)
+        {
+            if (!SweepAvailable) return false;
+            Sweeps++; Target = position; Navigating = true; return true;
+        }
+        public bool ApproachRubySeaFerry(PatrolRoute route, Vector3 position)
+        { FerryApproaches++; Target = position; Navigating = true; return true; }
+        public bool LandAtRubySeaFerry(PatrolRoute route, Vector3 dock)
+        { FerryLandings++; Navigating = true; return true; }
+        public void DismountAtRubySeaFerry() => FerryDismounts++;
+        public bool BoardRubySeaFerry() { FerryBoardings++; return true; }
         public float CoverageSpeed(PatrolOptions options) => 12;
         public bool Teleport(PatrolRoute route, out string error) => Teleport(route, null, out error);
         public bool Teleport(PatrolRoute route, PatrolTeleport? plan, out string error)

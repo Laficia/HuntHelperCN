@@ -88,7 +88,7 @@ public static class DRPatrolRoutes
                 var route = new PatrolRoute
                 {
                     TerritoryId = map.TerritoryId, MapId = map.MapId,
-                    Name = map.Name, Expansion = map.Expansion,
+                    Name = map.Name, Expansion = map.Expansion, MapScale = map.MapScale,
                 };
                 var seen = new HashSet<Vector3>();
                 foreach (var item in points)
@@ -105,6 +105,8 @@ public static class DRPatrolRoutes
                     route.Points.Add(new PatrolPoint { Position = vector, ForA = true, ForB = false });
                 }
                 count += route.Points.Count;
+                // Check the original point count before applying A-patrol rank filtering.
+                route.Points.RemoveAll(point => !DRScanRules.IncludesAPatrolPoint(map, point.Position!.Value));
                 loaded.Add(route);
             }
             if (count != ExpectedPointCount)

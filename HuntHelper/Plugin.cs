@@ -322,6 +322,10 @@ namespace HuntHelper
                     break;
                 case "finder": HuntFinderUI.Open(); break;
                 case "macro": PointMacroUI.Open("A"); break;
+                case "preview":
+                    Configuration.HuntFinderKeepPreviewOpen = !Configuration.HuntFinderKeepPreviewOpen;
+                    Configuration.Save();
+                    break;
                 default: ToggleHuntTrainUI(HuntTrainUI); break;
             }
         }

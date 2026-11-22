@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 
@@ -9,6 +10,8 @@ namespace HuntHelper.Managers.Automation;
 // completion by species count. A covered location never creates a monster record.
 public sealed class DRCoveragePatrol
 {
+    private const int CandidatesPerFrame = 8;
+    private const int PlanningBudgetMs = 3;
     private readonly IPatrolHost _host;
     private readonly PatrolRoute _route;
     private readonly Vector3[] _points;
@@ -17,6 +20,8 @@ public sealed class DRCoveragePatrol
     private readonly HashSet<int> _targets = new();
     private readonly List<Vector3> _failed = new();
     private IEnumerator<DRCoveragePlan?>? _planning;
+    private Vector3 _planningOrigin;
+    private bool _planningCompleted;
     private DRCoveragePlan? _best;
     private Queue<Vector3>? _retries;
     private Vector3 _stable, _previous, _destination;
@@ -28,6 +33,14 @@ public sealed class DRCoveragePatrol
     private long? _mountStarted;
     private bool _mountPrepared;
     private PatrolTeleport? _teleport;
+    private enum FerryStage { None, ObserveDeparture, Sweep, ObserveSweep, Approach, Arrival }
+    private enum RubySeaPriority { None, South, Northeast }
+    private FerryStage _ferry;
+    private long _ferryDeadline;
+    private Vector3 _rubySweepDestination;
+    private bool _ferryLandingRequested;
+    private RubySeaPriority _rubyPriority;
+    private IReadOnlyCollection<int>? _planningPoints;
 
     public PatrolState State { get; private set; } = PatrolState.Scanning;
     public string Message { get; private set; } = "DR 覆盖扫描：原地等待怪物加载";
@@ -38,6 +51,39 @@ public sealed class DRCoveragePatrol
     public uint Instance { get; }
     private readonly uint _world;
     public Vector3? Target => State == PatrolState.Moving && _ownsPath ? _destination : null;
+    internal Vector3? SpawnTarget => _planningCompleted && _best is { } plan &&
+        State is PatrolState.PreparingMove or PatrolState.Moving ? _points[plan.Anchor] : null;
+    internal bool IsPlanning => _planning != null;
+
+    internal void AdvancePlanning(PatrolContext context)
+    {
+        if (_planning == null || !context.Ready || context.World != _world || context.Territory != _route.TerritoryId ||
+            context.Map != _route.MapId || context.Instance != Instance || context.Dead || !_host.CoverageNavigationReady)
+            return;
+        if (Vector3.DistanceSquared(context.Position, _planningOrigin) > 4)
+        {
+            ResetPlanning();
+            return;
+        }
+
+        // Retain candidate order and compare the whole set before using the winner.
+        // Native voxel queries run on the game thread, so yield between batches.
+        var started = Stopwatch.GetTimestamp();
+        for (var checkedCount = 0; checkedCount < CandidatesPerFrame; checkedCount++)
+        {
+            if (!_planning.MoveNext())
+            {
+                _planning.Dispose();
+                _planning = null;
+                _planningCompleted = true;
+                return;
+            }
+            if (_planning.Current is { } scored &&
+                (_best == null || scored.Score < _best.Score || scored.Score == _best.Score && scored.Coverage > _best.Coverage))
+                _best = scored;
+            if (Stopwatch.GetElapsedTime(started).TotalMilliseconds >= PlanningBudgetMs) return;
+        }
+    }
 
     public IReadOnlyList<DRPreviewPoint> GetPreviewPoints() => _points
         .Select((point, index) => new DRPreviewPoint(point, !_pending.Contains(index), _passed.Contains(index))).ToArray();
@@ -49,6 +95,16 @@ public sealed class DRCoveragePatrol
         _pending = Enumerable.Range(0, _points.Length).ToHashSet();
         _stable = context.Position; _started = now; Instance = context.Instance; _world = context.World;
         if (CanPreview(context)) MarkPassed(context.Position, context.Position);
+        if (route.TerritoryId == DRScanRules.RubySea && _points.Count(DRScanRules.IsRubySeaSouthPoint) == 3)
+        {
+            if (AtRubySeaLanding(context.Position)) _rubyPriority = RubySeaPriority.South;
+            else if (Vector3.DistanceSquared(context.Position, DRScanRules.RubySeaFerryDock) <= 100 * 100)
+            {
+                _ferry = FerryStage.ObserveDeparture;
+                _ferryDeadline = now + 25000;
+                Message = "自凝岛：扫描水晶周边";
+            }
+        }
     }
 
     public void Stop()
@@ -63,6 +119,7 @@ public sealed class DRCoveragePatrol
     {
         if (Finished || Failed) return;
         if (now - _started > 180000) { Fail("DR 覆盖扫描步骤超时"); return; }
+        if (_ferry != FerryStage.None) { TickFerry(context, now); return; }
         if (State == PatrolState.Teleporting)
         {
             _busySeen |= !context.Ready;
@@ -99,6 +156,165 @@ public sealed class DRCoveragePatrol
         }
     }
 
+    private static bool AtRubySeaLanding(Vector3 position) =>
+        Vector3.DistanceSquared(position, DRScanRules.RubySeaFerryLanding) <= 40 * 40;
+
+    private void TickFerry(PatrolContext context, long now)
+    {
+        if (!context.Ready) return;
+        if (_ferry == FerryStage.Arrival && AtRubySeaLanding(context.Position))
+        {
+            _ferry = FerryStage.None;
+            _rubyPriority = RubySeaPriority.South;
+            Observe(context.Position, now);
+            Message = "已乘船抵达，准备巡查南侧三个 A 点";
+            return;
+        }
+        if (_ferry is FerryStage.ObserveDeparture or FerryStage.Sweep or FerryStage.ObserveSweep)
+        { TickRubySeaDeparture(context, now); return; }
+        if (now >= _ferryDeadline || context.InCombat)
+        { FallBackFromFerry(context.Position, now); return; }
+        if (_ferry == FerryStage.Arrival) return;
+
+        var ferry = _host.FindRubySeaFerry();
+        if (ferry is { } dock && Vector3.DistanceSquared(context.Position, dock) <=
+            DRScanRules.RubySeaFerryInteractionRange * DRScanRules.RubySeaFerryInteractionRange)
+        {
+            if (!_host.CanBoardRubySeaFerry)
+            {
+                PrepareFerryBoarding(context.Position, dock);
+                return;
+            }
+            Stop();
+            if (!_host.BoardRubySeaFerry()) { FallBackFromFerry(context.Position, now); return; }
+            _ferry = FerryStage.Arrival;
+            _ferryDeadline = now + 18000;
+            State = PatrolState.Teleporting;
+            Message = "已与船头交互，等待抵达红玉海南岸";
+            return;
+        }
+        if (_ownsPath)
+        {
+            if (!_host.Navigating && !_host.RubySeaFerryAirborne) FallBackFromFerry(context.Position, now);
+            return;
+        }
+        if (!_host.CoverageNavigationReady || !_host.PrepareMount(true, false, out _)) return;
+        var approach = ferry ?? DRScanRules.RubySeaFerryDock;
+        if (!_host.ApproachRubySeaFerry(_route, approach)) { FallBackFromFerry(context.Position, now); return; }
+        _ownsPath = true;
+        _destination = approach;
+        State = PatrolState.Moving;
+    }
+
+    private void PrepareFerryBoarding(Vector3 position, Vector3 dock)
+    {
+        if (!_host.RubySeaFerryAirborne)
+        {
+            Stop();
+            _host.DismountAtRubySeaFerry();
+            State = PatrolState.Scanning;
+            Message = "船头：下坐骑后乘船";
+            return;
+        }
+        if (_host.Navigating || _ferryLandingRequested || MathF.Abs(position.Y - dock.Y) > 1.2f ||
+            DRCoveragePlanner.DistanceSquared(position, dock) > 1.5f * 1.5f) return;
+        Stop();
+        _ferryLandingRequested = true;
+        _destination = dock;
+        _ownsPath = _host.LandAtRubySeaFerry(_route, dock);
+        Message = "船头：正在落地";
+    }
+
+    private void TickRubySeaDeparture(PatrolContext context, long now)
+    {
+        if (context.InCombat) { FallBackFromFerry(context.Position, now); return; }
+        if (now >= _ferryDeadline) { BeginFerryApproach(context.Position, now); return; }
+        if (_ferry is FerryStage.ObserveDeparture or FerryStage.ObserveSweep)
+        {
+            if (DRCoveragePlanner.DistanceSquared(context.Position, _stable) > 1)
+            { _stable = context.Position; _started = now; return; }
+            if (now - _started < DRCoveragePlanner.ObservationMs) return;
+            Cover(context.Position, context.Position, true);
+            if (_ferry == FerryStage.ObserveDeparture && TryRubySeaSweepDestination(context.Position, out _rubySweepDestination))
+            {
+                _ferry = FerryStage.Sweep;
+                _ferryDeadline = now + 20000;
+                State = PatrolState.PreparingMove;
+                Message = "自凝岛：向西南短距离补扫";
+                return;
+            }
+            BeginFerryApproach(context.Position, now);
+            return;
+        }
+
+        if (!_ownsPath)
+        {
+            if (!_host.CoverageNavigationReady || !_host.PrepareMount(true, true, out _)) return;
+            if (!_host.StartRubySeaSweep(_route, _rubySweepDestination))
+            { BeginFerryApproach(context.Position, now); return; }
+            _ownsPath = true;
+            _destination = _rubySweepDestination;
+            State = PatrolState.Moving;
+            return;
+        }
+        if (DRCoveragePlanner.DistanceSquared(context.Position, DRScanRules.RubySeaUnderwaterSpawn) <= 390 * 390)
+        {
+            Stop();
+            _ferry = FerryStage.ObserveSweep;
+            _stable = context.Position;
+            _started = now;
+            State = PatrolState.Scanning;
+            Message = "自凝岛：停留补扫第三个点";
+        }
+        else if (!_host.Navigating) BeginFerryApproach(context.Position, now);
+    }
+
+    private static bool TryRubySeaSweepDestination(Vector3 origin, out Vector3 destination)
+    {
+        destination = default;
+        if (Vector3.DistanceSquared(origin, DRScanRules.RubySeaCrystal) > 25 * 25) return false;
+        var delta = DRScanRules.RubySeaUnderwaterSpawn - origin;
+        delta.Y = 0;
+        var distance = delta.Length();
+        if (distance <= DRCoveragePlanner.DetectionRadius) return false;
+        destination = origin + delta * ((distance - 380) / distance) + new Vector3(0, 12, 0);
+        return true;
+    }
+
+    private void BeginFerryApproach(Vector3 position, long now)
+    {
+        Stop();
+        Observe(position, now);
+        _ferry = FerryStage.Approach;
+        _ferryDeadline = now + 25000;
+        Message = "前往自凝岛船头";
+    }
+
+    private void FallBackFromFerry(Vector3 position, long now)
+    {
+        Stop();
+        _ferry = FerryStage.None;
+        Observe(position, now);
+        Message = "船头捷径未完成，继续 DR 覆盖扫描";
+    }
+
+    private IReadOnlyCollection<int> GetPlanningPoints()
+    {
+        if (_rubyPriority == RubySeaPriority.South)
+        {
+            var south = _pending.Where(i => DRScanRules.IsRubySeaSouthPoint(_points[i])).ToArray();
+            if (south.Length > 0) return south;
+            _rubyPriority = RubySeaPriority.Northeast;
+        }
+        if (_rubyPriority == RubySeaPriority.Northeast)
+        {
+            var northeast = _pending.Where(i => DRScanRules.IsRubySeaEastPoint(_points[i])).ToArray();
+            if (northeast.Length > 0) return northeast;
+            _rubyPriority = RubySeaPriority.None;
+        }
+        return _pending;
+    }
+
     private void Select(PatrolContext context, long now)
     {
         if (_pathPending)
@@ -118,25 +334,20 @@ public sealed class DRCoveragePatrol
             Message = $"DR 覆盖扫描：前往观察点，已覆盖 {CoveredCount}/{_points.Length}";
             return;
         }
-        if (_planning == null && _best == null)
+        if (_planning == null && !_planningCompleted)
         {
-            if (_pending.All(i => DRCoveragePlanner.DistanceSquared(context.Position, _points[i]) <=
+            _planningPoints = GetPlanningPoints();
+            if (_planningPoints.All(i => DRCoveragePlanner.DistanceSquared(context.Position, _points[i]) <=
                 DRCoveragePlanner.PlanningRadius * DRCoveragePlanner.PlanningRadius))
             { Observe(context.Position, now); return; }
-            _planning = DRCoveragePlanner.Plan(context.Position, _points, _pending, _host.CoverageCrystals(_route),
+            _planningOrigin = context.Position;
+            var crystals = _rubyPriority == RubySeaPriority.None ? _host.CoverageCrystals(_route) : Array.Empty<PatrolCoverageCrystal>();
+            _planning = DRCoveragePlanner.Plan(_planningOrigin, _points, _planningPoints, crystals,
                 candidate => _host.TryCoverageDestination(candidate, out var point) &&
                     !_failed.Any(f => Vector3.DistanceSquared(f, point) < 1) ? point : null).GetEnumerator();
         }
-        // DR compares the full candidate set in one update, preserving input
-        // order and the first candidate when both score and coverage are tied.
-        while (_planning != null)
-        {
-            if (!_planning.MoveNext()) { _planning.Dispose(); _planning = null; break; }
-            if (_planning.Current is not { } scored) continue;
-            if (_best == null || scored.Score < _best.Score || scored.Score == _best.Score && scored.Coverage > _best.Coverage)
-                _best = scored;
-        }
-        if (_planning != null) return;
+        AdvancePlanning(context);
+        if (!_planningCompleted) return;
         if (_best is not { } plan) { Fail("DR 剩余刷新点没有可用飞行路线，请检查飞行解锁及 vnavmesh 网格"); return; }
         Anchor = plan.Anchor;
         if (plan.Crystal is { } crystal)
@@ -162,7 +373,7 @@ public sealed class DRCoveragePatrol
         if (_retries == null)
         {
             _targets.Clear();
-            _targets.UnionWith(_pending.Where(i => DRCoveragePlanner.DistanceSquared(_points[i], plan.Destination) <=
+            _targets.UnionWith(_planningPoints!.Where(i => DRCoveragePlanner.DistanceSquared(_points[i], plan.Destination) <=
                 DRCoveragePlanner.PlanningRadius * DRCoveragePlanner.PlanningRadius));
             _retries = new(DRCoveragePlanner.RetryTargets(plan.Destination, _points[Anchor]));
         }
@@ -213,7 +424,12 @@ public sealed class DRCoveragePatrol
     }
 
     private void ResetPlanning()
-    { _planning?.Dispose(); _planning = null; _best = null; _retries = null; _mountStarted = null; _mountPrepared = false; }
+    {
+        _planning?.Dispose();
+        _planning = null; _planningCompleted = false; _best = null;
+        _planningPoints = null;
+        _retries = null; _mountStarted = null; _mountPrepared = false;
+    }
 
     private void Cover(Vector3 a, Vector3 b, bool observing)
     {

@@ -21,6 +21,8 @@ public sealed record DRPatrolPreview
     public PatrolState State { get; init; }
     public Vector3 Player { get; init; }
     public Vector3? Target { get; init; }
+    public Vector3? SpawnTarget { get; init; }
+    public Vector2? SpawnMapCoordinates { get; init; }
     public IReadOnlyList<DRPreviewPoint> Points { get; init; } = Array.Empty<DRPreviewPoint>();
     public IReadOnlyList<Vector3> Path { get; init; } = Array.Empty<Vector3>();
     public IReadOnlyList<Vector3> Monsters { get; init; } = Array.Empty<Vector3>();

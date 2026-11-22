@@ -36,6 +36,12 @@ internal static unsafe class FinderPreviewChecks
         Check(HasCanvasClip(), "Map primitives were not assigned the canvas clip rectangle");
         Console.WriteLine("PASS Native DR preview opens an independent square clipped map canvas");
 
+        _preview = Example with { MapName = "红玉海", SpawnTarget = new(700, 0, 260), SpawnMapCoordinates = new(35.48f, 26.68f) };
+        Frame();
+        Check(HuntFinderPreviewUI.FormatSpawnTarget(_preview) == "目标 A 点 · 红玉海 (35.5, 26.7)", "Spawn coordinates were not shown in map format");
+        Check(HuntFinderPreviewUI.FormatSpawnTarget(Example) == null, "An unselected spawn displayed stale coordinates");
+        Console.WriteLine("PASS Native DR preview formats the selected A spawn using map coordinates");
+
         var original = UI.WindowSize;
         DragCorner(new(-70, -70)); Frame();
         Check(UI.WindowSize.X < original.X - 40 && UI.WindowSize.Y < original.Y - 40, "Preview resize corner did not shrink the window");

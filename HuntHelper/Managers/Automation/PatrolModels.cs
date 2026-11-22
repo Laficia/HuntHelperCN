@@ -27,6 +27,7 @@ public sealed class PatrolRoute
     public uint MapId { get; set; }
     public string Name { get; set; } = string.Empty;
     public int Expansion { get; set; }
+    internal float MapScale { get; init; } = 100;
     [JsonProperty(Required = Required.Always)]
     public List<PatrolPoint> Points { get; set; } = new();
 }
@@ -62,6 +63,14 @@ public interface IPatrolHost
     bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
     { destination = candidate; return Utilities.NavigationRules.IsFinite(candidate); }
     IReadOnlyList<PatrolCoverageCrystal> CoverageCrystals(PatrolRoute route) => Array.Empty<PatrolCoverageCrystal>();
+    bool StartRubySeaSweep(PatrolRoute route, Vector3 position) => false;
+    Vector3? FindRubySeaFerry() => null;
+    bool ApproachRubySeaFerry(PatrolRoute route, Vector3 position) => false;
+    bool RubySeaFerryAirborne => false;
+    bool CanBoardRubySeaFerry => true;
+    bool LandAtRubySeaFerry(PatrolRoute route, Vector3 dock) => false;
+    void DismountAtRubySeaFerry() { }
+    bool BoardRubySeaFerry() => false;
     float CoverageSpeed(PatrolOptions options) => 12;
     string WorldTravelError => "请先启用 DR「快捷跨服」模块";
     string WorldTravelStopHint => string.Empty;

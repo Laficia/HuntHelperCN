@@ -175,7 +175,7 @@ public sealed class NavigationManager : IDisposable
         }
     }
 
-    public bool TryMoveTo(HuntTrainMob mob)
+    public bool TryMoveTo(HuntTrainMob mob, bool? fly = null)
     {
         lock (_requestLock)
         {
@@ -207,7 +207,7 @@ public sealed class NavigationManager : IDisposable
                 reason = GetContextReason(mob);
                 if (reason.Length != 0) throw new InvalidOperationException(reason);
                 var player = _objectTable.LocalPlayer ?? throw new InvalidOperationException("无法读取玩家位置");
-                _requestFly = _isFlying();
+                _requestFly = fly ?? _isFlying();
                 _destination = destination;
                 var from = player.Position;
                 if (!_requestFly && _nearestReachable.HasFunction)

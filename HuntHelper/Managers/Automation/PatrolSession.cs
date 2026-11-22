@@ -61,7 +61,8 @@ public sealed class PatrolSession
         {
             World = _world, Territory = route.TerritoryId, Map = route.MapId, Instance = _instance,
             MapName = route.Name, Status = Message, State = State, Player = context.Position,
-            Target = _coverage.Target, Points = _coverage.GetPreviewPoints(), FoundA = _foundA.Count,
+            Target = _coverage.Target, SpawnTarget = _coverage.SpawnTarget,
+            Points = _coverage.GetPreviewPoints(), FoundA = _foundA.Count,
             Monsters = _detections.Values.Where(d => d.IsA && d.Position is { } point && Utilities.NavigationRules.IsFinite(point))
                 .Select(d => d.Position!.Value).Distinct().ToArray(),
         };
@@ -125,6 +126,12 @@ public sealed class PatrolSession
         _ownsWorldTravel = false;
         _ownsNavigation = false; State = PatrolState.Stopped; Message = reason;
         ReleaseCoverageRange();
+    }
+
+    internal void AdvanceCoveragePlanning()
+    {
+        if (_coverage is { IsPlanning: true } coverage)
+            coverage.AdvancePlanning(_host.Context);
     }
 
     public void Tick(long now)

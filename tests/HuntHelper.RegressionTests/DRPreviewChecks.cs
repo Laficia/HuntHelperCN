@@ -9,7 +9,7 @@ internal static class DRPreviewChecks
         ("DR preview appears only after an active DR area begins and has safe empty defaults", Lifecycle),
         ("DR preview rejects unknown foreign unloaded and mismatched map or instance contexts", Scope),
         ("DR preview coverage snapshots cannot mutate points or retroactively change earlier frames", PointSnapshots),
-        ("DR preview target exists only while an owned observation path is moving", MovingTarget),
+        ("DR preview distinguishes the chosen A spawn from the actual path endpoint and clears both after arrival", MovingTarget),
         ("DR preview includes only live A observations without recording or mutating discoveries", LiveObservations),
         ("DR preview disappears immediately on stop completion and a context interruption", Ends),
         ("DR preview hides during same-map and cross-map teleport and reappears after actual arrival", TeleportVisibility),
@@ -94,13 +94,19 @@ internal static class DRPreviewChecks
     }
     private static void MovingTarget()
     {
-        var (host, session) = Start(); var now = Until(session, () => host.Moves > 0);
+        var (host, session) = Start(Route(700, 800));
+        session.Tick(0);
+        Check(session.GetDRPreview(host.Context) is { SpawnTarget: null, Target: null });
+        var now = Until(session, () => session.GetDRPreview(host.Context)?.SpawnTarget != null);
+        Check(session.GetDRPreview(host.Context) is { State: PatrolState.PreparingMove, SpawnTarget.X: 700, Target: null });
+        now = Until(session, () => host.Moves > 0, now + 100);
         var moving = session.GetDRPreview(host.Context)!;
-        Check(moving.State == PatrolState.Moving && moving.Target == host.Target);
+        Check(moving.State == PatrolState.Moving && moving.Target == host.Target && moving.SpawnTarget == new Vector3(700, 0, 0) &&
+            moving.SpawnTarget != moving.Target);
         host.Context = host.Context with { Position = host.Target };
         session.Tick(now + 100);
         var observing = session.GetDRPreview(host.Context)!;
-        Check(observing.State == PatrolState.Scanning && observing.Target == null && host.Stops > 0);
+        Check(observing.State == PatrolState.Scanning && observing.Target == null && observing.SpawnTarget == null && host.Stops > 0);
         Check(moving.Target == host.Target && moving.State == PatrolState.Moving, "A previous moving frame was mutated");
         session.Stop(); Check(session.GetDRPreview(host.Context) == null);
     }

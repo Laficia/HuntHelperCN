@@ -29,6 +29,7 @@
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRCoveragePatrol.cs" Link="Production\DRCoveragePatrol.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Automation\DRPatrolPreview.cs" Link="Production\DRPatrolPreview.cs" />
     <None Include="..\..\HuntHelper\Data\DRSpawnPoints.json" Link="DRSpawnPoints.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\HuntHelper\Data\SpawnPointData.json" Link="SpawnPointData.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="..\..\HuntHelper\Utilities\ARankMapOrder.cs" Link="Production\ARankMapOrder.cs" />
     <Compile Include="..\..\HuntHelper\Utilities\HuntRecordInfo.cs" Link="Production\HuntRecordInfo.cs" />
     <Compile Include="..\..\HuntHelper\Managers\Hunts\TrainSnapshotStore.cs" Link="Production\TrainSnapshotStore.cs" />

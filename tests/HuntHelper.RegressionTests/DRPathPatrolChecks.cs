@@ -15,6 +15,7 @@ internal static class DRPathPatrolChecks
         ("DR mount timeout is 20 seconds and unavailable flight fails immediately", MountRules),
         ("DR observation stability ignores vertical movement", HorizontalObservation),
         ("DR waits for the native navigation grid without marking points or dispatching a path", GridWait),
+        ("DR spreads dense voxel lookups across frames and still chooses the highest-ranked destination", PlanningBatches),
     ];
     private static void Check(bool value) { if (!value) throw new Exception("DR path patrol assertion failed"); }
     private static PatrolRoute Route(float x = 700) => new() { TerritoryId = 10, MapId = 20,
@@ -121,6 +122,30 @@ internal static class DRPathPatrolChecks
         Check(!patrol.Finished && patrol.CoveredCount == 0 && h.Requests == 0);
         h.CoverageNavigationReady = true; patrol.Tick(h.Context, 1250); Check(patrol.Finished);
     }
+
+    private static void PlanningBatches()
+    {
+        var host = new Host();
+        var route = Route();
+        var points = Enumerable.Range(0, 12).Select(i => new Vector3(700 + i * 18, 0, i * 12)).ToArray();
+        route.Points = points.Select(point => new PatrolPoint { Position = point, ForA = true }).ToList();
+        var best = DRCoveragePlanner.Plan(host.Context.Position, points, Enumerable.Range(0, points.Length).ToArray(), [], p => p)
+            .OfType<DRCoveragePlan>().OrderBy(p => p.Score).ThenByDescending(p => p.Coverage).First();
+        var patrol = new DRCoveragePatrol(host, route, Options(), host.Context, 0);
+        patrol.Tick(host.Context, 250);
+        patrol.Tick(host.Context, 500);
+        Check(patrol.IsPlanning && host.CoverageResolutions is > 0 and <= 8 && host.Requests == 0);
+        for (var frame = 0; patrol.IsPlanning && frame < 100; frame++)
+        {
+            var before = host.CoverageResolutions;
+            patrol.AdvancePlanning(host.Context);
+            Check(host.CoverageResolutions - before <= 8 && host.Requests == 0);
+        }
+        Check(!patrol.IsPlanning);
+        patrol.Tick(host.Context, 750);
+        Check(host.Requests == 1 && host.RequestedDestination == best.Destination);
+        patrol.Stop();
+    }
     private sealed class Host : IPatrolHost
     {
         public PatrolContext Context { get; set; } = new(101, 10, 20, 1, Vector3.Zero, true, true, false, false);
@@ -132,11 +157,15 @@ internal static class DRPathPatrolChecks
         public string CoverageMountError { get; set; } = "";
         public bool MountReady = true;
         public int Requests, Follows, Stops, Ends, LegacyMoves, MountRequests;
+        public int CoverageResolutions;
+        public Vector3 RequestedDestination;
         public List<Vector3>? Result = [new(50, 7, 0), new(400, 9, 0), new(650, 11, 0), new(700, 12, 0)];
         public List<Vector3> Followed = [];
         public List<uint> ScannedWorlds = [];
         public bool BeginCoveragePath(PatrolRoute route, Vector3 destination)
-        { Requests++; CoveragePathPending = true; NavigationInterrupted = false; return true; }
+        { Requests++; RequestedDestination = destination; CoveragePathPending = true; NavigationInterrupted = false; return true; }
+        public bool TryCoverageDestination(Vector3 candidate, out Vector3 destination)
+        { CoverageResolutions++; destination = candidate; return true; }
         public List<Vector3>? TakeCoveragePath() => CoveragePathPending ? null : Result?.ToList();
         public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path)
         { Follows++; Followed = path.ToList(); Navigating = true; return true; }

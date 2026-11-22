@@ -119,9 +119,20 @@ public sealed class HuntFinderPreviewUI
 
     private void DrawContents(DRPatrolPreview preview, ImTextureID? texture, float scale)
     {
+        if (preview.State == PatrolState.Stopped && preview.MapName.Length == 0)
+        {
+            ImGui.TextDisabled(preview.Status);
+            return;
+        }
         var location = $"{preview.MapName} · {preview.WorldName}" + (preview.Instance > 0 ? $" · {preview.Instance}线" : "");
         ImGui.TextUnformatted(Fit(location, ImGui.GetContentRegionAvail().X));
         if (ImGui.IsItemHovered()) ImGui.SetTooltip(location);
+        if (FormatSpawnTarget(preview) is { } target)
+        {
+            ImGui.TextColored(Cyan, Fit(target, ImGui.GetContentRegionAvail().X));
+            if (ImGui.IsItemHovered()) ImGui.SetTooltip(target);
+        }
+        else ImGui.TextDisabled("目标 A 点 · —");
         var completed = preview.Points.Count(point => point.Covered || point.Passed);
         PatrolledPointCount = completed;
         ImGui.TextDisabled($"已巡查 {completed}/{preview.Points.Count}  ·  A怪 {preview.FoundA}");
@@ -145,7 +156,7 @@ public sealed class HuntFinderPreviewUI
         ImGui.InvisibleButton("##DRPreviewCanvas", new Vector2(side));
         var hovered = ImGui.IsItemHovered();
         DrawCanvas(preview, texture, scale, draw, minimum, maximum, side);
-        if (hovered) ImGui.SetTooltip("红色：尚未巡查的刷新点\n青绿：扫描圈内、实际经过范围或已完成覆盖的点\n经过状态仅为视觉巡查，不改变怪物记录，也不代替正式扫描确认\n青蓝：当前真实导航路径；圆圈为固定400米检测假设\n金色菱形：本图本线已发现的 A 怪");
+        if (hovered) ImGui.SetTooltip("红色：尚未巡查的刷新点\n青绿：扫描圈内、实际经过范围或已完成覆盖的点\n经过状态仅为视觉巡查，不改变怪物记录，也不代替正式扫描确认\n青蓝：当前真实导航路径；圆圈为固定400米检测假设\n浅色圆环：当前目标 A 怪刷新点\n金色菱形：本图本线已发现的 A 怪");
         ImGui.Spacing();
         var used = 0f;
         foreach (var legend in legends)
@@ -156,12 +167,16 @@ public sealed class HuntFinderPreviewUI
             Legend(legend.Color, legend.Text, scale);
             used += width;
         }
-        var status = StateLabel(preview.State);
+        var status = preview.State == PatrolState.Stopped ? preview.Status : StateLabel(preview.State);
         if (preview.PathStatus.Contains("终点距")) status += " · 路线未达目标";
         if (string.IsNullOrWhiteSpace(status)) status = StateLabel(preview.State);
         ImGui.TextDisabled(Fit(status, ImGui.GetContentRegionAvail().X));
         if (ImGui.IsItemHovered()) ImGui.SetTooltip($"{StateLabel(preview.State)}\n{preview.Status}\n{preview.PathStatus}");
     }
+
+    internal static string? FormatSpawnTarget(DRPatrolPreview preview) => preview.SpawnMapCoordinates is { } coordinates
+        ? FormattableString.Invariant($"目标 A 点 · {preview.MapName} ({coordinates.X:0.0}, {coordinates.Y:0.0})")
+        : null;
 
     private void DrawCanvas(DRPatrolPreview preview, ImTextureID? texture, float scale, ImDrawListPtr draw,
         Vector2 minimum, Vector2 maximum, float side)
@@ -222,6 +237,11 @@ public sealed class HuntFinderPreviewUI
             {
                 draw.AddCircle(targetPosition, 8 * scale, Color(Cyan), 24, 2 * scale);
                 draw.AddCircleFilled(targetPosition, 2 * scale, Color(Cyan), 12);
+            }
+            if (preview.SpawnTarget is { } spawn && Project(spawn, out var spawnPosition) &&
+                HuntFinderPreviewProjection.Contains(spawnPosition, minimum, maximum))
+            {
+                draw.AddCircle(spawnPosition, 7 * scale, ImGui.GetColorU32(ImGuiCol.Text), 24, 2 * scale);
             }
             if (Project(preview.Player, out player))
             {

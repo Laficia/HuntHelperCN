@@ -2,7 +2,7 @@
   "Author": "img02 / Laficia",
   "Name": "狩猎助手Hunt Helper",
   "Punchline": "独立 A/S 怪记录、Sonar 联动、区服版本分类与巡点",
-  "Changelog": "1.0.0.32 修复原生狩猎车空列表的提示偏移和截断，新增窗口关闭锁，修复原生预设宏的输入焦点与草稿同步。",
+  "Changelog": "1.0.0.33 优化红玉海水晶与船头巡航，剔除无 A 怪刷新的 B 怪点，悬浮窗实时显示当前目标坐标，支持 /hht preview 常驻。",
   "Description": "基于 img02/HuntHelper 的国服定制版。/hht 为 A 怪狩猎车，/hhs 为独立 S 怪记录，按区服、版本和分线隔离；支持录制 Sonar 定位聊天、自动地图底图、同区服同地图同分线 vnavmesh 移动和正常水晶传送。首次使用请禁用原版，避免命令冲突。保留原 MIT 许可。",
   "Tags": [
     "hunt",

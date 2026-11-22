@@ -1,4 +1,5 @@
 using Dalamud.Game.ClientState.Conditions;
+using Dalamud.Game.ClientState.Objects.Enums;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Config;
 using Dalamud.Plugin.Services;
@@ -71,7 +72,12 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         get
         {
-            if (_disposed || _preview is not { } preview || !Session.Active || Session.RouteMode != PatrolRouteMode.DRCoverage ||
+            if (_disposed || _preview is not { } preview) return null;
+            if (preview.State == PatrolState.Stopped)
+            {
+                if (!_config.HuntFinderKeepPreviewOpen) return null;
+            }
+            else if (!Session.Active || Session.RouteMode != PatrolRouteMode.DRCoverage ||
                 Session.State is not (PatrolState.Scanning or PatrolState.PreparingMove or PatrolState.Moving) ||
                 Session.CurrentRoute is not { } route || route.TerritoryId != preview.Territory || route.MapId != preview.Map)
                 return null;
@@ -124,6 +130,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
             Maps.Add(new PatrolRoute { TerritoryId = map.MapID, MapId = zone.Value.Map.RowId,
                 Name = zone.Value.PlaceName.ValueNullable?.Name.ToString() ?? map.MapName,
                 Expansion = (int)zone.Value.ExVersion.RowId,
+                MapScale = _hunts.GetMapZoneScale(map.MapID),
                 Points = map.Positions.Where(p => p.A || p.B).GroupBy(p => p.Position)
                     .Select(g => new PatrolPoint { MapPosition = g.Key, ForA = g.Any(p => p.A), ForB = g.Any(p => p.B) }).ToList() });
         }
@@ -228,6 +235,50 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path) =>
         path.Count > 0 && _navigation.FollowCoveragePath(CoverageTarget(route, path[^1]), path);
 
+    private IGameObject? GetRubySeaFerry() => _objects.FirstOrDefault(o => o.ObjectKind == ObjectKind.EventNpc &&
+        o.BaseId == DRScanRules.RubySeaFerryNpc &&
+        Vector3.DistanceSquared(o.Position, DRScanRules.RubySeaFerryDock) <= 25);
+
+    public bool StartRubySeaSweep(PatrolRoute route, Vector3 position) => _navigation.TryMoveTo(CoverageTarget(route, position), fly: true);
+
+    public Vector3? FindRubySeaFerry() => GetRubySeaFerry()?.Position;
+
+    public bool ApproachRubySeaFerry(PatrolRoute route, Vector3 position) => _navigation.TryMoveTo(CoverageTarget(route, position));
+
+    public bool RubySeaFerryAirborne => _condition[ConditionFlag.InFlight];
+    public bool CanBoardRubySeaFerry => !RubySeaFerryAirborne && !_condition[ConditionFlag.Mounted];
+
+    public bool LandAtRubySeaFerry(PatrolRoute route, Vector3 dock)
+    {
+        // The flight solver can stop just above the deck within its path tolerance.
+        // A short downward input lets the client collide with the deck and land.
+        var belowDeck = dock - Vector3.UnitY * 4;
+        return _navigation.FollowCoveragePath(CoverageTarget(route, belowDeck), [belowDeck]);
+    }
+
+    public unsafe void DismountAtRubySeaFerry()
+    {
+        var now = Environment.TickCount64;
+        if (now < _nextAction || RubySeaFerryAirborne || !_condition[ConditionFlag.Mounted]) return;
+        _nextAction = now + 1000;
+        var actions = ActionManager.Instance();
+        if (actions != null) actions->UseAction(ActionType.GeneralAction, 23);
+    }
+
+    public unsafe bool BoardRubySeaFerry()
+    {
+        var context = Context;
+        if (context.Territory != DRScanRules.RubySea || !context.Ready || context.InCombat || context.Dead ||
+            !CanBoardRubySeaFerry || GetRubySeaFerry() is not { IsTargetable: true } ferry ||
+            Vector3.DistanceSquared(context.Position, ferry.Position) >
+                DRScanRules.RubySeaFerryInteractionRange * DRScanRules.RubySeaFerryInteractionRange)
+            return false;
+        var targets = TargetSystem.Instance();
+        if (targets == null) return false;
+        targets->InteractWithObject((FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)ferry.Address);
+        return true;
+    }
+
     public IDalamudTextureWrap? GetPreviewMapImage(uint territory)
     {
         if (Preview?.Territory != territory || !_previewImageNames.TryGetValue(territory, out var mapName)) return null;
@@ -237,7 +288,22 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     private void UpdatePreview()
     {
-        var preview = Session.GetDRPreview(Context);
+        var context = Context;
+        var preview = Session.GetDRPreview(context);
+        if (preview == null && _config.HuntFinderKeepPreviewOpen && context.LoggedIn && context.Ready &&
+            context.World != 0 && NavigationRules.IsFinite(context.Position))
+        {
+            var map = GetMaps(PatrolRouteMode.DRCoverage).FirstOrDefault(r => r.TerritoryId == context.Territory && r.MapId == context.Map);
+            var points = _preview is { State: PatrolState.Stopped } previous && previous.Territory == context.Territory && previous.Map == context.Map
+                ? previous.Points
+                : map?.Points.Select(p => new DRPreviewPoint(p.Position!.Value, false)).ToArray() ?? Array.Empty<DRPreviewPoint>();
+            preview = new DRPatrolPreview
+            {
+                World = context.World, Territory = context.Territory, Map = context.Map, Instance = context.Instance,
+                MapName = map?.Name ?? string.Empty, State = PatrolState.Stopped, Player = context.Position, Points = points,
+                Status = Session.Active ? Session.Message : map == null ? "常驻开启 · 当前地图无 DR 巡点" : "常驻开启 · 等待开始找怪"
+            };
+        }
         if (preview == null) { _preview = null; return; }
         IReadOnlyList<Vector3> path = Array.Empty<Vector3>();
         var pathStatus = string.Empty;
@@ -252,10 +318,12 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
                 path = connected;
             }
         }
+        var mapScale = _hunts.GetMapZoneScale(preview.Territory);
         _preview = preview with
         {
             WorldName = _trains.GetCurrentWorld().WorldName,
-            MapScale = _hunts.GetMapZoneScale(preview.Territory),
+            MapScale = mapScale,
+            SpawnMapCoordinates = preview.SpawnTarget is { } spawn ? MapHelpers.ConvertToMapCoordinate(spawn, mapScale) : null,
             Path = path,
             PathStatus = pathStatus
         };
@@ -263,23 +331,29 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     public void Tick()
     {
-        if (_disposed || Environment.TickCount64 < _nextTick) return;
-        var now = Environment.TickCount64; _nextTick = now + 250;
-        if (_crystalTravel.Busy)
-        {
-            try
-            {
-                var context = Context;
-                _crystalTravel.Tick(context.World, context.LoggedIn && context.Ready, !context.InCombat && !context.Dead, now);
-            }
-            catch (Exception ex)
-            {
-                _crystalTravel.Cancel("跨服传送出现异常，请检查 DR 跨服状态");
-                PluginLog.Warning(ex, "Hunt crystal travel failed");
-            }
-        }
+        if (_disposed) return;
+        var now = Environment.TickCount64;
         try
         {
+            if (now < _nextTick)
+            {
+                if (!_coverageRange.ChangedExternally) Session.AdvanceCoveragePlanning();
+                return;
+            }
+            _nextTick = now + 250;
+            if (_crystalTravel.Busy)
+            {
+                try
+                {
+                    var context = Context;
+                    _crystalTravel.Tick(context.World, context.LoggedIn && context.Ready, !context.InCombat && !context.Dead, now);
+                }
+                catch (Exception ex)
+                {
+                    _crystalTravel.Cancel("跨服传送出现异常，请检查 DR 跨服状态");
+                    PluginLog.Warning(ex, "Hunt crystal travel failed");
+                }
+            }
             if (Session.Active && _coverageRange.Active && (_coverageRange.ChangedExternally || ReadCoverageRange() != 2))
                 Session.Stop("角色与物体显示范围已改变，DR 覆盖扫描已停止");
             if (!Session.Active && _coverageRange.Active) EndCoverage();

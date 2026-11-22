@@ -26,6 +26,7 @@ namespace HuntHelper
         public float HuntFinderTeleportSeconds { get; set; } = 25;
         public bool HuntFinderAdaptiveDetection { get; set; } = true;
         public bool HuntFinderUseRecordedHunts { get; set; } = true;
+        public bool HuntFinderKeepPreviewOpen { get; set; }
 
         #region Main Map Window
 
