@@ -8,9 +8,13 @@ internal static class CompactToolbarChecks
     public static void Run()
     {
         var toolbar = new CompactTrainToolbar();
+        var exportWindow = new TrainExportWindow("A");
         var order = new List<uint>();
         var bounds = new Dictionary<NativeTrainAction, (Vector2 Min, Vector2 Max)>();
         var clicks = new List<NativeTrainAction>();
+        var attempted = new List<TrainExportScope>();
+        var copied = new List<string>();
+        bool clipboardAvailable = false;
         int saves = 0;
 
         void Frame()
@@ -26,8 +30,15 @@ internal static class CompactToolbarChecks
                 return clicked;
             }, out bool reordered);
             if (selected.HasValue) clicks.Add(selected.Value);
+            if (selected == NativeTrainAction.Export) exportWindow.Open();
             if (reordered) saves++;
             ImGui.End();
+            if (exportWindow.IsOpen)
+                exportWindow.Draw("7A", scope =>
+                {
+                    attempted.Add(scope);
+                    return scope == TrainExportScope.Version ? null : scope.ToString();
+                }, code => { copied.Add(code); return clipboardAvailable; });
             ImGui.Render();
         }
 
@@ -73,5 +84,33 @@ internal static class CompactToolbarChecks
         Check(bounds[NativeTrainAction.Recording].Min.Y > bounds[NativeTrainAction.Revive].Min.Y && saves == 1,
             "a recreated toolbar honors the saved order");
         Console.WriteLine("PASS Compact toolbar keeps original button positions, supports cross-row long-press sorting, and never executes a dragged icon");
+
+        Hold(NativeTrainAction.Export); Mouse(false);
+        Check(!exportWindow.IsOpen, "holding the Export icon opened the dialog");
+        var originalWindow = ImGui.GetCurrentContext().NavWindow;
+        Aim(NativeTrainAction.Export); Mouse(true); Mouse(false); Frame(); Frame();
+        Check(exportWindow.IsOpen && attempted.Count == 0, "a normal Export click did not open the separate scope dialog");
+        var window = ImGui.GetCurrentContext().NavWindow;
+        Check(!window.IsNull && !window.Collapsed && window != originalWindow,
+            "Export dialog was not visible and focused above the train window");
+        var style = ImGui.GetStyle();
+        var buttonHeight = ImGui.GetFrameHeight();
+        var first = window.Pos + new Vector2(style.WindowPadding.X + 20, buttonHeight + style.WindowPadding.Y + buttonHeight / 2);
+        var row = new Vector2(0, buttonHeight + style.ItemSpacing.Y);
+        void Click(Vector2 point) { Point(point); Mouse(true); Mouse(false); }
+        Click(first);
+        Check(attempted.SequenceEqual(new[] { TrainExportScope.Version }) && copied.Count == 0, "empty export attempted to replace clipboard contents");
+        Click(first + row);
+        Check(attempted.LastOrDefault() == TrainExportScope.Server && copied.SequenceEqual(new[] { "Server" }),
+            "server export was not produced when the clipboard write failed");
+        Frame();
+        var retryY = window.Pos.Y + window.Size.Y - style.WindowPadding.Y - buttonHeight / 2;
+        clipboardAvailable = true;
+        Click(new Vector2(first.X, retryY));
+        Check(copied.SequenceEqual(new[] { "Server", "Server" }), "retry did not copy the same saved code");
+        Click(first + row * 2);
+        Check(attempted.LastOrDefault() == TrainExportScope.AllServers && copied[^1] == "AllServers",
+            "all-server export selected the wrong scope or did not copy");
+        Console.WriteLine("PASS Compact Export opens a focused dialog, preserves scopes and retries the generated code after clipboard failure");
     }
 }

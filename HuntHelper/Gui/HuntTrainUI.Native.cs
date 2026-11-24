@@ -128,7 +128,7 @@ public partial class HuntTrainUI
                 var code = ""; try { code = ImGui.GetClipboardText(); } catch { }
                 _trainManager.Import(code); _nativePanel = "导入";
                 _nativePopup = $"{GuiResources.HuntTrainGuiText["ImportWindowTitle"]}##popup"; break;
-            case NativeTrainAction.Export: _nativePanel = "导出"; break;
+            case NativeTrainAction.Export: _exportWindow.Open(); break;
             case NativeTrainAction.Backups: _nativePanel = "备份与撤销"; break;
             case NativeTrainAction.Settings:
                 _nativePanel = "设置";
@@ -260,13 +260,6 @@ public partial class HuntTrainUI
         if (ImGui.Begin($"{(_isS ? "S 怪记录" : "狩猎车")} · {_nativePanel}###NativeTrainTools{_rankLabel}", ref open, ImGuiWindowFlags.AlwaysAutoResize))
         {
             if (_nativePopup != null) { ImGui.OpenPopup(_nativePopup); _nativePopup = null; }
-            if (_nativePanel == "导出")
-            {
-                if (ImGui.Button($"当前 {VersionLabel} 标签")) CopyExportCode(ExportImport.Export(VisibleMobs));
-                ImGui.SameLine(); if (ImGui.Button("当前服务器")) CopyExportCode(_trainManager.ExportSelectedTrain());
-                ImGui.SameLine(); if (ImGui.Button("全部服务器")) CopyExportCode(_trainManager.ExportAllTrains(_settings.HuntTrainWorldTabOrder));
-                ImGui.TextUnformatted(_copyText);
-            }
             if (_nativePanel == "备份与撤销") DrawSnapshotSettings();
             if (_nativePanel == "设置") DrawTrainSettings();
             if (_nativePanel == "导入" && ImGui.Button("重新读取剪贴板"))

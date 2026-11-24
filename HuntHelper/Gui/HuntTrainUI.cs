@@ -9,8 +9,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace HuntHelper.Gui;
 
@@ -42,12 +40,10 @@ public partial class HuntTrainUI : IDisposable
 
     private bool _huntTrainWindowVisible = false;
 
-    private string _copyText = GuiResources.HuntTrainGuiText["CopyText"];
+    private readonly TrainExportWindow _exportWindow;
     private string _trainActionMessage = string.Empty;
     private TrainSnapshot? _pendingRestore;
     private bool _openRestore;
-    private Task _copyTextTask = Task.CompletedTask;
-    private int _tooltipChangeTime = 400;
 
     #region user customisable - config
     private Vector2 _huntTrainWindowSize = new Vector2(520, 300);
@@ -92,6 +88,7 @@ public partial class HuntTrainUI : IDisposable
         string rankLabel = "A", Func<string>? relayStatus = null, Action? openOther = null, HuntPointMacroManager? macros = null, Action? openMacros = null)
     {
         _isS = rankLabel == "S"; _rankLabel = rankLabel;
+        _exportWindow = new TrainExportWindow(rankLabel);
         _settings = _isS ? (config.SRankTrain ??= new()) : config;
         _relayStatus = relayStatus; _openOther = openOther; _macros = macros; _openMacros = openMacros;
         _trainManager = trainManager;
@@ -115,8 +112,9 @@ public partial class HuntTrainUI : IDisposable
         var location = _location();
         if (location.Ready) _instances.Observe(location.World, location.Territory, location.Instance);
         if (_showTrainUIDuringIPCImport && _trainManager.ImportFromIPC) { _huntTrainWindowVisible = true; }
-        if (NativePresentation) { DrawNativeDialogs(); return; }
-        DrawHuntTrainWindow();
+        if (NativePresentation) DrawNativeDialogs();
+        else DrawHuntTrainWindow();
+        if (_exportWindow.IsOpen) _exportWindow.Draw(VersionLabel, CreateExportCode, CopyExportCode);
     }
 
     public void Dispose()
@@ -217,10 +215,29 @@ public partial class HuntTrainUI : IDisposable
         _trainActionMessage = string.Empty;
     }
 
-    private void CopyExportCode(string code)
+    private string? CreateExportCode(TrainExportScope scope)
     {
-        ImGui.SetClipboardText(code);
-        ChangeCopyText();
+        var records = scope switch
+        {
+            TrainExportScope.Version => VisibleMobs,
+            TrainExportScope.Server => _mobList,
+            _ => _trainManager.GetAllTrainRecords(_settings.HuntTrainWorldTabOrder),
+        };
+        return records.Count > 0 ? ExportImport.Export(records) : null;
+    }
+
+    private static bool CopyExportCode(string code)
+    {
+        try
+        {
+            ImGui.SetClipboardText(code);
+            return string.Equals(ImGui.GetClipboardText(), code, StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Warning(ex, "Could not copy a hunt train export to the clipboard");
+            return false;
+        }
     }
 
     private void ClampSelection()
@@ -600,19 +617,6 @@ public partial class HuntTrainUI : IDisposable
             if (_trainManager.ActionError != null) ImGui.TextWrapped(_trainManager.ActionError);
         }
         ImGui.EndPopup();
-    }
-
-    //changes tooltip temporarily when clicked. ^^)b
-    private void ChangeCopyText()
-    {
-        if (!_copyTextTask.IsCompleted) return;
-        _copyTextTask = Task.Run(() =>
-        {
-            var temp = _copyText;
-            _copyText = GuiResources.HuntTrainGuiText["CopyTextCopied"];
-            Thread.Sleep(_tooltipChangeTime);
-            _copyText = temp;
-        });
     }
 
     /// <summary>
