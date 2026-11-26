@@ -39,6 +39,28 @@ internal static class Program
         {using var f=new Fixture(); f.MovementAllowed=false; Check(!f.Manager.TryMoveTo(f.Mob)&&f.MoveRequests==0);});
         Run("Flight mode is delegated unchanged",()=>
         {using var f=new Fixture(); f.Flying=true; Check(f.Manager.TryMoveTo(f.Mob)&&f.LastFly);});
+        Run("Hunt row defaults to flight after mounting and to ground on locked maps", () =>
+        {
+            using var flight = new Fixture { FlightUnlocked = true };
+            Check(flight.Manager.TryMoveToHunt(flight.Mob) && flight.Manager.IsMovingTo(flight.Mob));
+            flight.Framework.Tick();
+            Check(flight.MountRequests == 1 && flight.MoveRequests == 0);
+            flight.CanTakeOff = true;
+            flight.Framework.Tick();
+            Check(flight.MoveRequests == 1 && flight.LastFly);
+            using var ground = new Fixture();
+            Check(ground.Manager.TryMoveToHunt(ground.Mob) && ground.MoveRequests == 1 && !ground.LastFly);
+        });
+        Run("Native stop cancels a hunt awaiting its mount without touching unrelated paths", () =>
+        {
+            using var f = new Fixture { FlightUnlocked = true };
+            Check(f.Manager.TryMoveToHunt(f.Mob));
+            f.Framework.Tick();
+            f.Manager.NotifyStopCommand();
+            f.CanTakeOff = true;
+            f.Framework.Tick();
+            Check(f.MountRequests == 1 && f.MoveRequests == 0 && f.StopRequests == 0 && !f.Manager.OwnsMovement);
+        });
         Run("Ground destination snaps to reachable native mesh",()=>
         {using var f=new Fixture(); f.Plugin.At("vnavmesh.Query.Mesh.NearestPointReachable").Function=(Func<Vector3,float,float,Vector3?>)((p,_,_)=>p with{Y=7}); Check(f.Manager.TryMoveTo(f.Mob)&&f.LastDestination.Y==7&&!f.LastFly);});
         Run("Map-only records resolve height before native movement",()=>

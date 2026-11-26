@@ -238,7 +238,7 @@ public partial class HuntTrainUI
             ImGui.SameLine();
             var reason = GetMoveProblem(mob);
             if (DrawCompactAction(rowAction, "移动", buttonSize, reason.Length == 0, reason.Length == 0 ? "使用 vnavmesh 前往该点位" : reason))
-                _navigation.TryMoveTo(mob);
+                _navigation.TryMoveToHunt(mob);
             ImGui.SameLine();
             if (DrawCompactAction(rowAction, "坐标", buttonSize, !mob.Dead, "发送点位预设宏")) _macros?.Send(mob, _rankLabel);
             ImGui.TableSetColumnIndex(actionColumn + 1);

@@ -135,6 +135,9 @@ internal sealed class Fixture : IDisposable
     public bool Running { get; set; }
     public bool MovementAllowed { get; set; } = true;
     public bool Flying { get; set; }
+    public bool FlightUnlocked { get; set; }
+    public bool CanTakeOff { get; set; }
+    public int MountRequests { get; private set; }
     public bool Accept { get; set; } = true;
     public Vector3? Floor { get; set; } = new Vector3(250, 17, 150);
     public int MoveRequests { get; private set; }
@@ -165,7 +168,8 @@ internal sealed class Fixture : IDisposable
             FloorQueries++;
             return Floor;
         });
-        Manager = new NavigationManager(Plugin, Client, PlayerState, Objects, Data, Framework, () => Flying, pendingStopResolver);
+        Manager = new NavigationManager(Plugin, Client, PlayerState, Objects, Data, Framework, () => Flying,
+            pendingStopResolver, () => FlightUnlocked, () => CanTakeOff, () => MountRequests++);
     }
 
     public void NativeStart() { Busy = false; Running = true; }

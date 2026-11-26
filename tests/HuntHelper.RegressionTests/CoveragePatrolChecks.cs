@@ -24,6 +24,7 @@ internal static class CoveragePatrolChecks
         ("DR uses normal crystal travel only after comparing coverage and travel cost", CoverageTeleport),
         ("DR same-map teleport waits for busy and arrival and rejects a changed instance", TeleportGuard),
         ("DR retries native navigation cancellation until HHT stop ends the task", NativeStop),
+        ("DR waits for a busy navigation executor without burning flight retries", BusyExecutor),
         ("DR world map instance death and logout interruptions restore the range lease", ContextGuards),
         ("DR uses existing complete live records without unnecessary travel", CompleteRecords),
         ("DR coverage and species counts reset between queued worlds", MultiWorldIsolation),
@@ -340,6 +341,19 @@ internal static class CoveragePatrolChecks
         Check(session.Active && host.Moves > 1 && session.CompletedPoints == 0 && host.Ends == 0);
         session.Stop(); Check(host.Ends == 1);
     }
+
+    private static void BusyExecutor()
+    {
+        var host = new Host { CoveragePathStartProblem = "导航忙" };
+        var (_, session) = Start(host: host);
+        var now = Until(session, () => session.Message.Contains("导航忙"));
+        for (var i = 1; i <= 10; i++) session.Tick(now + i * 250);
+        Check(session.Active && host.Moves == 0 && host.PathRequests == 0);
+        host.CoveragePathStartProblem = string.Empty;
+        Until(session, () => host.Moves > 0, now + 2750);
+        Check(host.PathRequests == 1);
+        session.Stop();
+    }
     private static void ContextGuards()
     {
         var changes = new Func<PatrolContext, PatrolContext>[]
@@ -499,10 +513,11 @@ internal static class CoveragePatrolChecks
         public bool Navigating { get; set; }
         public bool NavigationInterrupted { get; set; }
         public string NavigationMessage => "测试导航已停止";
+        public string CoveragePathStartProblem { get; set; } = string.Empty;
         public string WorldTravelError => "";
         public bool WorldTravelBusy { get; set; }
         public bool RangeAvailable = true, DestinationAvailable = true, MountReady = true;
-        public int Begins, Ends, Moves, Teleports, Stops, Queries;
+        public int Begins, Ends, Moves, Teleports, Stops, Queries, PathRequests;
         public int FerryApproaches, FerryBoardings, Sweeps, FerryLandings, FerryDismounts;
         public bool SweepAvailable;
         public bool CanBoardRubySeaFerry { get; set; } = true;
@@ -511,7 +526,7 @@ internal static class CoveragePatrolChecks
         public List<uint> Changes = new(), ScannedWorlds = new();
         public Vector3 Target;
         public bool BeginCoveragePath(PatrolRoute route, Vector3 destination)
-        { Target = destination; NavigationInterrupted = false; return true; }
+        { PathRequests++; Target = destination; NavigationInterrupted = false; return true; }
         public List<Vector3>? TakeCoveragePath() => [Target];
         public bool FollowCoveragePath(PatrolRoute route, List<Vector3> path)
         { Moves++; Target = path[^1]; Navigating = true; return true; }

@@ -22,7 +22,8 @@ internal static class DRPathChecks
                 executed = nodes; executionFly = flying; f.Running = true; });
             promise.SetResult(path); var result = f.Manager.TakeCoveragePath();
             Check(result!.SequenceEqual(path) && !ReferenceEquals(result, path));
-            f.Manager.Stop(); Check(f.Manager.FollowCoveragePath(f.Mob, result!));
+            f.Manager.Stop();
+            Check(f.StopRequests == 0 && f.Manager.FollowCoveragePath(f.Mob, result!));
             Check(f.Plugin.At("vnavmesh.Path.SetTolerance").Calls == 1 && f.Plugin.At("vnavmesh.Path.MoveTo").Calls == 1 && f.MoveRequests == 0);
             Check(tolerance == 2 && executionFly && executed!.SequenceEqual(path) && !ReferenceEquals(executed, result));
         });
@@ -31,7 +32,7 @@ internal static class DRPathChecks
             f.Plugin.At("vnavmesh.Nav.PathfindCancelable").Function =
                 (Func<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>>)((_, _, _, cancellation) => { token = cancellation; return promise.Task; });
             Check(f.Manager.BeginCoveragePath(f.Mob)); f.Manager.Stop();
-            Check(token.IsCancellationRequested && !f.Manager.OwnsMovement);
+            Check(token.IsCancellationRequested && !f.Manager.OwnsMovement && f.StopRequests == 0);
             promise.SetResult([new(30, 4, 5)]); f.Framework.Tick();
             Check(f.Manager.TakeCoveragePath() == null && f.Plugin.At("vnavmesh.Path.MoveTo").Calls == 0 && f.MoveRequests == 0);
         });

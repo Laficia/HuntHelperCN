@@ -5,6 +5,9 @@ using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Control;
+using GamePlayerState = FFXIVClientStructs.FFXIV.Client.Game.UI.PlayerState;
 using HuntHelper.Gui;
 using HuntHelper.Gui.Native;
 using HuntHelper.Gui.Resource;
@@ -145,7 +148,9 @@ namespace HuntHelper
             MapUi = new MapUI(this.Configuration, clientState, playerState, objectTable, HuntManager, MapDataManager, gameGui);
             var stopCompatibility = new VnavmeshStopCompatibility(commandManager);
             NavigationManager = new NavigationManager(pluginInterface, clientState, playerState, objectTable, dataManager, framework,
-                () => condition[ConditionFlag.InFlight], stopCompatibility.Resolve);
+                () => condition[ConditionFlag.InFlight], stopCompatibility.Resolve, IsFlightUnlocked,
+                () => condition[ConditionFlag.Mounted] && Control.GetFlightAllowedStatus() == Control.FlightAllowedStatus.CanFly,
+                () => RequestHuntMount(condition));
             StopCommandObserver = new NavigationStopCommandObserver(gameInterop, NavigationManager);
             Automation = new HuntAutomationManager(clientState, playerState, objectTable, condition, aeth, dataManager,
                 TrainManager, HuntManager, NavigationManager, MapDataManager, Configuration, pluginInterface, gameConfig, framework, commandManager, SRankManager);
@@ -206,6 +211,20 @@ namespace HuntHelper
             pluginInterface.UiBuilder.Draw += DrawUI;
             pluginInterface.UiBuilder.OpenConfigUi += OpenMapUI;
             pluginInterface.UiBuilder.OpenMainUi += OpenHuntTrainUI;
+        }
+
+        private static unsafe bool IsFlightUnlocked()
+        {
+            var player = GamePlayerState.Instance();
+            return player != null && player->CanFly;
+        }
+
+        private static unsafe void RequestHuntMount(ICondition conditions)
+        {
+            if (conditions[ConditionFlag.Casting] || conditions[ConditionFlag.InCombat] ||
+                conditions[ConditionFlag.Mounted] || conditions[ConditionFlag.BetweenAreas] || conditions[ConditionFlag.BetweenAreas51]) return;
+            var actions = ActionManager.Instance();
+            if (actions != null) actions->UseAction(ActionType.GeneralAction, 9);
         }
 
         public void Dispose()

@@ -118,7 +118,7 @@ public sealed class DRCoveragePatrol
     public void Tick(PatrolContext context, long now)
     {
         if (Finished || Failed) return;
-        if (now - _started > 180000) { Fail("DR 覆盖扫描步骤超时"); return; }
+        if (now - _started > 180000) { Fail($"{_route.Name}：{Message}，等待超时"); return; }
         if (_ferry != FerryStage.None) { TickFerry(context, now); return; }
         if (State == PatrolState.Teleporting)
         {
@@ -133,7 +133,11 @@ public sealed class DRCoveragePatrol
             return;
         }
         if (!context.Ready) return;
-        if (!_host.CoverageNavigationReady) return;
+        if (!_host.CoverageNavigationReady)
+        {
+            Message = "DR 覆盖扫描：等待 vnavmesh 飞行网格就绪";
+            return;
+        }
         if (CanPreview(context)) MarkPassed(context.Position, context.Position);
 
         switch (State)
@@ -369,6 +373,13 @@ public sealed class DRCoveragePatrol
                 Message = prepare; return;
             }
             _mountPrepared = true;
+        }
+        // A busy or paused executor is temporary. Do not dequeue and mark every
+        // geometric candidate unreachable while another navigation request owns it.
+        if (_host.CoveragePathStartProblem is { Length: > 0 } problem)
+        {
+            Message = $"DR 覆盖扫描：{problem}";
+            return;
         }
         if (_retries == null)
         {

@@ -39,6 +39,11 @@ public sealed class NavigationManager : IDisposable
     private CancellationTokenSource? _drCancellation;
     private readonly Func<bool> _isFlying;
     private readonly Func<Action?>? _pendingStopResolver;
+    private readonly Func<bool> _flightUnlocked;
+    private readonly Func<bool> _canTakeOff;
+    private readonly Action? _requestMount;
+    private HuntTrainMob? _mountTarget;
+    private long _mountDeadline, _nextMountRequest;
     private Action? _pendingStop;
     private bool _requestFly;
     private Vector3 _destination;
@@ -50,14 +55,16 @@ public sealed class NavigationManager : IDisposable
     private bool _disposed;
 
     public string LastMessage { get; private set; } = string.Empty;
-    public bool OwnsMovement => _movingTo != null;
+    public bool OwnsMovement => _movingTo != null || _mountTarget != null;
     public bool IsMovingTo(HuntTrainMob mob)
     {
-        lock (_requestLock) return ReferenceEquals(_movingTo, mob);
+        lock (_requestLock) return ReferenceEquals(_movingTo, mob) || ReferenceEquals(_mountTarget, mob);
     }
 
     public NavigationManager(IDalamudPluginInterface pluginInterface, IClientState clientState,
-        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework, Func<bool>? isFlying = null, Func<Action?>? pendingStopResolver = null)
+        IPlayerState playerState, IObjectTable objectTable, IDataManager dataManager, IFramework framework,
+        Func<bool>? isFlying = null, Func<Action?>? pendingStopResolver = null, Func<bool>? flightUnlocked = null,
+        Func<bool>? canTakeOff = null, Action? requestMount = null)
     {
         _clientState = clientState;
         _playerState = playerState;
@@ -66,6 +73,9 @@ public sealed class NavigationManager : IDisposable
         _framework = framework;
         _isFlying = isFlying ?? (() => false);
         _pendingStopResolver = pendingStopResolver;
+        _flightUnlocked = flightUnlocked ?? (() => false);
+        _canTakeOff = canTakeOff ?? (() => false);
+        _requestMount = requestMount;
         _nearestReachable = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPointReachable");
         _nearestFlightPoint = pluginInterface.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Voxel.NearestPoint");
         _drFind = pluginInterface.GetIpcSubscriber<Vector3, Vector3, bool, CancellationToken, Task<List<Vector3>>>("vnavmesh.Nav.PathfindCancelable");
@@ -163,7 +173,7 @@ public sealed class NavigationManager : IDisposable
             if (!_ready.HasFunction || !_move.HasFunction || !_stop.HasAction ||
                 !_running.HasFunction || !_pathfinding.HasFunction)
                 _availability = "请先安装并启用支持导航接口的 vnavmesh";
-            else if (_movingTo != null) _availability = "本插件正在寻路或移动，请先停止当前路线";
+            else if (OwnsMovement) _availability = "本插件正在准备坐骑、寻路或移动，请先停止当前路线";
             else if (!_ready.InvokeFunc()) _availability = "vnavmesh 地图网格尚未就绪";
             else if (_running.InvokeFunc() || _pathfinding.InvokeFunc()) _availability = "vnavmesh 正在寻路或移动，请先停止当前路线";
             else if (_movementAllowed.HasFunction && !_movementAllowed.InvokeFunc()) _availability = "vnavmesh 移动已暂停，请先在其设置中恢复";
@@ -172,6 +182,30 @@ public sealed class NavigationManager : IDisposable
         catch (Exception)
         {
             _availability = "vnavmesh 当前不可用，请确认插件已启用";
+        }
+    }
+
+    public bool TryMoveToHunt(HuntTrainMob mob)
+    {
+        lock (_requestLock)
+        {
+            RefreshAvailability(true);
+            var reason = GetDisabledReason(mob);
+            if (reason.Length != 0)
+            {
+                LastMessage = reason;
+                return false;
+            }
+            if (_isFlying() || _canTakeOff()) return TryMoveTo(mob, fly: true);
+            if (!_flightUnlocked() || _requestMount == null) return TryMoveTo(mob, fly: false);
+
+            _mountTarget = mob;
+            _mountDeadline = Environment.TickCount64 + 20000;
+            _nextMountRequest = 0;
+            _lastStatusCheck = 0;
+            Interrupted = false;
+            LastMessage = "正在准备坐骑，骑乘后开始飞行";
+            return true;
         }
     }
 
@@ -295,10 +329,19 @@ public sealed class NavigationManager : IDisposable
 
     public void NotifyStopCommand()
     {
-        lock (_requestLock) { if (_movingTo == null) return; Interrupted = true; StopCurrentRequest(); }
+        lock (_requestLock) { if (!OwnsMovement) return; Interrupted = true; StopCurrentRequest(); }
     }
 
     public bool CoveragePathPending => _drTask is { IsCompleted: false };
+    public string GetIdleProblem()
+    {
+        lock (_requestLock)
+        {
+            RefreshAvailability(true);
+            return _availability;
+        }
+    }
+
     public bool CoverageNavigationReady
     {
         get
@@ -341,7 +384,8 @@ public sealed class NavigationManager : IDisposable
             if (_drTask is not { IsCompleted: true } task) return null;
             var result = task.IsCompletedSuccessfully ? task.Result?.ToList() : null;
             if (task.IsFaulted) _ = task.Exception;
-            _drTask = null; _drCancellation?.Dispose(); _drCancellation = null; _pendingStop = null;
+            _drCancellation?.Dispose();
+            ClearCurrentRequest();
             return result;
         }
     }
@@ -369,14 +413,18 @@ public sealed class NavigationManager : IDisposable
 
     private void StopCurrentRequest()
     {
-        if (_movingTo == null) return;
+        if (!OwnsMovement) return;
+        var stopExecutor = _movingTo != null && _drTask == null;
         var cancelPending = _pendingStop;
         ClearCurrentRequest();
         try
         {
             cancelPending?.Invoke();
-            if (!_stop.HasAction) throw new InvalidOperationException("vnavmesh 停止接口不可用");
-            _stop.InvokeAction(); // Also stop the executor; older CN builds only do this part.
+            if (stopExecutor)
+            {
+                if (!_stop.HasAction) throw new InvalidOperationException("vnavmesh 停止接口不可用");
+                _stop.InvokeAction();
+            }
             LastMessage = "已停止本插件发起的寻路和移动";
         }
         catch (Exception ex)
@@ -393,15 +441,54 @@ public sealed class NavigationManager : IDisposable
                 TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         _drTask = null; _drCancellation = null;
         _movingTo = null;
+        _mountTarget = null;
         _pendingStop = null;
         _lastStatusCheck = 0;
+    }
+
+    private void UpdateMount(HuntTrainMob mob)
+    {
+        var reason = GetContextReason(mob);
+        if (reason.Length != 0 || Environment.TickCount64 >= _mountDeadline)
+        {
+            Interrupted = true;
+            ClearCurrentRequest();
+            LastMessage = reason.Length != 0 ? reason : "等待坐骑超时，请确认角色可以骑乘";
+            return;
+        }
+
+        if (_isFlying() || _canTakeOff())
+        {
+            ClearCurrentRequest();
+            Interrupted = !TryMoveTo(mob, fly: true);
+            return;
+        }
+
+        if (Environment.TickCount64 < _nextMountRequest) return;
+        if (_pathfinding.InvokeFunc() || _running.InvokeFunc() ||
+            _movementAllowed.HasFunction && !_movementAllowed.InvokeFunc()) return;
+        _nextMountRequest = Environment.TickCount64 + 1000;
+        _requestMount?.Invoke();
     }
 
     private void OnFrameworkUpdate(IFramework framework)
     {
         lock (_requestLock)
         {
-            if (_disposed || _movingTo == null) return;
+            if (_disposed) return;
+            if (_mountTarget is { } mountTarget)
+            {
+                try { UpdateMount(mountTarget); }
+                catch (Exception ex)
+                {
+                    Interrupted = true;
+                    ClearCurrentRequest();
+                    LastMessage = $"坐骑准备失败：{ex.Message}";
+                    PluginLog.Warning(ex, "Could not prepare mount for hunt movement");
+                }
+                return;
+            }
+            if (_movingTo == null) return;
             if (GetContextReason(_movingTo).Length != 0)
             {
                 Interrupted = true;

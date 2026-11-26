@@ -14,6 +14,7 @@ internal static class SmartPatrolChecks
         ("preset rank filtering preserves only selected A or B point order", PresetRanks),
         ("invalid presets are rejected without moving or changing worlds", InvalidPreset),
         ("travel planner picks the closest unlocked candidate rather than the first crystal", CrystalChoice),
+        ("Dawntrail hunt teleport uses height when recorded and map coordinates for imports", HuntCrystalChoice),
         ("same-map shortcuts account for teleport overhead savings threshold and disabled preference", TravelCost),
         ("cross-map travel still chooses a target-adjacent crystal with shortcuts disabled", CrossMap),
         ("unknown crystal geometry is only a cross-map fallback", MissingGeometry),
@@ -44,6 +45,18 @@ internal static class SmartPatrolChecks
     {
         var p=PatrolTravelPlanner.Select(Context,Route(),Route().Points[0],Options(),new[]{Crystal(1,-500),Crystal(2,590)},100,6);
         Check(p?.Crystal.Id==2 && p.DirectSeconds-p.ViaSeconds>=10);
+    }
+    private static void HuntCrystalChoice()
+    {
+        var mob = Mob(territory: 1188, map: 858);
+        mob.Position = new(34.68f, 21.02f);
+        mob.WorldPosition = new(660, 116, -23);
+        var manyFires = new PatrolCrystal(203, "朋友的灯火", new(32.18f, 25.41f)) { WorldPosition = new(535.02f, 116.60f, 196.34f) };
+        var dock = new PatrolCrystal(238, "水果码头", new(37.09f, 16.84f)) { WorldPosition = new(780.25f, 13.71f, -232.22f) };
+        Check(PatrolTravelPlanner.NearestHuntCrystal(mob, [dock, manyFires]) == 203);
+        mob.WorldPosition = null;
+        Check(PatrolTravelPlanner.NearestHuntCrystal(mob, [dock, manyFires]) == 238);
+        Check(PatrolTravelPlanner.NearestHuntCrystal(mob, [manyFires]) == 203);
     }
     private static void AdjacentSpawn()
     {

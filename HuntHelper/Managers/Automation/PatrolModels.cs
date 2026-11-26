@@ -46,7 +46,10 @@ public static class PatrolRouteRules
 public readonly record struct PatrolContext(uint World, uint Territory, uint Map, uint Instance,
     Vector3 Position, bool LoggedIn, bool Ready, bool InCombat, bool Dead);
 public readonly record struct PatrolDetection(uint Id, bool IsA, Vector3? Position = null);
-public sealed record PatrolCrystal(uint Id, string Name, Vector2? Position);
+public sealed record PatrolCrystal(uint Id, string Name, Vector2? Position)
+{
+    public Vector3? WorldPosition { get; init; }
+}
 public sealed record PatrolTeleport(PatrolCrystal Crystal, Vector2? WorldPosition, float DirectSeconds, float ViaSeconds);
 public sealed record PatrolCoverageCrystal(PatrolCrystal Crystal, Vector2 Position);
 
@@ -55,6 +58,7 @@ public interface IPatrolHost
     bool BeginCoverage(out string error) { error = string.Empty; return true; }
     bool CoveragePathPending => false;
     bool CoverageNavigationReady => true;
+    string CoveragePathStartProblem => string.Empty;
     string CoverageMountError => string.Empty;
     bool BeginCoveragePath(PatrolRoute route, Vector3 destination) => false;
     List<Vector3>? TakeCoveragePath() => null;

@@ -2,7 +2,7 @@
   "Author": "img02 / Laficia",
   "Name": "狩猎助手Hunt Helper",
   "Punchline": "独立 A/S 怪记录、Sonar 联动、区服版本分类与巡点",
-  "Changelog": "1.0.0.34 修复原版狩猎车导出。独立窗口支持选择范围、校验剪贴板写入，以及重试或手动复制。",
+  "Changelog": "1.0.0.40 更新 7A 水晶坐标与编号，按实际距离选水晶。DR 巡航等待 vnavmesh 就绪并保留重试点。已解锁飞行时，「移动」默认上坐骑并飞行。",
   "Description": "基于 img02/HuntHelper 的国服定制版。/hht 为 A 怪狩猎车，/hhs 为独立 S 怪记录，按区服、版本和分线隔离；支持录制 Sonar 定位聊天、自动地图底图、同区服同地图同分线 vnavmesh 移动和正常水晶传送。首次使用请禁用原版，避免命令冲突。保留原 MIT 许可。",
   "Tags": [
     "hunt",

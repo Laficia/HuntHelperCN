@@ -214,7 +214,8 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         var scale = MapScale(route);
         if (scale <= 0) return Array.Empty<PatrolCoverageCrystal>();
         return AvailableCrystals(route.TerritoryId).Where(c => c.Position.HasValue && DRScanRules.CrystalAllowed(c.Id))
-            .Select(c => new PatrolCoverageCrystal(c, PatrolTravelPlanner.Horizontal(NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
+            .Select(c => new PatrolCoverageCrystal(c, PatrolTravelPlanner.Horizontal(c.WorldPosition ??
+                NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
             .Where(c => float.IsFinite(c.Position.X) && float.IsFinite(c.Position.Y)).ToList();
     }
 
@@ -224,6 +225,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         ? "DR 巡航需要当前地图已解锁飞行" : string.Empty;
     public bool CoveragePathPending => _navigation.CoveragePathPending;
     public bool CoverageNavigationReady => _navigation.CoverageNavigationReady;
+    public string CoveragePathStartProblem => _navigation.GetIdleProblem();
     private HuntTrainMob CoverageTarget(PatrolRoute route, Vector3 destination)
     {
         var world = _trains.GetCurrentWorld();
@@ -380,13 +382,20 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
         }
     }
 
-    private IReadOnlyList<PatrolCrystal> AvailableCrystals(uint territory)
+    private IReadOnlyList<PatrolCrystal> AvailableCrystals(uint territory, HashSet<uint>? unlocked = null)
     {
-        var unlocked = _aetherytes.Select(a => a.AetheryteId).ToHashSet();
-        var positions = TeleportManager.GetPatrolCrystals(territory).ToDictionary(a => a.AetheryteID, a => a.Position);
-        return _data.GetExcelSheet<Aetheryte>().Where(a => a.Territory.RowId == territory && a.IsAetheryte && unlocked.Contains(a.RowId))
-            .Select(a => new PatrolCrystal(a.RowId, a.PlaceName.ValueNullable?.Name.ToString() ?? $"水晶 {a.RowId}",
-                positions.TryGetValue(a.RowId, out var position) && position.X > 1 && position.Y > 1 ? position : null)).ToList();
+        unlocked ??= ReadUnlockedCrystals();
+        var sheet = _data.GetExcelSheet<Aetheryte>();
+        var positions = TeleportManager.GetPatrolCrystals(territory).ToDictionary(a => a.AetheryteID);
+        var crystals = new List<PatrolCrystal>();
+        foreach (var id in unlocked.Order())
+        {
+            if (sheet.GetRowOrDefault(id) is not { } row || !row.IsAetheryte || row.Territory.RowId != territory) continue;
+            var data = positions.GetValueOrDefault(id);
+            crystals.Add(new(id, row.PlaceName.ValueNullable?.Name.ToString() ?? $"水晶 {id}",
+                data.Position.X > 1 && data.Position.Y > 1 ? data.Position : null) { WorldPosition = data.WorldPosition });
+        }
+        return crystals;
     }
 
     public string GetHuntTeleportProblem(HuntTrainMob mob)
@@ -408,8 +417,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
         if (!_huntCrystalAvailability.TryGetValue(mob.TerritoryID, out var hasCrystal))
         {
-            hasCrystal = TeleportManager.GetPatrolCrystals(mob.TerritoryID).Any(a => _huntUnlockedCrystals.Contains(a.AetheryteID)) ||
-                         FindFallbackHuntCrystal(mob.TerritoryID, _huntUnlockedCrystals) != 0;
+            hasCrystal = AvailableCrystals(mob.TerritoryID, _huntUnlockedCrystals).Count > 0;
             _huntCrystalAvailability[mob.TerritoryID] = hasCrystal;
         }
         if (!hasCrystal) return "该地图没有已解锁的可用水晶";
@@ -438,18 +446,6 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
 
     private HashSet<uint> ReadUnlockedCrystals() => _aetherytes.Select(a => a.AetheryteId).ToHashSet();
 
-    private uint FindFallbackHuntCrystal(uint territory, HashSet<uint> unlocked)
-    {
-        var sheet = _data.GetExcelSheet<Aetheryte>();
-        uint crystal = 0;
-        foreach (uint id in unlocked)
-        {
-            if ((crystal == 0 || id < crystal) && sheet.GetRowOrDefault(id) is { } row && row.IsAetheryte && row.Territory.RowId == territory)
-                crystal = id;
-        }
-        return crystal;
-    }
-
     private string GetHuntWorldProblem(uint currentWorld, uint targetWorld, out HuntTrainWorld? destinationWorld)
     {
         destinationWorld = null;
@@ -468,11 +464,7 @@ public sealed class HuntAutomationManager : IPatrolHost, IDisposable
     {
         error = GetHuntTravelContextProblem(mob, out var currentWorld);
         if (error.Length != 0) return false;
-        var unlocked = ReadUnlockedCrystals();
-        var crystal = TeleportManager.GetPatrolCrystals(mob.TerritoryID)
-            .Where(a => unlocked.Contains(a.AetheryteID))
-            .OrderBy(a => Vector2.DistanceSquared(a.Position, mob.Position)).FirstOrDefault().AetheryteID;
-        if (crystal == 0) crystal = FindFallbackHuntCrystal(mob.TerritoryID, unlocked);
+        var crystal = PatrolTravelPlanner.NearestHuntCrystal(mob, AvailableCrystals(mob.TerritoryID));
         if (crystal == 0) { error = "该地图没有已解锁的可用水晶"; return false; }
         error = GetHuntWorldProblem(currentWorld, mob.WorldID, out var destinationWorld);
         if (error.Length != 0) return false;

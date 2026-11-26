@@ -13,6 +13,18 @@ public static class PatrolTravelPlanner
     public static Vector2 Horizontal(Vector3 p) => new(p.X, p.Z);
     public static Vector3 FlightTarget(uint territory, Vector3 ground, bool flying) =>
         territory == 1190 && flying ? ground + new Vector3(0, 20, 0) : ground;
+
+    internal static uint NearestHuntCrystal(HuntTrainMob mob, IReadOnlyList<PatrolCrystal> crystals) =>
+        crystals.OrderBy(c => c.Id).MinBy(crystal =>
+        {
+            if (crystal.WorldPosition is { } position && mob.WorldPosition is { } target && NavigationRules.IsFinite(target))
+                return Vector3.DistanceSquared(position, target);
+            // Legacy records can contain only map XY. One HHT map unit is 50 world units.
+            return crystal.Position is { } mapPosition
+                ? Vector2.DistanceSquared(mapPosition, mob.Position) * 2500f
+                : float.PositiveInfinity;
+        })?.Id ?? 0;
+
     public static Vector2? Point(PatrolPoint point, float scale)
     {
         if (point.Position is { } p && NavigationRules.IsFinite(p)) return Horizontal(p);
@@ -37,7 +49,8 @@ public static class PatrolTravelPlanner
             if (spawns.Length == 0 && target.HasValue) spawns = [target.Value];
             if (spawns.Length == 0) return null;
             var entry = candidates.Where(c => c.Position.HasValue && scale > 0)
-                .Select(c => new PatrolCoverageCrystal(c, Horizontal(NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
+                .Select(c => new PatrolCoverageCrystal(c, Horizontal(c.WorldPosition ??
+                    NavigationRules.FromHuntMapCoordinates(c.Position!.Value, scale))))
                 .Where(c => float.IsFinite(c.Position.X) && float.IsFinite(c.Position.Y))
                 .MinBy(c => spawns.Min(p => Vector2.DistanceSquared(p, c.Position)));
             return entry != null
@@ -53,7 +66,7 @@ public static class PatrolTravelPlanner
         {
             Vector2? position = crystal.Position is { } map && scale > 0 && float.IsFinite(scale) &&
                 float.IsFinite(map.X) && float.IsFinite(map.Y) && map.X > 1 && map.Y > 1
-                ? Horizontal(NavigationRules.FromHuntMapCoordinates(map, scale)) : null;
+                ? Horizontal(crystal.WorldPosition ?? NavigationRules.FromHuntMapCoordinates(map, scale)) : null;
             if (!target.HasValue || !position.HasValue) continue;
             var via = overhead + Math.Max(0, Vector2.Distance(position.Value, target.Value) - radius) / speed;
             if (best == null || via < best.ViaSeconds) best = new(crystal, position, direct, via);

@@ -120,7 +120,7 @@ public partial class HuntTrainUI
             case NativeTrainAction.Map when mob != null: _trainManager.OpenMap(mob, true); break;
             case NativeTrainAction.Teleport when mob != null: TeleportRecord(mob, _openMap); break;
             case NativeTrainAction.Move when mob != null && GetMoveProblem(mob).Length == 0:
-                _navigation.TryMoveTo(mob); break;
+                _navigation.TryMoveToHunt(mob); break;
             case NativeTrainAction.Coordinates when mob != null: _selectedIndex = index; _macros?.Send(mob, _rankLabel); break;
             case NativeTrainAction.Dead when mob != null:
                 _trainManager.SetDead(index, request.Value); if (mob.Dead && index == _selectedIndex) SelectNext(); break;

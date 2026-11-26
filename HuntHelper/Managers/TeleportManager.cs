@@ -1,5 +1,6 @@
 ﻿using Dalamud.Plugin.Ipc.Exceptions;
 using HuntHelper.Managers.Hunts.Models;
+using HuntHelper.Utilities;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -13,6 +14,7 @@ public struct AetheryteData
     internal uint TerritoryID;
     //in-game coords
     internal Vector2 Position;
+    internal Vector3? WorldPosition;
 }
 
 public unsafe class TeleportManager
@@ -198,39 +200,39 @@ public unsafe class TeleportManager
         #endregion
 
          #region Dawntrail aetherytes
-        //Dawntrail
-        //Urqopacha
-        new AetheryteData() { AetheryteID = 200, SubIndex = 0, TerritoryID = 1187, Position = new Vector2(28.1f, 13.1f)}, //Wachunpelo
-        new AetheryteData() { AetheryteID = 201, SubIndex = 0, TerritoryID = 1187, Position = new Vector2(30.8f, 34.2f)}, //Worlar's Echo
+        // World coordinates from OmenTools AetheryteRecords.Positions; these maps use size factor 100.
+        DawntrailCrystal(200, 1187, new(338.7f, -159.29f, -424.42f)),
+        DawntrailCrystal(201, 1187, new(464.81f, 115.78f, 625.07f)),
 
-        //Kozama'uka
-        new AetheryteData() { AetheryteID = 202, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(18.0f, 11.9f)}, //Ok'hanu
-        new AetheryteData() { AetheryteID = 203, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(32.2f, 25.6f)}, //Many Fires
-        new AetheryteData() { AetheryteID = 204, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(11.9f, 27.7f)}, //Earthenshire
-        new AetheryteData() { AetheryteID = 237, SubIndex = 0, TerritoryID = 1188, Position = new Vector2(36.5f, 17.2f)}, //Dock Poga
+        DawntrailCrystal(202, 1188, new(-164.62f, 6.43f, -468.4f)),
+        DawntrailCrystal(203, 1188, new(535.02f, 116.6f, 196.34f)),
+        DawntrailCrystal(204, 1188, new(-468.06f, 122.74f, 309.88f)),
+        DawntrailCrystal(238, 1188, new(780.25f, 13.71f, -232.22f)),
 
-        //Yak'tel
-        new AetheryteData() { AetheryteID = 205, SubIndex = 0, TerritoryID = 1189, Position = new Vector2(13.5f, 12.8f)}, //Iq Br'aax
-        new AetheryteData() { AetheryteID = 206, SubIndex = 0, TerritoryID = 1189, Position = new Vector2(35.8f, 32.0f)}, //Mamook
+        DawntrailCrystal(205, 1189, new(-388.14f, 24.19f, -430.33f)),
+        DawntrailCrystal(206, 1189, new(713.43f, -132.64f, 519.47f)),
 
-        //Shaaloani
-        new AetheryteData() { AetheryteID = 207, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(29.0f, 30.8f)}, //Hhusatahwi        
-        new AetheryteData() { AetheryteID = 208, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(15.6f, 19.2f)}, //Sheshenewezi Springs
-        new AetheryteData() { AetheryteID = 209, SubIndex = 0, TerritoryID = 1190, Position = new Vector2(27.6f, 10.1f)}, //Mehwahhetsoan
-        
-        //Heritage Found
-        new AetheryteData() { AetheryteID = 210, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(31.7f, 25.6f)}, //Yyasulani Station
-        new AetheryteData() { AetheryteID = 211, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(17.0f, 9.8f)}, //The Outskirts
-        new AetheryteData() { AetheryteID = 212, SubIndex = 0, TerritoryID = 1191, Position = new Vector2(17.1f, 23.9f)}, //Electrope Strike
+        DawntrailCrystal(207, 1190, new(387.98f, 0.06f, 460.88f)),
+        DawntrailCrystal(208, 1190, new(-284.37f, 19.74f, -108.54f)),
+        DawntrailCrystal(209, 1190, new(303.08f, -13.69f, -561.89f)),
 
-        //Living Memory
-        new AetheryteData() { AetheryteID = 213, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(21.4f, 37.4f)}, //Leynode Mnemo
-        new AetheryteData() { AetheryteID = 214, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(34.6f, 15.8f)}, //Leynode Pyro
-        new AetheryteData() { AetheryteID = 215, SubIndex = 0, TerritoryID = 1192, Position = new Vector2(16.3f, 13.5f)}, //Leynode Aero
+        DawntrailCrystal(210, 1191, new(512.34f, 146.3f, 197.36f)),
+        DawntrailCrystal(211, 1191, new(-215.15f, 30.3f, -575.72f)),
+        DawntrailCrystal(212, 1191, new(-218.94f, 31.1f, 111f)),
+
+        DawntrailCrystal(213, 1192, new(-1.89f, 53.86f, 785.46f)),
+        DawntrailCrystal(214, 1192, new(651.75f, 25.27f, -274.49f)),
+        DawntrailCrystal(215, 1192, new(-244.59f, 54.46f, -399.3f)),
         #endregion
     };
 
     public bool TeleportPluginNotFound = false;
+
+    private static AetheryteData DawntrailCrystal(uint id, uint territory, Vector3 position) => new()
+    {
+        AetheryteID = id, TerritoryID = territory, WorldPosition = position,
+        Position = MapHelpers.ConvertToMapCoordinate(position, 100),
+    };
 
     internal static IReadOnlyList<AetheryteData> GetPatrolCrystals(uint territory) =>
         Aetherytes.Where(a => a.TerritoryID == territory).ToList();
